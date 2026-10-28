@@ -114,8 +114,9 @@ def run_analysis_job(
     if started is None:
         return
 
-    read_conn = connect(db_path)
+    read_conn = None
     try:
+        read_conn = connect(db_path)
         now = datetime.now(UTC)
         scope = AnalysisScope(project_id=req.project_id, session_id=req.session_id)
         # rule_ids is already validated as RuleId literals on the request thread.
@@ -136,4 +137,5 @@ def run_analysis_job(
         with db.write() as conn:
             JobRepository(conn).fail(job_id, f"{type(exc).__name__}: {exc}")
     finally:
-        read_conn.close()
+        if read_conn is not None:
+            read_conn.close()

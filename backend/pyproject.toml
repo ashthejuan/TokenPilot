@@ -18,6 +18,7 @@ dev = [
     "pytest-asyncio>=1.4.1",
     "respx>=0.23.1",
     "ruff>=0.17.3",
+    "types-pyyaml>=6.0.12.20260906",
 ]
 
 [tool.pytest.ini_options]
@@ -33,6 +34,9 @@ target-version = "py312"
 
 [tool.ruff.lint]
 select = ["E", "F", "I", "UP", "B", "SIM", "RUF"]
+
+[tool.setuptools.package-data]
+tokenpilot = ["pricing/catalog.yaml"]
 
 [tool.mypy]
 python_version = "3.12"

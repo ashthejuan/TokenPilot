@@ -22,3 +22,21 @@ def test_every_api_v1_route_requires_token(app: FastAPI) -> None:
             for method in operations:
                 response = client.request(method.upper(), concrete)
                 assert response.status_code == 401, f"{method.upper()} {path} was not guarded"
+
+
+def test_gateway_routes_require_token(app: FastAPI) -> None:
+    """Every `/gateway` path answers 401 without the local token."""
+    documented_paths = app.openapi()["paths"]
+    gateway_paths = {
+        path: operations
+        for path, operations in documented_paths.items()
+        if path.startswith("/gateway")
+    }
+    assert gateway_paths
+
+    with TestClient(app) as client:
+        for path, operations in gateway_paths.items():
+            concrete = _PATH_PARAM.sub("x", path)
+            for method in operations:
+                response = client.request(method.upper(), concrete)
+                assert response.status_code == 401, f"{method.upper()} {path} was not guarded"

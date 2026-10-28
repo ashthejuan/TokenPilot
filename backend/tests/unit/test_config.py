@@ -1,8 +1,9 @@
 from pathlib import Path
 
 import pytest
-from pydantic import ValidationError
+from pydantic import SecretStr, ValidationError
 
+import tokenpilot.config as config_module
 from tokenpilot.config import DEFAULT_DATA_DIR, Settings
 
 
@@ -26,3 +27,26 @@ def test_blank_env_file_token_still_fails_loudly(tmp_path: Path) -> None:
 
     with pytest.raises(ValidationError):
         Settings(_env_file=env_file)
+
+
+def test_pricing_catalog_default_is_package_file() -> None:
+    settings = Settings(_env_file=None, local_token=SecretStr("t"))
+
+    expected = Path(config_module.__file__).parent / "pricing" / "catalog.yaml"
+
+    assert settings.pricing_catalog_path == expected
+    assert expected.is_file()
+
+
+def test_pricing_catalog_env_override(
+    tmp_path: Path, monkeypatch: pytest.MonkeyPatch
+) -> None:
+    custom = tmp_path / "custom.yaml"
+    custom.write_text("[]\n", encoding="utf-8")
+    monkeypatch.setenv("TOKENPILOT_PRICING_CATALOG", str(custom))
+
+    assert Settings(_env_file=None, local_token=SecretStr("t")).pricing_catalog_path == custom
+
+    monkeypatch.setenv("TOKENPILOT_PRICING_CATALOG", "")
+    default = Settings(_env_file=None, local_token=SecretStr("t")).pricing_catalog_path
+    assert default == Path(config_module.__file__).parent / "pricing" / "catalog.yaml"

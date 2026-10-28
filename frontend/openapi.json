@@ -45,6 +45,81 @@
         "title": "AttributionUpdate",
         "type": "object"
       },
+      "CostSummary": {
+        "description": "An event's latest cost. Every money field sits next to `currency`.",
+        "properties": {
+          "cost_basis": {
+            "enum": [
+              "estimated",
+              "reported",
+              "billed",
+              "unavailable"
+            ],
+            "title": "Cost Basis",
+            "type": "string"
+          },
+          "currency": {
+            "anyOf": [
+              {
+                "type": "string"
+              },
+              {
+                "type": "null"
+              }
+            ],
+            "title": "Currency"
+          },
+          "estimated_cost": {
+            "anyOf": [
+              {
+                "type": "number"
+              },
+              {
+                "type": "null"
+              }
+            ],
+            "title": "Estimated Cost"
+          },
+          "pricing_version_id": {
+            "anyOf": [
+              {
+                "type": "string"
+              },
+              {
+                "type": "null"
+              }
+            ],
+            "title": "Pricing Version Id"
+          },
+          "reason": {
+            "anyOf": [
+              {
+                "type": "string"
+              },
+              {
+                "type": "null"
+              }
+            ],
+            "title": "Reason"
+          },
+          "reported_cost": {
+            "anyOf": [
+              {
+                "type": "number"
+              },
+              {
+                "type": "null"
+              }
+            ],
+            "title": "Reported Cost"
+          }
+        },
+        "required": [
+          "cost_basis"
+        ],
+        "title": "CostSummary",
+        "type": "object"
+      },
       "HTTPValidationError": {
         "properties": {
           "detail": {
@@ -197,6 +272,204 @@
           "items"
         ],
         "title": "Paged[UsageEvent]",
+        "type": "object"
+      },
+      "PricingVersionCreate": {
+        "additionalProperties": false,
+        "description": "One catalogue entry. A PUT never edits in place; it versions.",
+        "properties": {
+          "cached_input_price": {
+            "anyOf": [
+              {
+                "minimum": 0.0,
+                "type": "number"
+              },
+              {
+                "type": "string"
+              },
+              {
+                "type": "null"
+              }
+            ],
+            "title": "Cached Input Price"
+          },
+          "currency": {
+            "default": "USD",
+            "maxLength": 16,
+            "minLength": 1,
+            "title": "Currency",
+            "type": "string"
+          },
+          "input_price_per_million": {
+            "anyOf": [
+              {
+                "minimum": 0.0,
+                "type": "number"
+              },
+              {
+                "type": "string"
+              },
+              {
+                "type": "null"
+              }
+            ],
+            "title": "Input Price Per Million"
+          },
+          "model_id": {
+            "maxLength": 256,
+            "minLength": 1,
+            "title": "Model Id",
+            "type": "string"
+          },
+          "output_price_per_million": {
+            "anyOf": [
+              {
+                "minimum": 0.0,
+                "type": "number"
+              },
+              {
+                "type": "string"
+              },
+              {
+                "type": "null"
+              }
+            ],
+            "title": "Output Price Per Million"
+          },
+          "pricing_source": {
+            "anyOf": [
+              {
+                "maxLength": 2048,
+                "type": "string"
+              },
+              {
+                "type": "null"
+              }
+            ],
+            "title": "Pricing Source"
+          },
+          "provider": {
+            "maxLength": 256,
+            "minLength": 1,
+            "title": "Provider",
+            "type": "string"
+          },
+          "valid_from": {
+            "anyOf": [
+              {
+                "format": "date-time",
+                "type": "string"
+              },
+              {
+                "type": "null"
+              }
+            ],
+            "title": "Valid From"
+          }
+        },
+        "required": [
+          "provider",
+          "model_id"
+        ],
+        "title": "PricingVersionCreate",
+        "type": "object"
+      },
+      "PricingVersionOut": {
+        "properties": {
+          "cached_input_price": {
+            "anyOf": [
+              {
+                "type": "number"
+              },
+              {
+                "type": "null"
+              }
+            ],
+            "title": "Cached Input Price"
+          },
+          "created_at": {
+            "title": "Created At",
+            "type": "string"
+          },
+          "currency": {
+            "title": "Currency",
+            "type": "string"
+          },
+          "id": {
+            "title": "Id",
+            "type": "string"
+          },
+          "input_price_per_million": {
+            "anyOf": [
+              {
+                "type": "number"
+              },
+              {
+                "type": "null"
+              }
+            ],
+            "title": "Input Price Per Million"
+          },
+          "model_id": {
+            "title": "Model Id",
+            "type": "string"
+          },
+          "output_price_per_million": {
+            "anyOf": [
+              {
+                "type": "number"
+              },
+              {
+                "type": "null"
+              }
+            ],
+            "title": "Output Price Per Million"
+          },
+          "pricing_source": {
+            "anyOf": [
+              {
+                "type": "string"
+              },
+              {
+                "type": "null"
+              }
+            ],
+            "title": "Pricing Source"
+          },
+          "provider": {
+            "title": "Provider",
+            "type": "string"
+          },
+          "valid_from": {
+            "title": "Valid From",
+            "type": "string"
+          },
+          "valid_to": {
+            "anyOf": [
+              {
+                "type": "string"
+              },
+              {
+                "type": "null"
+              }
+            ],
+            "title": "Valid To"
+          }
+        },
+        "required": [
+          "id",
+          "provider",
+          "model_id",
+          "currency",
+          "input_price_per_million",
+          "output_price_per_million",
+          "cached_input_price",
+          "pricing_source",
+          "valid_from",
+          "valid_to",
+          "created_at"
+        ],
+        "title": "PricingVersionOut",
         "type": "object"
       },
       "Project": {
@@ -355,6 +628,23 @@
           }
         },
         "title": "ProjectUpdate",
+        "type": "object"
+      },
+      "RepriceResponse": {
+        "properties": {
+          "repriced": {
+            "title": "Repriced",
+            "type": "integer"
+          },
+          "version": {
+            "$ref": "#/components/schemas/PricingVersionOut"
+          }
+        },
+        "required": [
+          "version",
+          "repriced"
+        ],
+        "title": "RepriceResponse",
         "type": "object"
       },
       "SessionDetail": {
@@ -583,6 +873,16 @@
               }
             ],
             "title": "Completed At"
+          },
+          "cost": {
+            "anyOf": [
+              {
+                "$ref": "#/components/schemas/CostSummary"
+              },
+              {
+                "type": "null"
+              }
+            ]
           },
           "error_category": {
             "anyOf": [
@@ -1218,6 +1518,70 @@
         "summary": "Update Session",
         "tags": [
           "sessions"
+        ]
+      }
+    },
+    "/api/v1/settings/pricing": {
+      "get": {
+        "operationId": "list_pricing_api_v1_settings_pricing_get",
+        "responses": {
+          "200": {
+            "content": {
+              "application/json": {
+                "schema": {
+                  "items": {
+                    "$ref": "#/components/schemas/PricingVersionOut"
+                  },
+                  "title": "Response List Pricing Api V1 Settings Pricing Get",
+                  "type": "array"
+                }
+              }
+            },
+            "description": "Successful Response"
+          }
+        },
+        "summary": "List Pricing",
+        "tags": [
+          "settings"
+        ]
+      },
+      "put": {
+        "operationId": "upsert_pricing_api_v1_settings_pricing_put",
+        "requestBody": {
+          "content": {
+            "application/json": {
+              "schema": {
+                "$ref": "#/components/schemas/PricingVersionCreate"
+              }
+            }
+          },
+          "required": true
+        },
+        "responses": {
+          "200": {
+            "content": {
+              "application/json": {
+                "schema": {
+                  "$ref": "#/components/schemas/RepriceResponse"
+                }
+              }
+            },
+            "description": "Successful Response"
+          },
+          "422": {
+            "content": {
+              "application/json": {
+                "schema": {
+                  "$ref": "#/components/schemas/HTTPValidationError"
+                }
+              }
+            },
+            "description": "Validation Error"
+          }
+        },
+        "summary": "Upsert Pricing",
+        "tags": [
+          "settings"
         ]
       }
     },
@@ -2036,6 +2400,124 @@
         "summary": "Correct Attribution",
         "tags": [
           "usage"
+        ]
+      }
+    },
+    "/gateway/p/{project_slug}/v1/chat/completions": {
+      "post": {
+        "operationId": "chat_completions_for_project_gateway_p__project_slug__v1_chat_completions_post",
+        "parameters": [
+          {
+            "in": "path",
+            "name": "project_slug",
+            "required": true,
+            "schema": {
+              "title": "Project Slug",
+              "type": "string"
+            }
+          }
+        ],
+        "responses": {
+          "200": {
+            "content": {
+              "application/json": {
+                "schema": {}
+              }
+            },
+            "description": "Successful Response"
+          },
+          "422": {
+            "content": {
+              "application/json": {
+                "schema": {
+                  "$ref": "#/components/schemas/HTTPValidationError"
+                }
+              }
+            },
+            "description": "Validation Error"
+          }
+        },
+        "summary": "Chat Completions For Project",
+        "tags": [
+          "gateway"
+        ]
+      }
+    },
+    "/gateway/p/{project_slug}/v1/models": {
+      "get": {
+        "operationId": "list_models_for_project_gateway_p__project_slug__v1_models_get",
+        "parameters": [
+          {
+            "in": "path",
+            "name": "project_slug",
+            "required": true,
+            "schema": {
+              "title": "Project Slug",
+              "type": "string"
+            }
+          }
+        ],
+        "responses": {
+          "200": {
+            "content": {
+              "application/json": {
+                "schema": {}
+              }
+            },
+            "description": "Successful Response"
+          },
+          "422": {
+            "content": {
+              "application/json": {
+                "schema": {
+                  "$ref": "#/components/schemas/HTTPValidationError"
+                }
+              }
+            },
+            "description": "Validation Error"
+          }
+        },
+        "summary": "List Models For Project",
+        "tags": [
+          "gateway"
+        ]
+      }
+    },
+    "/gateway/v1/chat/completions": {
+      "post": {
+        "operationId": "chat_completions_gateway_v1_chat_completions_post",
+        "responses": {
+          "200": {
+            "content": {
+              "application/json": {
+                "schema": {}
+              }
+            },
+            "description": "Successful Response"
+          }
+        },
+        "summary": "Chat Completions",
+        "tags": [
+          "gateway"
+        ]
+      }
+    },
+    "/gateway/v1/models": {
+      "get": {
+        "operationId": "list_models_gateway_v1_models_get",
+        "responses": {
+          "200": {
+            "content": {
+              "application/json": {
+                "schema": {}
+              }
+            },
+            "description": "Successful Response"
+          }
+        },
+        "summary": "List Models",
+        "tags": [
+          "gateway"
         ]
       }
     }

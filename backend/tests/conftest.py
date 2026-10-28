@@ -7,10 +7,17 @@ from fastapi import FastAPI
 from fastapi.testclient import TestClient
 from pydantic import SecretStr
 
+from tests.fakes.fake_upstream import FakeUpstream
 from tokenpilot.config import Settings
 from tokenpilot.main import create_app
 
 LOCAL_TOKEN = "test-local-token"
+
+
+@pytest.fixture
+def fake() -> FakeUpstream:
+    """One fake upstream per test; shared by integration and safety tests."""
+    return FakeUpstream()
 
 
 @pytest.fixture(autouse=True)

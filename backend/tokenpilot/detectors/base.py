@@ -4,9 +4,14 @@ Rules are pure functions over a `DetectionContext`; they never write. The
 repository turns the `Finding`s they return into `insights` rows.
 """
 
+from __future__ import annotations
+
 from dataclasses import dataclass, field
 from decimal import Decimal
-from typing import Any, Literal
+from typing import TYPE_CHECKING, Any, Literal, Protocol
+
+if TYPE_CHECKING:
+    from tokenpilot.detectors.facts import DetectionContext
 
 Severity = Literal["informational", "low", "medium", "high"]
 SEVERITY_RANK: dict[str, int] = {"informational": 0, "low": 1, "medium": 2, "high": 3}
@@ -68,3 +73,15 @@ class Finding:
     def dedupe_key(self) -> str:
         """P3: a stable per-rule anchor, so a growing session updates one row."""
         return f"{self.rule_id}.v{self.rule_version}:{self.anchor}"
+
+
+class Detector(Protocol):
+    """A pure rule (P4): read the context, return findings. Never writes."""
+
+    rule_id: str
+    rule_version: int
+    guidance: str
+
+    def detect(self, ctx: DetectionContext) -> list[Finding]:
+        """Findings in deterministic order; implementations sort by anchor."""
+        ...

@@ -35,3 +35,5 @@ __pycache__/
 .mypy_cache/
 *.sqlite3
 .tokenpilot/
+*.sqlite3-wal
+*.sqlite3-shm

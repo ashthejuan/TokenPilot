@@ -13,6 +13,7 @@ from starlette.exceptions import HTTPException as StarletteHTTPException
 from tokenpilot.api.health import router as health_router
 from tokenpilot.config import Settings
 from tokenpilot.db.connection import connect
+from tokenpilot.db.database import Database
 from tokenpilot.db.migrate import migrate
 from tokenpilot.security import redact_text, require_local_token
 
@@ -28,7 +29,9 @@ _STATUS_CODES = {
     422: "validation_error",
     429: "rate_limited",
     500: "internal_error",
+    502: "upstream_error",
     503: "unavailable",
+    504: "upstream_timeout",
 }
 
 
@@ -90,7 +93,12 @@ def create_app(settings: Settings | None = None) -> FastAPI:
             migrate(connection)
         finally:
             connection.close()
-        yield
+        db = Database(resolved.db_path)
+        app.state.db = db
+        try:
+            yield
+        finally:
+            db.close()
 
     app = FastAPI(title="TokenPilot API", version="0.1.0", lifespan=lifespan)
     app.state.settings = resolved

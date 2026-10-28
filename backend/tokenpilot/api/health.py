@@ -1,31 +1,24 @@
 """Local health probe: process up, database reachable, schema migrated."""
 
 import sqlite3
-from typing import Any
+from typing import Annotated, Any
 
-from fastapi import APIRouter, HTTPException, Request
+from fastapi import APIRouter, Depends, HTTPException
 
-from tokenpilot.db.connection import connect
+from tokenpilot.db.database import Database, get_db
 from tokenpilot.db.migrate import current_version
 
 router = APIRouter(prefix="/api/v1", tags=["health"])
 
 
 @router.get("/health")
-def health(request: Request) -> dict[str, Any]:
-    db_path = request.app.state.settings.db_path
+def health(db: Annotated[Database, Depends(get_db)]) -> dict[str, Any]:
     try:
-        connection = connect(db_path)
+        with db.read() as connection:
+            connection.execute("SELECT 1")
+            schema_version = current_version(connection)
     except sqlite3.Error as exc:
         raise HTTPException(status_code=503, detail="database unavailable") from exc
-
-    try:
-        connection.execute("SELECT 1")
-        schema_version = current_version(connection)
-    except sqlite3.Error as exc:
-        raise HTTPException(status_code=503, detail="database unavailable") from exc
-    finally:
-        connection.close()
 
     if schema_version == 0:
         raise HTTPException(status_code=503, detail="database is not migrated")
@@ -34,5 +27,5 @@ def health(request: Request) -> dict[str, Any]:
         "status": "ok",
         "db": "ok",
         "schema_version": schema_version,
-        "db_path": str(db_path.resolve()),
+        "db_path": str(db.path.resolve()),
     }

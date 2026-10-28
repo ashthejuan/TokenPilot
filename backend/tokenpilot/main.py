@@ -25,6 +25,7 @@ from tokenpilot.config import Settings
 from tokenpilot.db.connection import connect
 from tokenpilot.db.database import Database
 from tokenpilot.db.migrate import migrate
+from tokenpilot.insights.jobs import JobRepository
 from tokenpilot.ledger.refs import LedgerRefError
 from tokenpilot.pricing.catalog import load_catalog
 from tokenpilot.security import redact_text, require_local_token
@@ -118,6 +119,8 @@ def create_app(
         app.state.db = db
         with db.write() as conn:
             load_catalog(conn, resolved.pricing_catalog_path)
+            # A job cannot survive its process: fail the leftovers before serving (P6).
+            JobRepository(conn).recover_interrupted()
         timeout = httpx.Timeout(connect=10.0, read=300.0, write=30.0, pool=10.0)
         upstream = httpx.AsyncClient(timeout=timeout, transport=upstream_transport)
         app.state.upstream = upstream

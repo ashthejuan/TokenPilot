@@ -41,9 +41,9 @@ def test_migrate_is_idempotent(conn: sqlite3.Connection) -> None:
     first = migrate(conn)
     second = migrate(conn)
 
-    assert first == second == 2
+    assert first == second == 3
     versions = [row["version"] for row in conn.execute("SELECT version FROM schema_migrations")]
-    assert versions == [1, 2]
+    assert versions == [1, 2, 3]
 
 
 def test_foreign_keys_enforced(conn: sqlite3.Connection) -> None:
@@ -130,7 +130,7 @@ def test_key_indexes_exist(conn: sqlite3.Connection) -> None:
 
 
 def test_migration_0002_adds_phase1_columns(conn: sqlite3.Connection) -> None:
-    assert migrate(conn) == 2
+    assert migrate(conn) == 3
 
     assert "slug" in _columns(conn, "projects")
     assert "external_task_id" in _columns(conn, "tasks")
@@ -148,6 +148,67 @@ def test_migration_0002_adds_phase1_columns(conn: sqlite3.Connection) -> None:
     ):
         assert name in indexes
         assert indexes[name].startswith("CREATE UNIQUE INDEX")
+
+
+def test_migration_0003_adds_insight_columns_and_tables(conn: sqlite3.Connection) -> None:
+    assert migrate(conn) == 3
+
+    assert {
+        "rule_id",
+        "rule_version",
+        "dedupe_key",
+        "measurements_json",
+        "impact_currency",
+        "evidence_truncated",
+        "updated_at",
+        "last_detected_at",
+    } <= _columns(conn, "insights")
+    assert _columns(conn, "jobs") == {
+        "id",
+        "kind",
+        "status",
+        "params_json",
+        "result_json",
+        "error",
+        "created_at",
+        "started_at",
+        "finished_at",
+    }
+    assert _columns(conn, "app_settings") == {"key", "value_json", "updated_at"}
+
+    indexes = {
+        row["name"]: row["sql"]
+        for row in conn.execute("SELECT name, sql FROM sqlite_master WHERE type = 'index'")
+    }
+    assert indexes["idx_insights_dedupe"].startswith("CREATE UNIQUE INDEX")
+    assert {"idx_insights_session", "idx_insights_created"} <= set(indexes)
+
+    # The dedupe key is unique, but any number of legacy NULL keys stay allowed.
+    insert = (
+        "INSERT INTO insights (id, detector_type, severity, title, summary, created_at, "
+        "dedupe_key) VALUES (?, 'repeated_request', 'low', 't', 's', "
+        "'2026-10-28T00:00:00.000Z', ?)"
+    )
+    conn.execute(insert, ("i1", "repeated_request.v1:s1:fp:-:e1"))
+    conn.execute(insert, ("i2", None))
+    conn.execute(insert, ("i3", None))
+    with pytest.raises(sqlite3.IntegrityError):
+        conn.execute(insert, ("i4", "repeated_request.v1:s1:fp:-:e1"))
+
+
+def test_migration_0003_defaults_keep_legacy_insight_rows_valid(conn: sqlite3.Connection) -> None:
+    migrate(conn)
+    conn.execute(
+        "INSERT INTO insights (id, detector_type, severity, title, summary, created_at) "
+        "VALUES ('legacy', 'repeated_request', 'low', 't', 's', '2026-10-28T00:00:00.000Z')"
+    )
+
+    row = conn.execute(
+        "SELECT measurements_json, evidence_truncated FROM insights WHERE id = 'legacy'"
+    ).fetchone()
+
+    assert row["measurements_json"] == "{}"
+    assert row["evidence_truncated"] == 0
 
 
 def test_migration_0002_unique_constraints_enforced(conn: sqlite3.Connection) -> None:

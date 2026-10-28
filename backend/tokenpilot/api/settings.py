@@ -1,10 +1,11 @@
-"""Runtime settings: the versioned pricing catalogue."""
+"""Runtime settings: the versioned pricing catalogue and detector thresholds."""
 
 from typing import Annotated
 
 from fastapi import APIRouter, Depends, HTTPException
 
 from tokenpilot.db.database import Database, get_db
+from tokenpilot.detectors.thresholds import Thresholds, load_thresholds, save_thresholds
 from tokenpilot.pricing.catalog import (
     PricingVersion,
     PricingVersionConflictError,
@@ -12,6 +13,7 @@ from tokenpilot.pricing.catalog import (
     current_versions,
 )
 from tokenpilot.pricing.cost import reprice_all
+from tokenpilot.schemas.insights import ThresholdsResponse
 from tokenpilot.schemas.pricing import PricingVersionCreate, PricingVersionOut, RepriceResponse
 from tokenpilot.timeutil import to_utc_z, utc_now_z
 
@@ -67,3 +69,20 @@ def upsert_pricing(
             else 0
         )
     return RepriceResponse(version=_to_out(version), repriced=repriced)
+
+
+@router.get("/thresholds")
+def get_thresholds(db: Annotated[Database, Depends(get_db)]) -> Thresholds:
+    """The saved thresholds, or the code defaults when nothing was saved yet."""
+    with db.read() as conn:
+        return load_thresholds(conn)
+
+
+@router.put("/thresholds")
+def put_thresholds(
+    body: Thresholds, db: Annotated[Database, Depends(get_db)]
+) -> ThresholdsResponse:
+    """Replace the whole thresholds object. Stored insights are not re-run."""
+    with db.write() as conn:
+        save_thresholds(conn, body)
+    return ThresholdsResponse(thresholds=body, reanalysis_required=True)

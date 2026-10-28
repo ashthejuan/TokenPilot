@@ -2,7 +2,7 @@
 
 import sqlite3
 from collections.abc import Iterator
-from contextlib import contextmanager
+from contextlib import contextmanager, suppress
 from pathlib import Path
 
 
@@ -20,11 +20,15 @@ def connect(path: Path) -> sqlite3.Connection:
 
 @contextmanager
 def transaction(connection: sqlite3.Connection) -> Iterator[sqlite3.Connection]:
-    """Run a unit of work atomically; roll back on any exception."""
+    """Run a unit of work atomically; roll back on any exception, COMMIT included."""
     connection.execute("BEGIN IMMEDIATE")
     try:
         yield connection
+        connection.execute("COMMIT")
     except BaseException:
-        connection.execute("ROLLBACK")
+        # A failed COMMIT (SQLITE_BUSY/FULL/IOERR) leaves the shared connection
+        # inside the transaction; roll back so later writes still work.
+        if connection.in_transaction:
+            with suppress(sqlite3.Error):
+                connection.execute("ROLLBACK")
         raise
-    connection.execute("COMMIT")

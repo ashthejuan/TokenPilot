@@ -1,3 +1,4 @@
+import os
 from collections.abc import Iterator
 from pathlib import Path
 
@@ -12,13 +13,22 @@ from tokenpilot.main import create_app
 LOCAL_TOKEN = "test-local-token"
 
 
+@pytest.fixture(autouse=True)
+def _clean_environment(monkeypatch: pytest.MonkeyPatch) -> None:
+    """The developer's shell may export these; tests must not depend on them."""
+    for name in list(os.environ):
+        if name.startswith("TOKENPILOT_") or name == "MODEL_API_KEY":
+            monkeypatch.delenv(name)
+
+
 @pytest.fixture
 def settings(tmp_path: Path) -> Settings:
+    # _env_file=None: tests never read the repo's real .env.
     return Settings(
+        _env_file=None,
         local_token=SecretStr(LOCAL_TOKEN),
         db_path=tmp_path / "tokenpilot.sqlite3",
         data_dir=tmp_path,
-        upstream_api_key=None,
     )
 
 

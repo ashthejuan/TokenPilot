@@ -41,9 +41,9 @@ def test_migrate_is_idempotent(conn: sqlite3.Connection) -> None:
     first = migrate(conn)
     second = migrate(conn)
 
-    assert first == second == 1
+    assert first == second == 2
     versions = [row["version"] for row in conn.execute("SELECT version FROM schema_migrations")]
-    assert versions == [1]
+    assert versions == [1, 2]
 
 
 def test_foreign_keys_enforced(conn: sqlite3.Connection) -> None:
@@ -127,3 +127,44 @@ def test_key_indexes_exist(conn: sqlite3.Connection) -> None:
         "idx_usage_events_fingerprint",
         "idx_cost_records_event_calculated",
     } <= indexes
+
+
+def test_migration_0002_adds_phase1_columns(conn: sqlite3.Connection) -> None:
+    assert migrate(conn) == 2
+
+    assert "slug" in _columns(conn, "projects")
+    assert "external_task_id" in _columns(conn, "tasks")
+    assert "reason" in _columns(conn, "cost_records")
+    assert "http_status" in _columns(conn, "usage_events")
+    indexes = {
+        row["name"]: row["sql"]
+        for row in conn.execute("SELECT name, sql FROM sqlite_master WHERE type = 'index'")
+    }
+    for name in (
+        "idx_projects_slug",
+        "idx_tasks_project_external",
+        "idx_sessions_source_external",
+        "idx_pricing_versions_unique",
+    ):
+        assert name in indexes
+        assert indexes[name].startswith("CREATE UNIQUE INDEX")
+
+
+def test_migration_0002_unique_constraints_enforced(conn: sqlite3.Connection) -> None:
+    migrate(conn)
+    now = "'2026-10-28T00:00:00Z'"
+    conn.execute(
+        "INSERT INTO projects (id, name, slug, created_at, updated_at) "
+        f"VALUES ('p1', 'a', 'smoke', {now}, {now})"
+    )
+    with pytest.raises(sqlite3.IntegrityError):
+        conn.execute(
+            "INSERT INTO projects (id, name, slug, created_at, updated_at) "
+            f"VALUES ('p2', 'b', 'smoke', {now}, {now})"
+        )
+    # Projects without a slug (NULL) must not collide with each other.
+    for pid in ("p3", "p4"):
+        conn.execute(
+            "INSERT INTO projects (id, name, created_at, updated_at) "
+            f"VALUES ('{pid}', 'x', {now}, {now})"
+        )

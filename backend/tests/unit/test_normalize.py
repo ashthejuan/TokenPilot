@@ -44,7 +44,7 @@ def test_normalize_converts_timestamps_to_utc() -> None:
         "api",
     )
 
-    assert event.started_at == "2026-10-27T04:30:00Z"
+    assert event.started_at == "2026-10-27T04:30:00.000Z"
     assert event.completed_at == "2026-10-27T04:30:01.250Z"
 
 
@@ -110,3 +110,128 @@ def test_idempotency_key_random_when_nothing_to_dedup_on() -> None:
 
     assert first.dedup == "not_possible"
     assert first.idempotency_key != second.idempotency_key
+
+
+def test_timestamps_always_fixed_millisecond_precision() -> None:
+    event = normalize(
+        make_raw(started_at="2026-10-27T10:00:00Z", completed_at="2026-10-27T10:00:00.123456Z"),
+        "api",
+    )
+
+    assert event.started_at == "2026-10-27T10:00:00.000Z"
+    assert event.completed_at == "2026-10-27T10:00:00.123Z"
+
+
+def test_content_keys_dropped_at_any_depth() -> None:
+    event = normalize(
+        make_raw(
+            metadata={
+                "messages": [{"role": "user", "content": "my secret prompt"}],
+                "debug": {"Prompt": "p", "inner": [{"choices": [1], "ok": 1}]},
+                "Response": "r",
+                "completion": "c",
+                "content": "x",
+                "message_count": 3,
+                "contents_hash": "abc",
+            }
+        ),
+        "api",
+    )
+
+    assert event.metadata == {
+        "debug": {"inner": [{"ok": 1}]},
+        "message_count": 3,
+        "contents_hash": "abc",
+    }
+    assert "my secret prompt" not in event.raw_event_json
+
+
+@pytest.mark.parametrize(
+    "key",
+    [
+        "token",
+        "access_token",
+        "refresh_token",
+        "x-auth-token",
+        "authorization",
+        "Authorization",
+        "api_key",
+        "api-key",
+        "apikey",
+        "secret",
+        "client_secret",
+        "password",
+        "passwd",
+        "cookie",
+        "set-cookie",
+        "bearer",
+    ],
+)
+def test_secret_keys_dropped(key: str) -> None:
+    assert normalize(make_raw(metadata={key: "v", "keep": 1}), "api").metadata == {"keep": 1}
+
+
+@pytest.mark.parametrize(
+    "key",
+    ["max_tokens", "total_tokens", "token_count", "token_counts", "tokenizer", "input_tokens"],
+)
+def test_token_count_keys_survive(key: str) -> None:
+    assert normalize(make_raw(metadata={key: 5}), "api").metadata == {key: 5}
+
+
+def test_free_text_fields_redacted_everywhere() -> None:
+    secret = "Authorization: Bearer abcdefghijklmnop"
+    event = normalize(
+        make_raw(
+            error_category=secret,
+            request_fingerprint=secret,
+            external_session_id=secret,
+            task_id=secret,
+            retry_of=secret,
+            source_event_id=secret,
+            model_id="sk-AAAAAAAAAAAAAAAAAAAA",
+            provider=secret,
+        ),
+        "api",
+    )
+
+    redacted = "Authorization: [REDACTED]"
+    assert event.error_category == redacted
+    assert event.request_fingerprint == redacted
+    assert event.external_session_id == redacted
+    assert event.task_id == redacted
+    assert event.retry_of == redacted
+    assert event.source_event_id == redacted
+    assert event.model_id == "[REDACTED]"
+    assert event.provider == redacted
+    assert "abcdefghijklmnop" not in event.raw_event_json
+    assert "sk-AAAA" not in event.raw_event_json
+
+
+def test_secret_shaped_idempotency_key_is_hashed_but_stays_stable() -> None:
+    key_a = "Bearer aaaaaaaaaaaaaaaa"
+    first = normalize(make_raw(idempotency_key=key_a), "api")
+    again = normalize(make_raw(idempotency_key=key_a), "api")
+    other = normalize(make_raw(idempotency_key="Bearer bbbbbbbbbbbbbbbb"), "api")
+
+    assert first.idempotency_key == again.idempotency_key
+    assert first.idempotency_key != other.idempotency_key
+    assert "aaaaaaaaaaaaaaaa" not in first.idempotency_key
+    assert "aaaaaaaaaaaaaaaa" not in first.raw_event_json
+    assert first.dedup == "key"
+
+
+def test_secret_shaped_source_event_id_dedups_on_original_value() -> None:
+    first = normalize(make_raw(source_event_id="Bearer aaaaaaaaaaaaaaaa"), "api")
+    other = normalize(make_raw(source_event_id="Bearer bbbbbbbbbbbbbbbb"), "api")
+
+    assert first.source_event_id == "[REDACTED]"
+    assert first.idempotency_key != other.idempotency_key
+
+
+def test_over_length_strings_rejected() -> None:
+    with pytest.raises(ValidationError):
+        make_raw(model_id="m" * 257)
+    with pytest.raises(ValidationError):
+        make_raw(error_category="e" * 2049)
+    assert make_raw(error_category="e" * 2048).error_category is not None

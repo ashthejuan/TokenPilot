@@ -290,3 +290,146 @@ def test_unknown_benchmark_run_rejected(client: TestClient, auth_headers: dict[s
     assert response.status_code == 422
     assert response.json()["error"]["code"] == "unknown_benchmark_run"
     assert count_events(client, auth_headers) == 0
+
+
+def _ids_in_range(client: TestClient, headers: dict[str, str], **params: str) -> list[str]:
+    response = client.get(EVENTS, params=params, headers=headers).json()
+    return [item["source_event_id"] for item in response["items"]]
+
+
+def test_subsecond_event_respects_whole_second_bounds(
+    client: TestClient, auth_headers: dict[str, str]
+) -> None:
+    created = client.post(
+        EVENTS,
+        json=make_event(source_event_id="sub", started_at="2026-10-27T10:00:00.123Z"),
+        headers=auth_headers,
+    )
+    event_id = created.json()["results"][0]["id"]
+
+    stored = client.get(f"{EVENTS}/{event_id}", headers=auth_headers).json()
+    assert stored["started_at"] == "2026-10-27T10:00:00.123Z"
+    assert _ids_in_range(client, auth_headers, **{"from": "2026-10-27T10:00:00Z"}) == ["sub"]
+    assert _ids_in_range(client, auth_headers, to="2026-10-27T10:00:00Z") == []
+    assert _ids_in_range(client, auth_headers, to="2026-10-27T10:00:01Z") == ["sub"]
+    assert _ids_in_range(client, auth_headers, **{"from": "2026-10-27T10:00:01Z"}) == []
+    # A bound with a UTC offset is converted before comparing.
+    offset_from = {"from": "2026-10-27T15:30:00+05:30"}
+    assert _ids_in_range(client, auth_headers, **offset_from) == ["sub"]
+
+
+def test_whole_second_and_subsecond_events_sort_chronologically(
+    client: TestClient, auth_headers: dict[str, str]
+) -> None:
+    client.post(
+        EVENTS,
+        json=[
+            make_event(source_event_id="whole", started_at="2026-10-27T10:00:00Z"),
+            make_event(source_event_id="half", started_at="2026-10-27T10:00:00.500Z"),
+            make_event(source_event_id="next", started_at="2026-10-27T10:00:01Z"),
+        ],
+        headers=auth_headers,
+    )
+
+    assert _ids_in_range(client, auth_headers) == ["next", "half", "whole"]
+
+
+def test_pagination_over_mixed_precision_inputs(
+    client: TestClient, auth_headers: dict[str, str]
+) -> None:
+    batch = []
+    for i in range(30):
+        moment = BASE + timedelta(seconds=i // 3)
+        started = moment.strftime("%Y-%m-%dT%H:%M:%SZ") if i % 2 else moment.isoformat()
+        if i % 5 == 0:
+            started = (moment + timedelta(milliseconds=250)).strftime("%Y-%m-%dT%H:%M:%S.%fZ")
+        batch.append(make_event(source_event_id=f"m{i}", started_at=started))
+    client.post(EVENTS, json=batch, headers=auth_headers)
+
+    seen: list[dict[str, Any]] = []
+    cursor: str | None = None
+    while True:
+        params: dict[str, Any] = {"limit": 7}
+        if cursor:
+            params["cursor"] = cursor
+        page = client.get(EVENTS, params=params, headers=auth_headers).json()
+        seen.extend(page["items"])
+        cursor = page["next_cursor"]
+        if cursor is None:
+            break
+
+    assert len(seen) == 30
+    assert len({item["id"] for item in seen}) == 30
+    keys = [(item["started_at"], item["id"]) for item in seen]
+    assert keys == sorted(keys, reverse=True)
+
+
+def test_content_in_metadata_never_stored(
+    client: TestClient, app: FastAPI, auth_headers: dict[str, str]
+) -> None:
+    body = make_event(
+        metadata={
+            "messages": [{"role": "user", "content": "my secret prompt"}],
+            "nested": {"prompt": "my secret prompt", "keep": "ok"},
+        }
+    )
+
+    event_id = client.post(EVENTS, json=body, headers=auth_headers).json()["results"][0]["id"]
+
+    db: Database = app.state.db
+    with db.read() as conn:
+        row = conn.execute(
+            "SELECT raw_event_json, metadata_json FROM usage_events WHERE id = ?", (event_id,)
+        ).fetchone()
+    for stored in (row["raw_event_json"], row["metadata_json"]):
+        assert "my secret prompt" not in stored
+        assert "messages" not in stored
+        assert "prompt" not in stored
+    assert json.loads(row["metadata_json"]) == {"nested": {"keep": "ok"}}
+
+
+def test_free_text_fields_stored_redacted(
+    client: TestClient, app: FastAPI, auth_headers: dict[str, str]
+) -> None:
+    body = make_event(
+        error_category="Authorization: Bearer abcdefghijklmnop", source_event_id="evt-9"
+    )
+
+    event_id = client.post(EVENTS, json=body, headers=auth_headers).json()["results"][0]["id"]
+
+    event = client.get(f"{EVENTS}/{event_id}", headers=auth_headers).json()
+    assert event["error_category"] == "Authorization: [REDACTED]"
+    db: Database = app.state.db
+    with db.read() as conn:
+        raw = conn.execute(
+            "SELECT raw_event_json FROM usage_events WHERE id = ?", (event_id,)
+        ).fetchone()[0]
+    assert "abcdefghijklmnop" not in raw
+
+
+def test_secret_shaped_idempotency_keys_dedup_without_storing_secret(
+    client: TestClient, auth_headers: dict[str, str]
+) -> None:
+    key_a, key_b = "Bearer aaaaaaaaaaaaaaaa", "Bearer bbbbbbbbbbbbbbbb"
+
+    first = client.post(EVENTS, json=make_event(idempotency_key=key_a), headers=auth_headers)
+    again = client.post(EVENTS, json=make_event(idempotency_key=key_a), headers=auth_headers)
+    other = client.post(EVENTS, json=make_event(idempotency_key=key_b), headers=auth_headers)
+
+    assert first.json()["results"][0]["duplicate"] is False
+    assert again.json()["results"][0]["duplicate"] is True
+    assert other.json()["results"][0]["duplicate"] is False
+    items = client.get(EVENTS, headers=auth_headers).json()["items"]
+    assert len(items) == 2
+    assert all("aaaaaaaa" not in item["idempotency_key"] for item in items)
+
+
+def test_over_length_text_fields_rejected(
+    client: TestClient, auth_headers: dict[str, str]
+) -> None:
+    for field, size in (("error_category", 2049), ("model_id", 257), ("task_id", 257)):
+        response = client.post(
+            EVENTS, json=make_event(**{field: "x" * size}), headers=auth_headers
+        )
+        assert response.status_code == 422, field
+    assert count_events(client, auth_headers) == 0

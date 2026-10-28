@@ -1,10 +1,13 @@
 """Usage event shapes: the inbound payload, the stored row, and list filters."""
 
 from dataclasses import dataclass
-from typing import Any, Literal
+from typing import Annotated, Any, Literal
 
 from pydantic import AwareDatetime, BaseModel, ConfigDict, Field, NonNegativeInt
 
+# Free-text fields are length-capped so an oversized blob cannot be smuggled in.
+ShortText = Annotated[str, Field(max_length=256)]
+ErrorText = Annotated[str, Field(max_length=2048)]
 UsageSource = Literal["provider", "gateway_estimate", "import", "unavailable"]
 EventStatus = Literal["success", "error", "timeout", "unknown"]
 
@@ -14,8 +17,8 @@ class UsageEventIn(BaseModel):
 
     model_config = ConfigDict(extra="forbid")
 
-    provider: str = Field(min_length=1)
-    model_id: str = Field(min_length=1)
+    provider: str = Field(min_length=1, max_length=256)
+    model_id: str = Field(min_length=1, max_length=256)
     started_at: AwareDatetime
     completed_at: AwareDatetime | None = None
     input_tokens: NonNegativeInt | None = None
@@ -24,17 +27,17 @@ class UsageEventIn(BaseModel):
     reasoning_tokens: NonNegativeInt | None = None
     latency_ms: NonNegativeInt | None = None
     http_status: int | None = None
-    error_category: str | None = None
+    error_category: ErrorText | None = None
     usage_source: UsageSource
     status: EventStatus
-    source_event_id: str | None = None
-    idempotency_key: str | None = None
-    project_id: str | None = None
-    external_session_id: str | None = None
-    task_id: str | None = None
-    retry_of: str | None = None
-    request_fingerprint: str | None = None
-    benchmark_run_id: str | None = None
+    source_event_id: ShortText | None = None
+    idempotency_key: ShortText | None = None
+    project_id: ShortText | None = None
+    external_session_id: ShortText | None = None
+    task_id: ShortText | None = None
+    retry_of: ShortText | None = None
+    request_fingerprint: ShortText | None = None
+    benchmark_run_id: ShortText | None = None
     metadata: dict[str, Any] = Field(default_factory=dict)
 
 

@@ -920,6 +920,7 @@
                       "benchmark_run_id": {
                         "anyOf": [
                           {
+                            "maxLength": 256,
                             "type": "string"
                           },
                           {
@@ -955,6 +956,7 @@
                       "error_category": {
                         "anyOf": [
                           {
+                            "maxLength": 2048,
                             "type": "string"
                           },
                           {
@@ -966,6 +968,7 @@
                       "external_session_id": {
                         "anyOf": [
                           {
+                            "maxLength": 256,
                             "type": "string"
                           },
                           {
@@ -988,6 +991,7 @@
                       "idempotency_key": {
                         "anyOf": [
                           {
+                            "maxLength": 256,
                             "type": "string"
                           },
                           {
@@ -1026,6 +1030,7 @@
                         "type": "object"
                       },
                       "model_id": {
+                        "maxLength": 256,
                         "minLength": 1,
                         "title": "Model Id",
                         "type": "string"
@@ -1045,6 +1050,7 @@
                       "project_id": {
                         "anyOf": [
                           {
+                            "maxLength": 256,
                             "type": "string"
                           },
                           {
@@ -1054,6 +1060,7 @@
                         "title": "Project Id"
                       },
                       "provider": {
+                        "maxLength": 256,
                         "minLength": 1,
                         "title": "Provider",
                         "type": "string"
@@ -1073,6 +1080,7 @@
                       "request_fingerprint": {
                         "anyOf": [
                           {
+                            "maxLength": 256,
                             "type": "string"
                           },
                           {
@@ -1084,6 +1092,7 @@
                       "retry_of": {
                         "anyOf": [
                           {
+                            "maxLength": 256,
                             "type": "string"
                           },
                           {
@@ -1095,6 +1104,7 @@
                       "source_event_id": {
                         "anyOf": [
                           {
+                            "maxLength": 256,
                             "type": "string"
                           },
                           {
@@ -1121,6 +1131,7 @@
                       "task_id": {
                         "anyOf": [
                           {
+                            "maxLength": 256,
                             "type": "string"
                           },
                           {
@@ -1158,6 +1169,7 @@
                         "benchmark_run_id": {
                           "anyOf": [
                             {
+                              "maxLength": 256,
                               "type": "string"
                             },
                             {
@@ -1193,6 +1205,7 @@
                         "error_category": {
                           "anyOf": [
                             {
+                              "maxLength": 2048,
                               "type": "string"
                             },
                             {
@@ -1204,6 +1217,7 @@
                         "external_session_id": {
                           "anyOf": [
                             {
+                              "maxLength": 256,
                               "type": "string"
                             },
                             {
@@ -1226,6 +1240,7 @@
                         "idempotency_key": {
                           "anyOf": [
                             {
+                              "maxLength": 256,
                               "type": "string"
                             },
                             {
@@ -1264,6 +1279,7 @@
                           "type": "object"
                         },
                         "model_id": {
+                          "maxLength": 256,
                           "minLength": 1,
                           "title": "Model Id",
                           "type": "string"
@@ -1283,6 +1299,7 @@
                         "project_id": {
                           "anyOf": [
                             {
+                              "maxLength": 256,
                               "type": "string"
                             },
                             {
@@ -1292,6 +1309,7 @@
                           "title": "Project Id"
                         },
                         "provider": {
+                          "maxLength": 256,
                           "minLength": 1,
                           "title": "Provider",
                           "type": "string"
@@ -1311,6 +1329,7 @@
                         "request_fingerprint": {
                           "anyOf": [
                             {
+                              "maxLength": 256,
                               "type": "string"
                             },
                             {
@@ -1322,6 +1341,7 @@
                         "retry_of": {
                           "anyOf": [
                             {
+                              "maxLength": 256,
                               "type": "string"
                             },
                             {
@@ -1333,6 +1353,7 @@
                         "source_event_id": {
                           "anyOf": [
                             {
+                              "maxLength": 256,
                               "type": "string"
                             },
                             {
@@ -1359,6 +1380,7 @@
                         "task_id": {
                           "anyOf": [
                             {
+                              "maxLength": 256,
                               "type": "string"
                             },
                             {

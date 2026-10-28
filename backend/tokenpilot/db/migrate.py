@@ -1,8 +1,9 @@
 """Versioned SQL migrations: `NNNN_name.sql`, applied once, in order."""
 
 import sqlite3
-from datetime import UTC, datetime
 from pathlib import Path
+
+from tokenpilot.timeutil import utc_now_z
 
 MIGRATIONS_DIR = Path(__file__).parent / "migrations"
 
@@ -12,10 +13,6 @@ CREATE TABLE IF NOT EXISTS schema_migrations (
     applied_at TEXT NOT NULL
 )
 """
-
-
-def utc_now() -> str:
-    return datetime.now(UTC).replace(microsecond=0).isoformat().replace("+00:00", "Z")
 
 
 def applied_versions(connection: sqlite3.Connection) -> set[int]:
@@ -47,7 +44,7 @@ def migrate(connection: sqlite3.Connection) -> int:
         if number in applied:
             continue
         sql = path.read_text(encoding="utf-8")
-        timestamp = utc_now()
+        timestamp = utc_now_z()
         # BEGIN/COMMIT live inside the script because executescript() commits
         # any pending transaction before it runs.
         script = (

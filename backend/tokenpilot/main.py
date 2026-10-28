@@ -16,6 +16,7 @@ from starlette.exceptions import HTTPException as StarletteHTTPException
 
 from tokenpilot.api.health import router as health_router
 from tokenpilot.api.projects import router as projects_router
+from tokenpilot.api.sessions import router as sessions_router
 from tokenpilot.api.usage import router as usage_router
 from tokenpilot.config import Settings
 from tokenpilot.db.connection import connect
@@ -121,7 +122,7 @@ def create_app(settings: Settings | None = None) -> FastAPI:
     app.add_exception_handler(Exception, _handle_unexpected_error)
 
     # Auth is applied here, not per router, so a new router cannot forget it.
-    for router in (health_router, usage_router, projects_router):
+    for router in (health_router, usage_router, projects_router, sessions_router):
         app.include_router(router, dependencies=[Depends(require_local_token)])
     return app
 

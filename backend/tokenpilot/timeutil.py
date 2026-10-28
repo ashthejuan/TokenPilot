@@ -14,3 +14,8 @@ def to_utc_z(value: datetime) -> str:
 
 def utc_now_z() -> str:
     return to_utc_z(datetime.now(UTC))
+
+
+def parse_utc_z(value: str) -> datetime:
+    """Inverse of `to_utc_z`: an aware UTC datetime for arithmetic on stored timestamps."""
+    return datetime.fromisoformat(value).astimezone(UTC)

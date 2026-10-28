@@ -235,7 +235,10 @@ def test_raw_event_json_has_no_secrets(
     assert "Bearer x" not in row["raw_event_json"]
     assert '"y"' not in row["raw_event_json"]
     assert json.loads(row["raw_event_json"])["metadata"] == {"note": "ok"}
-    assert json.loads(row["metadata_json"]) == {"note": "ok"}
+    assert json.loads(row["metadata_json"]) == {
+        "note": "ok",
+        "attribution_basis": "unattributed",
+    }
 
 
 def test_explicit_project_id_resolves_slug_id_or_creates(
@@ -385,7 +388,10 @@ def test_content_in_metadata_never_stored(
         assert "my secret prompt" not in stored
         assert "messages" not in stored
         assert "prompt" not in stored
-    assert json.loads(row["metadata_json"]) == {"nested": {"keep": "ok"}}
+    assert json.loads(row["metadata_json"]) == {
+        "nested": {"keep": "ok"},
+        "attribution_basis": "unattributed",
+    }
 
 
 def test_free_text_fields_stored_redacted(

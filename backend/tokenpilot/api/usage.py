@@ -18,6 +18,7 @@ from tokenpilot.schemas.common import (
     Paged,
 )
 from tokenpilot.schemas.usage import (
+    AttributionUpdate,
     EventFilters,
     EventStatus,
     IngestItemResult,
@@ -129,6 +130,26 @@ def get_event(event_id: str, db: Annotated[Database, Depends(get_db)]) -> UsageE
     if event is None:
         raise HTTPException(status_code=404, detail="usage event not found")
     return event
+
+
+@router.patch("/events/{event_id}/attribution")
+def correct_attribution(
+    event_id: str, body: AttributionUpdate, db: Annotated[Database, Depends(get_db)]
+) -> UsageEvent:
+    """Re-attribute an event. The audit rows and the update commit together."""
+    changes = {field: getattr(body, field) for field in body.model_fields_set}
+    with db.write() as conn:
+        repository = LedgerRepository(conn)
+        event = repository.get_event(event_id)
+        if event is None:
+            raise HTTPException(status_code=404, detail="usage event not found")
+        for field, value in changes.items():
+            if value is not None and not repository.reference_exists(field, value):
+                raise HTTPException(status_code=404, detail=f"{field} {value!r} not found")
+        repository.apply_attribution_changes(event, changes, changed_by="local_user")
+        updated = repository.get_event(event_id)
+    assert updated is not None
+    return updated
 
 
 def _utc_bound(value: datetime | None, name: str) -> str | None:

@@ -71,6 +71,16 @@ class UsageEvent(BaseModel):
     metadata: dict[str, Any]
 
 
+class AttributionUpdate(BaseModel):
+    """A correction. A field left out is unchanged; an explicit `null` unattributes it."""
+
+    model_config = ConfigDict(extra="forbid")
+
+    project_id: ShortText | None = None
+    session_id: ShortText | None = None
+    task_id: ShortText | None = None
+
+
 class IngestItemResult(BaseModel):
     id: str
     duplicate: bool

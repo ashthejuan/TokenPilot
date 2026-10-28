@@ -1,6 +1,6 @@
 from datetime import UTC, datetime, timedelta, timezone
 
-from tokenpilot.timeutil import to_utc_z, utc_now_z
+from tokenpilot.timeutil import parse_utc_z, to_utc_z, utc_now_z
 
 
 def test_to_utc_z_is_fixed_millisecond_utc() -> None:
@@ -18,3 +18,10 @@ def test_utc_now_z_shape() -> None:
     assert len(value) == len("2026-10-27T10:00:00.000Z")
     assert value.endswith("Z")
     assert value[19] == "."
+
+
+def test_parse_utc_z_round_trips_stored_timestamps() -> None:
+    parsed = parse_utc_z("2026-10-27T10:00:00.123Z")
+
+    assert parsed == datetime(2026, 10, 27, 10, 0, 0, 123000, tzinfo=UTC)
+    assert to_utc_z(parsed) == "2026-10-27T10:00:00.123Z"

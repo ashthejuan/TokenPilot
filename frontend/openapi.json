@@ -97,7 +97,7 @@
           "estimated_cost": {
             "anyOf": [
               {
-                "type": "string"
+                "type": "number"
               },
               {
                 "type": "null"
@@ -494,7 +494,7 @@
           "total_estimated_cost": {
             "anyOf": [
               {
-                "type": "string"
+                "type": "number"
               },
               {
                 "type": "null"

@@ -177,3 +177,99 @@ def test_context_blocks_survive_ingest_as_hashes_only(
     assert stored.json()["metadata"]["context_blocks_basis"] == "approximate"
     assert "private source code" not in stored.text
 
+
+
+def create_task(app: FastAPI, project_id: str, task_id: str) -> None:
+    db: Database = app.state.db
+    with db.write() as conn:
+        conn.execute(
+            "INSERT INTO tasks (id, project_id, title, created_at) VALUES (?, ?, ?, ?)",
+            (task_id, project_id, task_id, "2026-10-28T00:00:00.000Z"),
+        )
+
+
+def event_state(client: TestClient, headers: dict[str, str], event_id: str) -> tuple[Any, Any]:
+    body = client.get(f"{EVENTS}/{event_id}", headers=headers).json()
+    return body["project_id"], body["task_id"]
+
+
+def test_patch_task_from_other_project_rejected(
+    app: FastAPI, client: TestClient, auth_headers: dict[str, str]
+) -> None:
+    event_id = post_event(client, auth_headers, project_id="p1")
+    project_q = create_project(client, auth_headers, "Q")
+    create_task(app, project_q, "task-q")
+    before = event_state(client, auth_headers, event_id)
+
+    response = patch(client, auth_headers, event_id, {"task_id": "task-q"})
+
+    assert response.status_code == 422
+    error = response.json()["error"]
+    assert error["code"] == "task_project_mismatch"
+    assert error["details"]["task_id"] == "task-q"
+    assert error["details"]["task_project_id"] == project_q
+    assert audit_rows(app) == []
+    assert event_state(client, auth_headers, event_id) == before
+
+
+def test_patch_project_null_with_task_rejected(
+    app: FastAPI, client: TestClient, auth_headers: dict[str, str]
+) -> None:
+    event_id = post_event(client, auth_headers, project_id="p1", task_id="T-1")
+    before = event_state(client, auth_headers, event_id)
+
+    response = patch(client, auth_headers, event_id, {"project_id": None})
+
+    assert response.status_code == 422
+    assert response.json()["error"]["code"] == "task_project_mismatch"
+    assert audit_rows(app) == []
+    assert event_state(client, auth_headers, event_id) == before
+
+
+def test_patch_project_and_matching_task_together(
+    app: FastAPI, client: TestClient, auth_headers: dict[str, str]
+) -> None:
+    event_id = post_event(client, auth_headers, project_id="p1")
+    project_q = create_project(client, auth_headers, "Q")
+    create_task(app, project_q, "task-q")
+
+    response = patch(client, auth_headers, event_id, {"project_id": project_q, "task_id": "task-q"})
+
+    assert response.status_code == 200
+    assert (response.json()["project_id"], response.json()["task_id"]) == (project_q, "task-q")
+    assert {r["field"] for r in audit_rows(app)} == {"project_id", "task_id"}
+
+
+def test_patch_project_change_with_task_cleared(
+    app: FastAPI, client: TestClient, auth_headers: dict[str, str]
+) -> None:
+    event_id = post_event(client, auth_headers, project_id="p1", task_id="T-1")
+    project_q = create_project(client, auth_headers, "Q")
+
+    response = patch(client, auth_headers, event_id, {"project_id": project_q, "task_id": None})
+
+    assert response.status_code == 200
+    assert (response.json()["project_id"], response.json()["task_id"]) == (project_q, None)
+    assert {r["field"] for r in audit_rows(app)} == {"project_id", "task_id"}
+
+
+def test_patch_project_change_alone_with_task_rejected(
+    app: FastAPI, client: TestClient, auth_headers: dict[str, str]
+) -> None:
+    event_id = post_event(client, auth_headers, project_id="p1", task_id="T-1")
+    project_q = create_project(client, auth_headers, "Q")
+
+    response = patch(client, auth_headers, event_id, {"project_id": project_q})
+
+    assert response.status_code == 422
+    assert audit_rows(app) == []
+
+
+def test_patch_session_only_ignores_task_consistency(
+    app: FastAPI, client: TestClient, auth_headers: dict[str, str]
+) -> None:
+    event_id = post_event(client, auth_headers, project_id="p1", task_id="T-1")
+
+    response = patch(client, auth_headers, event_id, {"session_id": None})
+
+    assert response.status_code == 200

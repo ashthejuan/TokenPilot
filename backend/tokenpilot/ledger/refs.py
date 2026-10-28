@@ -14,10 +14,26 @@ class LedgerRefError(ValueError):
     """A reference the caller supplied cannot be honoured. `code` is the API error code."""
 
     code = "invalid_reference"
+    details: dict[str, str | None] | None = None
 
 
 class ProjectRefError(LedgerRefError):
     code = "invalid_project_ref"
+
+
+class TaskProjectMismatchError(LedgerRefError):
+    code = "task_project_mismatch"
+
+    def __init__(self, task_id: str, task_project_id: str | None, project_id: str | None) -> None:
+        super().__init__(
+            f"task {task_id!r} belongs to project {task_project_id!r}, not {project_id!r}; "
+            "change the task or the project in the same request"
+        )
+        self.details = {
+            "task_id": task_id,
+            "task_project_id": task_project_id,
+            "project_id": project_id,
+        }
 
 
 class BenchmarkRunRefError(LedgerRefError):

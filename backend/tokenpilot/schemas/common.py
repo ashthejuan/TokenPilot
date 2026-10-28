@@ -4,12 +4,19 @@ import base64
 import binascii
 import json
 from dataclasses import dataclass
+from decimal import Decimal
+from typing import Annotated
 
-from pydantic import BaseModel
+from pydantic import BaseModel, PlainSerializer
 
 SLUG_PATTERN = r"^[a-z0-9][a-z0-9_-]{0,63}$"
 DEFAULT_PAGE_LIMIT = 50
 MAX_PAGE_LIMIT = 200
+
+
+# Money is a Decimal in Python (storage and arithmetic) and a JSON number on the wire,
+# always paired with a `currency` field.
+Money = Annotated[Decimal, PlainSerializer(float, return_type=float, when_used="json")]
 
 
 class Paged[T](BaseModel):

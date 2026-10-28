@@ -9,6 +9,7 @@ from pydantic import Field, TypeAdapter, ValidationError
 
 from tokenpilot.db.database import Database, get_db
 from tokenpilot.ledger.ingest import ingest_event
+from tokenpilot.ledger.refs import TaskProjectMismatchError
 from tokenpilot.ledger.repository import LedgerRepository
 from tokenpilot.schemas.common import (
     DEFAULT_PAGE_LIMIT,
@@ -146,10 +147,26 @@ def correct_attribution(
         for field, value in changes.items():
             if value is not None and not repository.reference_exists(field, value):
                 raise HTTPException(status_code=404, detail=f"{field} {value!r} not found")
+        _check_task_matches_project(repository, event, changes)
         repository.apply_attribution_changes(event, changes, changed_by="local_user")
         updated = repository.get_event(event_id)
     assert updated is not None
     return updated
+
+
+def _check_task_matches_project(
+    repository: LedgerRepository, event: UsageEvent, changes: dict[str, str | None]
+) -> None:
+    """The event as it will be after the patch must keep its task inside its project."""
+    if "task_id" not in changes and "project_id" not in changes:
+        return
+    final = {"project_id": event.project_id, "task_id": event.task_id, **changes}
+    task_id, project_id = final["task_id"], final["project_id"]
+    if task_id is None:
+        return
+    task_project_id = repository.task_project(task_id)
+    if task_project_id != project_id:
+        raise TaskProjectMismatchError(task_id, task_project_id, project_id)
 
 
 def _utc_bound(value: datetime | None, name: str) -> str | None:

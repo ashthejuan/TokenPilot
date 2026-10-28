@@ -204,3 +204,15 @@ def test_session_outcome_patch_manual(client: TestClient, auth_headers: dict[str
     )
     assert invalid.status_code == 422
     assert invalid.json()["error"]["code"] == "validation_error"
+
+
+def test_session_money_fields_are_json_numbers_or_null(
+    client: TestClient, auth_headers: dict[str, str]
+) -> None:
+    post(client, auth_headers, make_event(0, external_session_id="s1"))
+    session_id = list_sessions(client, auth_headers)["items"][0]["id"]
+
+    detail = client.get(f"{SESSIONS}/{session_id}", headers=auth_headers).json()
+
+    assert detail["session"]["total_estimated_cost"] is None
+    assert detail["by_model"][0]["estimated_cost"] is None

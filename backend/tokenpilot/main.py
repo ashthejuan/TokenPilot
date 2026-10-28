@@ -76,7 +76,7 @@ async def _handle_validation_error(request: Request, exc: Exception) -> JSONResp
 
 async def _handle_ledger_ref_error(request: Request, exc: Exception) -> JSONResponse:
     assert isinstance(exc, LedgerRefError)
-    return JSONResponse(status_code=422, content=error_body(exc.code, str(exc)))
+    return JSONResponse(status_code=422, content=error_body(exc.code, str(exc), exc.details))
 
 
 async def _handle_unexpected_error(request: Request, exc: Exception) -> JSONResponse:

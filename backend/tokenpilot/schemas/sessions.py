@@ -1,10 +1,10 @@
 """Session shapes. Cost fields stay null until the cost engine fills them (Task 1.5)."""
 
-from decimal import Decimal
 from typing import Literal
 
 from pydantic import BaseModel, ConfigDict
 
+from tokenpilot.schemas.common import Money
 from tokenpilot.schemas.usage import UsageEvent
 
 SessionOutcome = Literal["success", "failure", "abandoned", "unknown"]
@@ -20,7 +20,7 @@ class SessionSummary(BaseModel):
     outcome: SessionOutcome
     outcome_source: str | None
     request_count: int
-    total_estimated_cost: Decimal | None = None
+    total_estimated_cost: Money | None = None
     currency: str | None = None
 
 
@@ -29,7 +29,7 @@ class ModelBreakdown(BaseModel):
     request_count: int
     input_tokens: int | None
     output_tokens: int | None
-    estimated_cost: Decimal | None = None
+    estimated_cost: Money | None = None
 
 
 class SessionDetail(BaseModel):

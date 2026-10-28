@@ -1,0 +1,22 @@
+# Local env
+.env
+.env.*
+!.env.example
+
+# Phase notes (local agent context; not committed)
+context/phases/
+
+# Agent scratch (ledgers, briefs, review packages)
+.superpowers/
+
+# OS / editor
+.DS_Store
+*.swp
+.idea/
+.vscode/
+
+# Dependencies / build
+node_modules/
+dist/
+build/
+.cache/

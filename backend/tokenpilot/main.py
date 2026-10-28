@@ -17,12 +17,14 @@ from starlette.exceptions import HTTPException as StarletteHTTPException
 from tokenpilot.api.health import router as health_router
 from tokenpilot.api.projects import router as projects_router
 from tokenpilot.api.sessions import router as sessions_router
+from tokenpilot.api.settings import router as settings_router
 from tokenpilot.api.usage import router as usage_router
 from tokenpilot.config import Settings
 from tokenpilot.db.connection import connect
 from tokenpilot.db.database import Database
 from tokenpilot.db.migrate import migrate
 from tokenpilot.ledger.refs import LedgerRefError
+from tokenpilot.pricing.catalog import load_catalog
 from tokenpilot.security import redact_text, require_local_token
 
 logger = logging.getLogger("tokenpilot")
@@ -108,6 +110,8 @@ def create_app(settings: Settings | None = None) -> FastAPI:
             connection.close()
         db = Database(resolved.db_path)
         app.state.db = db
+        with db.write() as conn:
+            load_catalog(conn, resolved.pricing_catalog_path)
         try:
             yield
         finally:
@@ -122,7 +126,13 @@ def create_app(settings: Settings | None = None) -> FastAPI:
     app.add_exception_handler(Exception, _handle_unexpected_error)
 
     # Auth is applied here, not per router, so a new router cannot forget it.
-    for router in (health_router, usage_router, projects_router, sessions_router):
+    for router in (
+        health_router,
+        usage_router,
+        projects_router,
+        sessions_router,
+        settings_router,
+    ):
         app.include_router(router, dependencies=[Depends(require_local_token)])
     return app
 

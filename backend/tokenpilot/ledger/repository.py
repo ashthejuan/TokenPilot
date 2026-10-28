@@ -6,6 +6,7 @@ import uuid
 from typing import Any
 
 from tokenpilot.ledger.normalize import NormalizedEvent
+from tokenpilot.pricing.cost import latest_costs_for, to_cost_summary
 from tokenpilot.schemas.common import Page, Paged, decode_cursor, encode_cursor
 from tokenpilot.schemas.projects import Project
 from tokenpilot.schemas.sessions import ModelBreakdown, SessionOutcome, SessionSummary
@@ -31,9 +32,7 @@ _PROJECT_COLUMNS = "id, name, slug, repository_path, default_currency, created_a
 
 
 def _event_from_row(row: sqlite3.Row) -> UsageEvent:
-    values = dict(row)
-    values["metadata"] = json.loads(values.pop("metadata_json"))
-    return UsageEvent.model_validate(values)
+    return UsageEvent.from_ledger_row(dict(row))
 
 
 class LedgerRepository:
@@ -112,7 +111,21 @@ class LedgerRepository:
         row = self._conn.execute(
             f"SELECT {_EVENT_COLUMNS} FROM usage_events WHERE id = ?", (event_id,)
         ).fetchone()
-        return _event_from_row(row) if row is not None else None
+        if row is None:
+            return None
+        return self.with_costs([_event_from_row(row)])[0]
+
+    def with_costs(self, events: list[UsageEvent]) -> list[UsageEvent]:
+        """Attach each event's latest cost record; unpriced events keep `cost=None`."""
+        if not events:
+            return events
+        costs = latest_costs_for(self._conn, [event.id for event in events])
+        return [
+            event.model_copy(update={"cost": to_cost_summary(costs[event.id])})
+            if event.id in costs
+            else event
+            for event in events
+        ]
 
     def benchmark_run_exists(self, run_id: str) -> bool:
         row = self._conn.execute("SELECT 1 FROM benchmark_runs WHERE id = ?", (run_id,)).fetchone()
@@ -153,7 +166,7 @@ class LedgerRepository:
         items = [_event_from_row(row) for row in rows[: page.limit]]
         has_more = len(rows) > page.limit
         next_cursor = encode_cursor(items[-1].started_at, items[-1].id) if has_more else None
-        return Paged[UsageEvent](items=items, next_cursor=next_cursor)
+        return Paged[UsageEvent](items=self.with_costs(items), next_cursor=next_cursor)
 
     def create_project(
         self,
@@ -284,7 +297,7 @@ class LedgerRepository:
             "ORDER BY started_at ASC, id ASC LIMIT ?",
             (session_id, limit),
         ).fetchall()
-        return [_event_from_row(row) for row in rows]
+        return self.with_costs([_event_from_row(row) for row in rows])
 
     def session_by_model(self, session_id: str) -> list[ModelBreakdown]:
         """Token sums stay NULL when no event in the group reported them."""

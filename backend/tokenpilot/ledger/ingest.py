@@ -1,4 +1,4 @@
-"""The write path: normalize, attribute, group retries, insert."""
+"""The write path: normalize, attribute, group retries, insert, price."""
 
 import sqlite3
 import uuid
@@ -9,6 +9,7 @@ from tokenpilot.ledger.normalize import normalize
 from tokenpilot.ledger.refs import BenchmarkRunRefError, get_or_create_session
 from tokenpilot.ledger.repository import LedgerRepository
 from tokenpilot.ledger.retry_grouping import assign_retry_group
+from tokenpilot.pricing.cost import record_cost, to_cost_summary
 from tokenpilot.schemas.usage import UsageEvent, UsageEventIn
 
 __all__ = ["GatewayDefaults", "IngestResult", "ingest_event"]
@@ -35,10 +36,11 @@ def ingest_event(
     normalized = normalize(raw, source)
     repository = LedgerRepository(conn)
 
-    # A duplicate returns the stored row untouched: no new project, task, session or group.
+    # A duplicate returns the stored row untouched: no new project, task, session,
+    # group or cost record.
     existing = repository.find_event_by_idempotency_key(normalized.idempotency_key)
     if existing is not None:
-        return IngestResult(event=existing, created=False)
+        return IngestResult(event=repository.with_costs([existing])[0], created=False)
 
     if normalized.benchmark_run_id and not repository.benchmark_run_exists(
         normalized.benchmark_run_id
@@ -76,4 +78,9 @@ def ingest_event(
         retry_source=retry_source,
         attempt=attempt,
     )
+    if created:
+        record = record_cost(conn, event.id)
+        event = event.model_copy(update={"cost": to_cost_summary(record)})
+    else:
+        event = repository.with_costs([event])[0]
     return IngestResult(event=event, created=created)

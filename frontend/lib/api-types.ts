@@ -21,6 +21,75 @@ export interface paths {
         patch?: never;
         trace?: never;
     };
+    "/api/v1/insights": {
+        parameters: {
+            query?: never;
+            header?: never;
+            path?: never;
+            cookie?: never;
+        };
+        /** List Insights */
+        get: operations["list_insights_api_v1_insights_get"];
+        put?: never;
+        post?: never;
+        delete?: never;
+        options?: never;
+        head?: never;
+        patch?: never;
+        trace?: never;
+    };
+    "/api/v1/insights/analyze": {
+        parameters: {
+            query?: never;
+            header?: never;
+            path?: never;
+            cookie?: never;
+        };
+        get?: never;
+        put?: never;
+        /** Analyze */
+        post: operations["analyze_api_v1_insights_analyze_post"];
+        delete?: never;
+        options?: never;
+        head?: never;
+        patch?: never;
+        trace?: never;
+    };
+    "/api/v1/insights/{insight_id}": {
+        parameters: {
+            query?: never;
+            header?: never;
+            path?: never;
+            cookie?: never;
+        };
+        /** Get Insight */
+        get: operations["get_insight_api_v1_insights__insight_id__get"];
+        put?: never;
+        post?: never;
+        delete?: never;
+        options?: never;
+        head?: never;
+        /** Patch Insight */
+        patch: operations["patch_insight_api_v1_insights__insight_id__patch"];
+        trace?: never;
+    };
+    "/api/v1/jobs/{job_id}": {
+        parameters: {
+            query?: never;
+            header?: never;
+            path?: never;
+            cookie?: never;
+        };
+        /** Get Job */
+        get: operations["get_job_api_v1_jobs__job_id__get"];
+        put?: never;
+        post?: never;
+        delete?: never;
+        options?: never;
+        head?: never;
+        patch?: never;
+        trace?: never;
+    };
     "/api/v1/projects": {
         parameters: {
             query?: never;
@@ -103,6 +172,30 @@ export interface paths {
         get: operations["list_pricing_api_v1_settings_pricing_get"];
         /** Upsert Pricing */
         put: operations["upsert_pricing_api_v1_settings_pricing_put"];
+        post?: never;
+        delete?: never;
+        options?: never;
+        head?: never;
+        patch?: never;
+        trace?: never;
+    };
+    "/api/v1/settings/thresholds": {
+        parameters: {
+            query?: never;
+            header?: never;
+            path?: never;
+            cookie?: never;
+        };
+        /**
+         * Get Thresholds
+         * @description The saved thresholds, or the code defaults when nothing was saved yet.
+         */
+        get: operations["get_thresholds_api_v1_settings_thresholds_get"];
+        /**
+         * Put Thresholds
+         * @description Replace the whole thresholds object. Stored insights are not re-run.
+         */
+        put: operations["put_thresholds_api_v1_settings_thresholds_put"];
         post?: never;
         delete?: never;
         options?: never;
@@ -255,6 +348,26 @@ export type webhooks = Record<string, never>;
 export interface components {
     schemas: {
         /**
+         * AnalyzeAccepted
+         * @description 202 body: the job id to poll.
+         */
+        AnalyzeAccepted: {
+            /** Job Id */
+            job_id: string;
+        };
+        /**
+         * AnalyzeRequest
+         * @description Scope and optional rule filter for one analysis job.
+         */
+        AnalyzeRequest: {
+            /** Project Id */
+            project_id?: string | null;
+            /** Rule Ids */
+            rule_ids?: ("repeated_request" | "retry_amplification" | "repeated_context" | "unsuccessful_task" | "context_ratio" | "runaway_session" | "model_inefficiency")[] | null;
+            /** Session Id */
+            session_id?: string | null;
+        };
+        /**
          * AttributionUpdate
          * @description A correction. A field left out is unchanged; an explicit `null` unattributes it.
          */
@@ -310,6 +423,23 @@ export interface components {
             /** Provider Usage Pct */
             provider_usage_pct: number | null;
         };
+        /**
+         * EvidenceRefOut
+         * @description The wire form of `EvidenceRef`: what an insight points at, and why.
+         */
+        EvidenceRefOut: {
+            /** Id */
+            id: string;
+            /**
+             * Kind
+             * @enum {string}
+             */
+            kind: "usage_event" | "session" | "task" | "benchmark_run" | "aggregate";
+            /** Measurement */
+            measurement: {
+                [key: string]: unknown;
+            };
+        };
         /** HTTPValidationError */
         HTTPValidationError: {
             /** Detail */
@@ -326,6 +456,127 @@ export interface components {
         IngestResponse: {
             /** Results */
             results: components["schemas"]["IngestItemResult"][];
+        };
+        /**
+         * InsightDetail
+         * @description An insight with every evidence ref resolved (or marked unresolved).
+         */
+        InsightDetail: {
+            /** Evidence Rows */
+            evidence_rows: components["schemas"]["ResolvedEvidence"][];
+            insight: components["schemas"]["InsightOut"];
+        };
+        /**
+         * InsightOut
+         * @description One stored insight. `rule_guidance` is filled by the API, not storage.
+         */
+        InsightOut: {
+            /** Confidence */
+            confidence?: number | null;
+            /** Created At */
+            created_at: string;
+            /** Detector Type */
+            detector_type: string;
+            /** Estimated Impact */
+            estimated_impact: number | null;
+            /** Evidence */
+            evidence: components["schemas"]["EvidenceRefOut"][];
+            /** Evidence Truncated */
+            evidence_truncated: number;
+            /** Id */
+            id: string;
+            /** Impact Currency */
+            impact_currency: string | null;
+            /**
+             * Impact Label
+             * @default potential
+             * @constant
+             */
+            impact_label: "potential";
+            /** Investigator Model */
+            investigator_model: string | null;
+            /** Last Detected At */
+            last_detected_at?: string | null;
+            /** Measurements */
+            measurements: {
+                [key: string]: unknown;
+            };
+            /** Project Id */
+            project_id: string | null;
+            /** Recommendation */
+            recommendation: {
+                [key: string]: unknown;
+            } | null;
+            /** Root Cause Hypothesis */
+            root_cause_hypothesis: string | null;
+            /** Rule Guidance */
+            rule_guidance?: string | null;
+            /** Rule Id */
+            rule_id: string;
+            /** Rule Version */
+            rule_version: number;
+            /** Session Id */
+            session_id: string | null;
+            /**
+             * Severity
+             * @enum {string}
+             */
+            severity: "informational" | "low" | "medium" | "high";
+            /**
+             * Status
+             * @enum {string}
+             */
+            status: "new" | "reviewed" | "dismissed" | "tested";
+            /** Summary */
+            summary: string;
+            /** Task Id */
+            task_id: string | null;
+            /** Title */
+            title: string;
+            /** Updated At */
+            updated_at?: string | null;
+        };
+        /**
+         * InsightStatusUpdate
+         * @description PATCH body. `tested` is accepted by the schema then rejected with status_not_settable.
+         */
+        InsightStatusUpdate: {
+            /**
+             * Status
+             * @enum {string}
+             */
+            status: "new" | "reviewed" | "dismissed" | "tested";
+        };
+        /**
+         * JobOut
+         * @description One analysis job. `result` is NULL until the job succeeds.
+         */
+        JobOut: {
+            /** Created At */
+            created_at: string;
+            /** Error */
+            error: string | null;
+            /** Finished At */
+            finished_at: string | null;
+            /** Id */
+            id: string;
+            /** Kind */
+            kind: string;
+            /** Params */
+            params: {
+                [key: string]: unknown;
+            };
+            /** Result */
+            result: {
+                [key: string]: unknown;
+            } | null;
+            /** Started At */
+            started_at: string | null;
+            /**
+             * Status
+             * @enum {string}
+             */
+            status: "queued" | "running" | "succeeded" | "failed";
         };
         /** LatencyStats */
         LatencyStats: {
@@ -375,6 +626,13 @@ export interface components {
             provider: string;
             /** Request Count */
             request_count: number;
+        };
+        /** Paged[InsightOut] */
+        Paged_InsightOut_: {
+            /** Items */
+            items: components["schemas"]["InsightOut"][];
+            /** Next Cursor */
+            next_cursor?: string | null;
         };
         /** Paged[SessionSummary] */
         Paged_SessionSummary_: {
@@ -504,6 +762,18 @@ export interface components {
             repriced: number;
             version: components["schemas"]["PricingVersionOut"];
         };
+        /**
+         * ResolvedEvidence
+         * @description One evidence ref plus the ledger row it names, when that row still exists.
+         */
+        ResolvedEvidence: {
+            event?: components["schemas"]["UsageEvent"] | null;
+            ref: components["schemas"]["EvidenceRefOut"];
+            /** Resolved */
+            resolved: boolean;
+            session?: components["schemas"]["SessionSummary"] | null;
+            task?: components["schemas"]["TaskRef"] | null;
+        };
         /** SessionCost */
         SessionCost: {
             /** Currency */
@@ -572,6 +842,201 @@ export interface components {
              * @enum {string}
              */
             outcome: "success" | "failure" | "abandoned" | "unknown";
+        };
+        /**
+         * TaskRef
+         * @description A resolved task row pointed at by evidence.
+         */
+        TaskRef: {
+            /** External Task Id */
+            external_task_id: string | null;
+            /** Id */
+            id: string;
+            /** Outcome */
+            outcome: string;
+            /** Project Id */
+            project_id: string;
+        };
+        /**
+         * Thresholds
+         * @description Every knob a detector reads. A PUT replaces the whole object.
+         */
+        "Thresholds-Input": {
+            /**
+             * Context Medium Repeated Tokens
+             * @default 50000
+             */
+            context_medium_repeated_tokens: number;
+            /**
+             * Context Min Chars
+             * @default 2000
+             */
+            context_min_chars: number;
+            /**
+             * Context Repeat Min Occurrences
+             * @default 3
+             */
+            context_repeat_min_occurrences: number;
+            /**
+             * Open Session Grace Min
+             * @default 15
+             */
+            open_session_grace_min: number;
+            /**
+             * Ratio Low Min Events
+             * @default 5
+             */
+            ratio_low_min_events: number;
+            /**
+             * Ratio Min Input Tokens
+             * @default 20000
+             */
+            ratio_min_input_tokens: number;
+            /**
+             * Ratio Threshold
+             * @default 50
+             */
+            ratio_threshold: number;
+            /**
+             * Repeat Window S
+             * @default 300
+             */
+            repeat_window_s: number;
+            /**
+             * Retry Min Attempts
+             * @default 2
+             */
+            retry_min_attempts: number;
+            /**
+             * Runaway Max Cost
+             * @default 2.00
+             */
+            runaway_max_cost: number | string;
+            /**
+             * Runaway Max Duration Min
+             * @default 60
+             */
+            runaway_max_duration_min: number;
+            /**
+             * Runaway Max Requests
+             * @default 40
+             */
+            runaway_max_requests: number;
+            /**
+             * Runaway Max Retries
+             * @default 5
+             */
+            runaway_max_retries: number;
+            /**
+             * Severity High Cost
+             * @default 1.00
+             */
+            severity_high_cost: number | string;
+            /**
+             * Severity Medium Cost
+             * @default 0.10
+             */
+            severity_medium_cost: number | string;
+            /**
+             * Unsuccessful Min Cost
+             * @default 0.50
+             */
+            unsuccessful_min_cost: number | string;
+        };
+        /**
+         * Thresholds
+         * @description Every knob a detector reads. A PUT replaces the whole object.
+         */
+        "Thresholds-Output": {
+            /**
+             * Context Medium Repeated Tokens
+             * @default 50000
+             */
+            context_medium_repeated_tokens: number;
+            /**
+             * Context Min Chars
+             * @default 2000
+             */
+            context_min_chars: number;
+            /**
+             * Context Repeat Min Occurrences
+             * @default 3
+             */
+            context_repeat_min_occurrences: number;
+            /**
+             * Open Session Grace Min
+             * @default 15
+             */
+            open_session_grace_min: number;
+            /**
+             * Ratio Low Min Events
+             * @default 5
+             */
+            ratio_low_min_events: number;
+            /**
+             * Ratio Min Input Tokens
+             * @default 20000
+             */
+            ratio_min_input_tokens: number;
+            /**
+             * Ratio Threshold
+             * @default 50
+             */
+            ratio_threshold: number;
+            /**
+             * Repeat Window S
+             * @default 300
+             */
+            repeat_window_s: number;
+            /**
+             * Retry Min Attempts
+             * @default 2
+             */
+            retry_min_attempts: number;
+            /**
+             * Runaway Max Cost
+             * @default 2
+             */
+            runaway_max_cost: number;
+            /**
+             * Runaway Max Duration Min
+             * @default 60
+             */
+            runaway_max_duration_min: number;
+            /**
+             * Runaway Max Requests
+             * @default 40
+             */
+            runaway_max_requests: number;
+            /**
+             * Runaway Max Retries
+             * @default 5
+             */
+            runaway_max_retries: number;
+            /**
+             * Severity High Cost
+             * @default 1
+             */
+            severity_high_cost: number;
+            /**
+             * Severity Medium Cost
+             * @default 0.1
+             */
+            severity_medium_cost: number;
+            /**
+             * Unsuccessful Min Cost
+             * @default 0.5
+             */
+            unsuccessful_min_cost: number;
+        };
+        /**
+         * ThresholdsResponse
+         * @description A saved thresholds object; stored detectors do not re-run on their own.
+         */
+        ThresholdsResponse: {
+            /** Reanalysis Required */
+            reanalysis_required: boolean;
+            thresholds: components["schemas"]["Thresholds-Output"];
         };
         /** TimeseriesPoint */
         TimeseriesPoint: {
@@ -732,6 +1197,173 @@ export interface operations {
                     "application/json": {
                         [key: string]: unknown;
                     };
+                };
+            };
+        };
+    };
+    list_insights_api_v1_insights_get: {
+        parameters: {
+            query?: {
+                status?: ("new" | "reviewed" | "dismissed" | "tested") | null;
+                severity?: ("informational" | "low" | "medium" | "high") | null;
+                rule_id?: string | null;
+                project_id?: string | null;
+                session_id?: string | null;
+                cursor?: string | null;
+                limit?: number;
+            };
+            header?: never;
+            path?: never;
+            cookie?: never;
+        };
+        requestBody?: never;
+        responses: {
+            /** @description Successful Response */
+            200: {
+                headers: {
+                    [name: string]: unknown;
+                };
+                content: {
+                    "application/json": components["schemas"]["Paged_InsightOut_"];
+                };
+            };
+            /** @description Validation Error */
+            422: {
+                headers: {
+                    [name: string]: unknown;
+                };
+                content: {
+                    "application/json": components["schemas"]["HTTPValidationError"];
+                };
+            };
+        };
+    };
+    analyze_api_v1_insights_analyze_post: {
+        parameters: {
+            query?: never;
+            header?: never;
+            path?: never;
+            cookie?: never;
+        };
+        requestBody: {
+            content: {
+                "application/json": components["schemas"]["AnalyzeRequest"];
+            };
+        };
+        responses: {
+            /** @description Successful Response */
+            202: {
+                headers: {
+                    [name: string]: unknown;
+                };
+                content: {
+                    "application/json": components["schemas"]["AnalyzeAccepted"];
+                };
+            };
+            /** @description Validation Error */
+            422: {
+                headers: {
+                    [name: string]: unknown;
+                };
+                content: {
+                    "application/json": components["schemas"]["HTTPValidationError"];
+                };
+            };
+        };
+    };
+    get_insight_api_v1_insights__insight_id__get: {
+        parameters: {
+            query?: never;
+            header?: never;
+            path: {
+                insight_id: string;
+            };
+            cookie?: never;
+        };
+        requestBody?: never;
+        responses: {
+            /** @description Successful Response */
+            200: {
+                headers: {
+                    [name: string]: unknown;
+                };
+                content: {
+                    "application/json": components["schemas"]["InsightDetail"];
+                };
+            };
+            /** @description Validation Error */
+            422: {
+                headers: {
+                    [name: string]: unknown;
+                };
+                content: {
+                    "application/json": components["schemas"]["HTTPValidationError"];
+                };
+            };
+        };
+    };
+    patch_insight_api_v1_insights__insight_id__patch: {
+        parameters: {
+            query?: never;
+            header?: never;
+            path: {
+                insight_id: string;
+            };
+            cookie?: never;
+        };
+        requestBody: {
+            content: {
+                "application/json": components["schemas"]["InsightStatusUpdate"];
+            };
+        };
+        responses: {
+            /** @description Successful Response */
+            200: {
+                headers: {
+                    [name: string]: unknown;
+                };
+                content: {
+                    "application/json": components["schemas"]["InsightOut"];
+                };
+            };
+            /** @description Validation Error */
+            422: {
+                headers: {
+                    [name: string]: unknown;
+                };
+                content: {
+                    "application/json": components["schemas"]["HTTPValidationError"];
+                };
+            };
+        };
+    };
+    get_job_api_v1_jobs__job_id__get: {
+        parameters: {
+            query?: never;
+            header?: never;
+            path: {
+                job_id: string;
+            };
+            cookie?: never;
+        };
+        requestBody?: never;
+        responses: {
+            /** @description Successful Response */
+            200: {
+                headers: {
+                    [name: string]: unknown;
+                };
+                content: {
+                    "application/json": components["schemas"]["JobOut"];
+                };
+            };
+            /** @description Validation Error */
+            422: {
+                headers: {
+                    [name: string]: unknown;
+                };
+                content: {
+                    "application/json": components["schemas"]["HTTPValidationError"];
                 };
             };
         };
@@ -995,6 +1627,59 @@ export interface operations {
                 };
                 content: {
                     "application/json": components["schemas"]["RepriceResponse"];
+                };
+            };
+            /** @description Validation Error */
+            422: {
+                headers: {
+                    [name: string]: unknown;
+                };
+                content: {
+                    "application/json": components["schemas"]["HTTPValidationError"];
+                };
+            };
+        };
+    };
+    get_thresholds_api_v1_settings_thresholds_get: {
+        parameters: {
+            query?: never;
+            header?: never;
+            path?: never;
+            cookie?: never;
+        };
+        requestBody?: never;
+        responses: {
+            /** @description Successful Response */
+            200: {
+                headers: {
+                    [name: string]: unknown;
+                };
+                content: {
+                    "application/json": components["schemas"]["Thresholds-Output"];
+                };
+            };
+        };
+    };
+    put_thresholds_api_v1_settings_thresholds_put: {
+        parameters: {
+            query?: never;
+            header?: never;
+            path?: never;
+            cookie?: never;
+        };
+        requestBody: {
+            content: {
+                "application/json": components["schemas"]["Thresholds-Input"];
+            };
+        };
+        responses: {
+            /** @description Successful Response */
+            200: {
+                headers: {
+                    [name: string]: unknown;
+                };
+                content: {
+                    "application/json": components["schemas"]["ThresholdsResponse"];
                 };
             };
             /** @description Validation Error */

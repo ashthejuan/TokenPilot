@@ -17,6 +17,7 @@ from starlette.exceptions import HTTPException as StarletteHTTPException
 
 from tokenpilot.api.gateway import router as gateway_router
 from tokenpilot.api.health import router as health_router
+from tokenpilot.api.insights import router as insights_router
 from tokenpilot.api.projects import router as projects_router
 from tokenpilot.api.sessions import router as sessions_router
 from tokenpilot.api.settings import router as settings_router
@@ -28,6 +29,7 @@ from tokenpilot.db.migrate import migrate
 from tokenpilot.insights.jobs import JobRepository
 from tokenpilot.ledger.refs import LedgerRefError
 from tokenpilot.pricing.catalog import load_catalog
+from tokenpilot.schemas.insights import StatusNotSettableError
 from tokenpilot.security import redact_text, require_local_token
 
 logger = logging.getLogger("tokenpilot")
@@ -84,6 +86,11 @@ async def _handle_ledger_ref_error(request: Request, exc: Exception) -> JSONResp
     return JSONResponse(status_code=422, content=error_body(exc.code, str(exc), exc.details))
 
 
+async def _handle_status_not_settable(request: Request, exc: Exception) -> JSONResponse:
+    assert isinstance(exc, StatusNotSettableError)
+    return JSONResponse(status_code=422, content=error_body(exc.code, str(exc), exc.details))
+
+
 async def _handle_unexpected_error(request: Request, exc: Exception) -> JSONResponse:
     # The message is the only thing logged, and it is redacted: PRD §9.5 forbids
     # secrets in logs, and upstream exception text can carry headers or keys.
@@ -136,6 +143,7 @@ def create_app(
     app.add_exception_handler(StarletteHTTPException, _handle_http_exception)
     app.add_exception_handler(RequestValidationError, _handle_validation_error)
     app.add_exception_handler(LedgerRefError, _handle_ledger_ref_error)
+    app.add_exception_handler(StatusNotSettableError, _handle_status_not_settable)
     app.add_exception_handler(Exception, _handle_unexpected_error)
 
     # Auth is applied here, not per router, so a new router cannot forget it.
@@ -145,6 +153,7 @@ def create_app(
         projects_router,
         sessions_router,
         settings_router,
+        insights_router,
         gateway_router,
     ):
         app.include_router(router, dependencies=[Depends(require_local_token)])

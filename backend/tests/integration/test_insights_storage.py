@@ -9,25 +9,25 @@ import uuid
 from collections.abc import Iterator
 from decimal import Decimal
 from pathlib import Path
-from typing import Annotated, Any
+from typing import Any
 
 import pytest
-from fastapi import Depends, FastAPI, HTTPException
 from fastapi.testclient import TestClient
 
+from tests.conftest import LOCAL_TOKEN
 from tokenpilot.config import Settings
 from tokenpilot.db.connection import connect, transaction
-from tokenpilot.db.database import Database, get_db
 from tokenpilot.db.migrate import migrate
 from tokenpilot.detectors.base import EvidenceRef, Finding, Scope
 from tokenpilot.insights.jobs import JobRepository
 from tokenpilot.insights.repository import InsightRepository
 from tokenpilot.main import create_app
-from tokenpilot.schemas.common import InvalidCursorError, Page, Paged
-from tokenpilot.schemas.insights import InsightFilters, InsightOut
+from tokenpilot.schemas.common import InvalidCursorError, Page
+from tokenpilot.schemas.insights import InsightFilters
 
 PROJECT_ID = "p1"
 NOW = "2026-10-28T10:00:00.000Z"
+AUTH = {"Authorization": f"Bearer {LOCAL_TOKEN}"}
 
 
 def make_finding(**overrides: Any) -> Finding:
@@ -155,27 +155,6 @@ def test_insight_money_round_trips(conn: sqlite3.Connection) -> None:
     assert unpriced["impact_currency"] is None
 
 
-def _list_app(settings: Settings) -> FastAPI:
-    """The Task 2.4 list route, mounted here only to pin the 422 contract.
-
-    Task 2.0 ships no insights router; this proves the repository's
-    `InvalidCursorError` becomes the project's standard validation error.
-    """
-    app = create_app(settings)
-
-    @app.get("/api/v1/insights")
-    def list_insights(
-        db: Annotated[Database, Depends(get_db)], cursor: str | None = None
-    ) -> Paged[InsightOut]:
-        try:
-            with db.read() as conn:
-                return InsightRepository(conn).list(InsightFilters(), Page(cursor=cursor))
-        except InvalidCursorError as exc:
-            raise HTTPException(status_code=422, detail="invalid cursor") from exc
-
-    return app
-
-
 def test_list_insights_filters_and_paginates(
     conn: sqlite3.Connection, settings: Settings
 ) -> None:
@@ -209,8 +188,10 @@ def test_list_insights_filters_and_paginates(
 
     with pytest.raises(InvalidCursorError):
         repository.list(InsightFilters(), Page(cursor="not-a-cursor"))
-    with TestClient(_list_app(settings)) as client:
-        response = client.get("/api/v1/insights", params={"cursor": "not-a-cursor"})
+    with TestClient(create_app(settings)) as client:
+        response = client.get(
+            "/api/v1/insights", params={"cursor": "not-a-cursor"}, headers=AUTH
+        )
     assert response.status_code == 422
     assert response.json()["error"]["code"] == "validation_error"
 

@@ -8,13 +8,19 @@ every unfinished job with `interrupted by restart`.
 import json
 import sqlite3
 import uuid
+from datetime import UTC, datetime
+from pathlib import Path
 from typing import Any, Literal
 
-from tokenpilot.schemas.insights import JobOut, JobStatus
+from tokenpilot.db.connection import connect
+from tokenpilot.db.database import Database
+from tokenpilot.detectors.facts import AnalysisScope
+from tokenpilot.detectors.runner import run_detectors
+from tokenpilot.schemas.insights import AnalyzeRequest, JobOut, JobStatus
 from tokenpilot.security import redact_text
 from tokenpilot.timeutil import utc_now_z
 
-__all__ = ["INTERRUPTED_ERROR", "JobKind", "JobRepository"]
+__all__ = ["INTERRUPTED_ERROR", "JobKind", "JobRepository", "run_analysis_job"]
 
 JobKind = Literal["analyze"]
 INTERRUPTED_ERROR = "interrupted by restart"
@@ -97,3 +103,37 @@ class JobRepository:
         if cursor.rowcount != 1:
             return None
         return self.get(job_id)
+
+
+def run_analysis_job(
+    db: Database, db_path: Path, job_id: str, req: AnalyzeRequest
+) -> None:
+    """Start the job, run detectors on a separate read connection (P5), then succeed or fail."""
+    with db.write() as conn:
+        started = JobRepository(conn).start(job_id)
+    if started is None:
+        return
+
+    read_conn = connect(db_path)
+    try:
+        now = datetime.now(UTC)
+        scope = AnalysisScope(project_id=req.project_id, session_id=req.session_id)
+        # rule_ids is already validated as RuleId literals on the request thread.
+        rule_ids: list[str] | None = (
+            [str(rule_id) for rule_id in req.rule_ids] if req.rule_ids is not None else None
+        )
+        result = run_detectors(read_conn, db, scope, rule_ids, now)
+        with db.write() as conn:
+            JobRepository(conn).succeed(
+                job_id,
+                {
+                    "created": result.created,
+                    "updated": result.updated,
+                    "by_rule": result.by_rule,
+                },
+            )
+    except Exception as exc:
+        with db.write() as conn:
+            JobRepository(conn).fail(job_id, f"{type(exc).__name__}: {exc}")
+    finally:
+        read_conn.close()

@@ -52,6 +52,9 @@ class InsightRepository:
 
     def upsert(self, finding: Finding, now: str) -> Literal["created", "updated"]:
         """Insert the finding, or refresh the row that owns its dedupe key."""
+        if (finding.estimated_impact is None) != (finding.impact_currency is None):
+            # A money value without its currency (or the reverse) is meaningless.
+            raise ValueError("estimated_impact and impact_currency must be set together")
         evidence = finding.evidence[:MAX_EVIDENCE]
         data: dict[str, Any] = {
             "detector_type": finding.rule_id,

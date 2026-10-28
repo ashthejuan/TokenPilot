@@ -215,6 +215,74 @@ def test_list_insights_filters_and_paginates(
     assert response.json()["error"]["code"] == "validation_error"
 
 
+def test_job_cannot_skip_start(conn: sqlite3.Connection) -> None:
+    repository = JobRepository(conn)
+    job = repository.create("analyze", {})
+
+    assert repository.succeed(job.id, {"created": 1}) is None
+    assert repository.fail(job.id, "boom") is None
+
+    stored = repository.get(job.id)
+    assert stored is not None
+    assert stored.status == "queued"
+    assert stored.started_at is None
+    assert stored.result is None
+    assert stored.error is None
+
+
+def test_job_cannot_restart_after_finish(conn: sqlite3.Connection) -> None:
+    repository = JobRepository(conn)
+    job = repository.create("analyze", {})
+    running = repository.start(job.id)
+    assert running is not None
+    assert repository.succeed(job.id, {}) is not None
+
+    assert repository.start(job.id) is None
+    assert repository.fail(job.id, "too late") is None
+
+    stored = repository.get(job.id)
+    assert stored is not None
+    assert stored.status == "succeeded"
+
+
+def test_upsert_rejects_unpaired_money(conn: sqlite3.Connection) -> None:
+    repository = InsightRepository(conn)
+
+    with pytest.raises(ValueError):
+        repository.upsert(make_finding(impact_currency=None), NOW)
+    with pytest.raises(ValueError):
+        repository.upsert(make_finding(estimated_impact=None), NOW)
+
+    assert conn.execute("SELECT COUNT(*) AS n FROM insights").fetchone()["n"] == 0
+    repository.upsert(make_finding(), NOW)
+    repository.upsert(
+        make_finding(anchor="none", estimated_impact=None, impact_currency=None), NOW
+    )
+    assert conn.execute("SELECT COUNT(*) AS n FROM insights").fetchone()["n"] == 2
+
+
+def test_list_insights_tie_breaks_on_id(conn: sqlite3.Connection) -> None:
+    repository = InsightRepository(conn)
+    same_now = "2026-10-28T10:00:00.000Z"
+    for anchor in ("a", "b"):
+        repository.upsert(make_finding(anchor=anchor, title=anchor), same_now)
+    ids = sorted(
+        (item.id for item in repository.list(InsightFilters(), Page()).items), reverse=True
+    )
+
+    walked: list[str] = []
+    cursor: str | None = None
+    while True:
+        page = repository.list(InsightFilters(), Page(limit=1, cursor=cursor))
+        walked.extend(item.id for item in page.items)
+        if page.next_cursor is None:
+            break
+        cursor = page.next_cursor
+
+    assert walked == ids
+    assert len(set(walked)) == 2
+
+
 def test_job_lifecycle(conn: sqlite3.Connection) -> None:
     repository = JobRepository(conn)
 
@@ -235,6 +303,7 @@ def test_job_lifecycle(conn: sqlite3.Connection) -> None:
     assert done.finished_at is not None
 
     doomed = repository.create("analyze", {})
+    assert repository.start(doomed.id) is not None
     repository.fail(doomed.id, "RuntimeError: Bearer sk-abcdefghijklmnopqrstuv")
     failed = repository.get(doomed.id)
     assert failed is not None
@@ -272,6 +341,7 @@ def test_recover_interrupted_only_touches_unfinished_jobs(conn: sqlite3.Connecti
     running = repository.create("analyze", {})
     repository.start(running.id)
     finished = repository.create("analyze", {})
+    assert repository.start(finished.id) is not None
     repository.succeed(finished.id, {})
 
     assert repository.recover_interrupted() == 2

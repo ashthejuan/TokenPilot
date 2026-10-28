@@ -36,7 +36,7 @@ class InsightOut(BaseModel):
     status: InsightStatus
     title: str
     summary: str
-    confidence: float
+    confidence: float | None = None
     estimated_impact: Money | None
     impact_currency: str | None
     impact_label: Literal["potential"] = "potential"

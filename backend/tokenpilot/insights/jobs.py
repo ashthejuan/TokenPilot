@@ -48,12 +48,13 @@ class JobRepository:
         return job
 
     def start(self, job_id: str) -> JobOut | None:
-        return self._transition(job_id, "running", started_at=utc_now_z())
+        return self._transition(job_id, "running", "queued", started_at=utc_now_z())
 
     def succeed(self, job_id: str, result: dict[str, Any]) -> JobOut | None:
         return self._transition(
             job_id,
             "succeeded",
+            "running",
             result_json=json.dumps(result, sort_keys=True),
             finished_at=utc_now_z(),
         )
@@ -61,7 +62,11 @@ class JobRepository:
     def fail(self, job_id: str, error: str) -> JobOut | None:
         # Redact here as well as at the call site: a job error is user-visible.
         return self._transition(
-            job_id, "failed", error=redact_text(error), finished_at=utc_now_z()
+            job_id,
+            "failed",
+            "running",
+            error=redact_text(error),
+            finished_at=utc_now_z(),
         )
 
     def get(self, job_id: str) -> JobOut | None:
@@ -79,11 +84,15 @@ class JobRepository:
         )
         return cursor.rowcount
 
-    def _transition(self, job_id: str, status: JobStatus, **fields: Any) -> JobOut | None:
+    def _transition(
+        self, job_id: str, status: JobStatus, expected: JobStatus, **fields: Any
+    ) -> JobOut | None:
+        """Move a job only from `expected`; None when it is missing or already moved on."""
         columns: dict[str, Any] = {"status": status, **fields}
         assignments = ", ".join(f"{column} = ?" for column in columns)
         cursor = self._conn.execute(
-            f"UPDATE jobs SET {assignments} WHERE id = ?", [*columns.values(), job_id]
+            f"UPDATE jobs SET {assignments} WHERE id = ? AND status = ?",
+            [*columns.values(), job_id, expected],
         )
         if cursor.rowcount != 1:
             return None

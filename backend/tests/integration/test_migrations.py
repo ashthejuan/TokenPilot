@@ -1,11 +1,16 @@
+import shutil
 import sqlite3
 from collections.abc import Iterator
+from decimal import Decimal
 from pathlib import Path
 
 import pytest
 
 from tokenpilot.db.connection import connect, transaction
 from tokenpilot.db.migrate import migrate
+from tokenpilot.insights.repository import InsightRepository
+
+MIGRATIONS_DIR = Path(__file__).resolve().parents[2] / "tokenpilot" / "db" / "migrations"
 
 PRD_TABLES = {
     "projects",
@@ -196,19 +201,47 @@ def test_migration_0003_adds_insight_columns_and_tables(conn: sqlite3.Connection
         conn.execute(insert, ("i4", "repeated_request.v1:s1:fp:-:e1"))
 
 
-def test_migration_0003_defaults_keep_legacy_insight_rows_valid(conn: sqlite3.Connection) -> None:
-    migrate(conn)
+def test_migration_0003_upgrades_legacy_insight_rows(
+    conn: sqlite3.Connection, tmp_path: Path, monkeypatch: pytest.MonkeyPatch
+) -> None:
+    """A Phase 1 row written before 0003 must stay readable, not raise on `get()`."""
+    staged = tmp_path / "migrations"
+    staged.mkdir()
+    for name in ("0001_init.sql", "0002_phase1_ledger.sql"):
+        shutil.copy(MIGRATIONS_DIR / name, staged / name)
+    monkeypatch.setattr("tokenpilot.db.migrate.MIGRATIONS_DIR", staged)
+
+    assert migrate(conn) == 2
+    created_at = "2026-10-28T00:00:00.000Z"
     conn.execute(
-        "INSERT INTO insights (id, detector_type, severity, title, summary, created_at) "
-        "VALUES ('legacy', 'repeated_request', 'low', 't', 's', '2026-10-28T00:00:00.000Z')"
+        "INSERT INTO insights (id, detector_type, severity, title, summary, confidence, "
+        "estimated_impact, evidence_json, created_at) "
+        "VALUES ('legacy', 'retry_amplification', 'medium', 'Legacy', 'old row', NULL, 0.5, "
+        "'[]', ?)",
+        (created_at,),
     )
 
-    row = conn.execute(
-        "SELECT measurements_json, evidence_truncated FROM insights WHERE id = 'legacy'"
-    ).fetchone()
+    shutil.copy(MIGRATIONS_DIR / "0003_phase2_insights.sql", staged / "0003_phase2_insights.sql")
+    assert migrate(conn) == 3
 
+    row = conn.execute(
+        "SELECT rule_id, rule_version, updated_at, last_detected_at, measurements_json, "
+        "evidence_truncated FROM insights WHERE id = 'legacy'"
+    ).fetchone()
+    assert row["rule_id"] == "retry_amplification"
+    assert row["rule_version"] == 0
+    assert row["updated_at"] == created_at
+    assert row["last_detected_at"] == created_at
     assert row["measurements_json"] == "{}"
     assert row["evidence_truncated"] == 0
+
+    insight = InsightRepository(conn).get("legacy")
+    assert insight is not None
+    assert insight.rule_id == "retry_amplification"
+    assert insight.rule_version == 0
+    assert insight.confidence is None
+    assert insight.status == "new"
+    assert insight.estimated_impact == Decimal("0.5")
 
 
 def test_migration_0002_unique_constraints_enforced(conn: sqlite3.Connection) -> None:

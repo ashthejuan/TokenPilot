@@ -18,6 +18,14 @@ CREATE UNIQUE INDEX idx_insights_dedupe ON insights (dedupe_key);
 CREATE INDEX idx_insights_session ON insights (session_id);
 CREATE INDEX idx_insights_created ON insights (created_at, id);
 
+-- Backfill rows written before this migration so they stay readable: the rule
+-- identity falls back to the old `detector_type`, version 0 means "legacy",
+-- and the lifecycle timestamps start at creation time.
+UPDATE insights SET rule_id = detector_type WHERE rule_id IS NULL;
+UPDATE insights SET rule_version = 0 WHERE rule_version IS NULL;
+UPDATE insights SET updated_at = created_at WHERE updated_at IS NULL;
+UPDATE insights SET last_detected_at = created_at WHERE last_detected_at IS NULL;
+
 CREATE TABLE jobs (
     id TEXT PRIMARY KEY,
     kind TEXT NOT NULL,

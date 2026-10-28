@@ -1,20 +1,27 @@
 """FastAPI application factory and the single structured error shape."""
 
+import argparse
+import json
 import logging
 from collections.abc import AsyncIterator
 from contextlib import asynccontextmanager
+from pathlib import Path
 from typing import Any
 
 from fastapi import Depends, FastAPI, Request
 from fastapi.exceptions import RequestValidationError
 from fastapi.responses import JSONResponse
+from pydantic import SecretStr
 from starlette.exceptions import HTTPException as StarletteHTTPException
 
 from tokenpilot.api.health import router as health_router
+from tokenpilot.api.projects import router as projects_router
+from tokenpilot.api.usage import router as usage_router
 from tokenpilot.config import Settings
 from tokenpilot.db.connection import connect
 from tokenpilot.db.database import Database
 from tokenpilot.db.migrate import migrate
+from tokenpilot.ledger.refs import LedgerRefError
 from tokenpilot.security import redact_text, require_local_token
 
 logger = logging.getLogger("tokenpilot")
@@ -66,6 +73,11 @@ async def _handle_validation_error(request: Request, exc: Exception) -> JSONResp
     )
 
 
+async def _handle_ledger_ref_error(request: Request, exc: Exception) -> JSONResponse:
+    assert isinstance(exc, LedgerRefError)
+    return JSONResponse(status_code=422, content=error_body(exc.code, str(exc)))
+
+
 async def _handle_unexpected_error(request: Request, exc: Exception) -> JSONResponse:
     # The message is the only thing logged, and it is redacted: PRD §9.5 forbids
     # secrets in logs, and upstream exception text can carry headers or keys.
@@ -105,8 +117,30 @@ def create_app(settings: Settings | None = None) -> FastAPI:
 
     app.add_exception_handler(StarletteHTTPException, _handle_http_exception)
     app.add_exception_handler(RequestValidationError, _handle_validation_error)
+    app.add_exception_handler(LedgerRefError, _handle_ledger_ref_error)
     app.add_exception_handler(Exception, _handle_unexpected_error)
 
     # Auth is applied here, not per router, so a new router cannot forget it.
-    app.include_router(health_router, dependencies=[Depends(require_local_token)])
+    for router in (health_router, usage_router, projects_router):
+        app.include_router(router, dependencies=[Depends(require_local_token)])
     return app
+
+
+def export_openapi(path: Path) -> None:
+    """Write the API schema to `path`. The app is built with a throwaway token and never started."""
+    # model_construct skips env and .env loading: exporting must not need or read secrets.
+    settings = Settings.model_construct(local_token=SecretStr("openapi-export-placeholder"))
+    schema = create_app(settings).openapi()
+    path.parent.mkdir(parents=True, exist_ok=True)
+    path.write_text(json.dumps(schema, indent=2, sort_keys=True) + "\n", encoding="utf-8")
+
+
+def main(argv: list[str] | None = None) -> None:
+    parser = argparse.ArgumentParser(prog="tokenpilot.main")
+    parser.add_argument("--export-openapi", type=Path, metavar="PATH", required=True)
+    args = parser.parse_args(argv)
+    export_openapi(args.export_openapi)
+
+
+if __name__ == "__main__":
+    main()

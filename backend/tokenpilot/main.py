@@ -1,6 +1,8 @@
 """FastAPI application factory and the single structured error shape."""
 
 import logging
+from collections.abc import AsyncIterator
+from contextlib import asynccontextmanager
 from typing import Any
 
 from fastapi import FastAPI, HTTPException, Request
@@ -9,6 +11,8 @@ from fastapi.responses import JSONResponse
 
 from tokenpilot.api.health import router as health_router
 from tokenpilot.config import Settings
+from tokenpilot.db.connection import connect
+from tokenpilot.db.migrate import migrate
 
 logger = logging.getLogger("tokenpilot")
 
@@ -70,7 +74,16 @@ def create_app(settings: Settings | None = None) -> FastAPI:
     if not resolved.local_token.get_secret_value().strip():
         raise ValueError("TOKENPILOT_LOCAL_TOKEN must be set and non-empty")
 
-    app = FastAPI(title="TokenPilot API", version="0.1.0")
+    @asynccontextmanager
+    async def lifespan(app: FastAPI) -> AsyncIterator[None]:
+        connection = connect(resolved.db_path)
+        try:
+            migrate(connection)
+        finally:
+            connection.close()
+        yield
+
+    app = FastAPI(title="TokenPilot API", version="0.1.0", lifespan=lifespan)
     app.state.settings = resolved
 
     app.add_exception_handler(HTTPException, _handle_http_exception)

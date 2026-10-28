@@ -26,4 +26,4 @@ def test_health_ok_with_token(client: TestClient, auth_headers: dict[str, str]) 
     body = response.json()
     assert body["status"] == "ok"
     assert body["db"] == "ok"
-    assert isinstance(body["schema_version"], int)
+    assert body["schema_version"] == 1

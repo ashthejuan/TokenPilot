@@ -5,14 +5,16 @@ from collections.abc import AsyncIterator
 from contextlib import asynccontextmanager
 from typing import Any
 
-from fastapi import FastAPI, HTTPException, Request
+from fastapi import Depends, FastAPI, Request
 from fastapi.exceptions import RequestValidationError
 from fastapi.responses import JSONResponse
+from starlette.exceptions import HTTPException as StarletteHTTPException
 
 from tokenpilot.api.health import router as health_router
 from tokenpilot.config import Settings
 from tokenpilot.db.connection import connect
 from tokenpilot.db.migrate import migrate
+from tokenpilot.security import redact_text, require_local_token
 
 logger = logging.getLogger("tokenpilot")
 
@@ -35,7 +37,7 @@ def error_body(code: str, message: str, details: Any = None) -> dict[str, Any]:
 
 
 async def _handle_http_exception(request: Request, exc: Exception) -> JSONResponse:
-    assert isinstance(exc, HTTPException)
+    assert isinstance(exc, StarletteHTTPException)
     code = _STATUS_CODES.get(exc.status_code, "http_error")
     message = exc.detail if isinstance(exc.detail, str) else code
     return JSONResponse(
@@ -62,7 +64,14 @@ async def _handle_validation_error(request: Request, exc: Exception) -> JSONResp
 
 
 async def _handle_unexpected_error(request: Request, exc: Exception) -> JSONResponse:
-    logger.exception("unhandled error on %s %s", request.method, request.url.path, exc_info=exc)
+    # The message is the only thing logged, and it is redacted: PRD §9.5 forbids
+    # secrets in logs, and upstream exception text can carry headers or keys.
+    logger.error(
+        "unhandled error on %s %s: %s",
+        request.method,
+        request.url.path,
+        redact_text(f"{type(exc).__name__}: {exc}"),
+    )
     return JSONResponse(
         status_code=500,
         content=error_body("internal_error", "internal server error"),
@@ -86,9 +95,10 @@ def create_app(settings: Settings | None = None) -> FastAPI:
     app = FastAPI(title="TokenPilot API", version="0.1.0", lifespan=lifespan)
     app.state.settings = resolved
 
-    app.add_exception_handler(HTTPException, _handle_http_exception)
+    app.add_exception_handler(StarletteHTTPException, _handle_http_exception)
     app.add_exception_handler(RequestValidationError, _handle_validation_error)
     app.add_exception_handler(Exception, _handle_unexpected_error)
 
-    app.include_router(health_router)
+    # Auth is applied here, not per router, so a new router cannot forget it.
+    app.include_router(health_router, dependencies=[Depends(require_local_token)])
     return app

@@ -1,3 +1,5 @@
+from pathlib import Path
+
 import pytest
 from pydantic import SecretStr
 
@@ -40,6 +42,18 @@ def test_redact_text_masks_key_patterns(monkeypatch: pytest.MonkeyPatch) -> None
 def test_app_refuses_empty_local_token() -> None:
     with pytest.raises(ValueError):
         create_app(Settings(local_token=""))
+
+
+def test_factory_refuses_token_that_bypassed_validation(tmp_path: Path) -> None:
+    unvalidated = Settings.model_construct(
+        local_token=SecretStr(""),
+        db_path=tmp_path / "tokenpilot.sqlite3",
+        data_dir=tmp_path,
+        upstream_api_key=None,
+    )
+
+    with pytest.raises(ValueError, match="TOKENPILOT_LOCAL_TOKEN"):
+        create_app(unvalidated)
 
 
 def test_settings_read_env_and_model_key_alias(monkeypatch: pytest.MonkeyPatch) -> None:

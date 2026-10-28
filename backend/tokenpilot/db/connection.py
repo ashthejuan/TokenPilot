@@ -15,6 +15,8 @@ def connect(path: Path) -> sqlite3.Connection:
     connection.execute("PRAGMA journal_mode = WAL")
     connection.execute("PRAGMA foreign_keys = ON")
     connection.execute("PRAGMA busy_timeout = 5000")
+    # The usage summary materializes its working set as a temp table.
+    connection.execute("PRAGMA temp_store = MEMORY")
     return connection
 
 

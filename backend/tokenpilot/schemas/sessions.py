@@ -1,4 +1,4 @@
-"""Session shapes. Cost fields stay null until the cost engine fills them (Task 1.5)."""
+"""Session shapes. Cost fields come from the latest cost records; NULL means unknown."""
 
 from typing import Literal
 
@@ -29,7 +29,9 @@ class ModelBreakdown(BaseModel):
     request_count: int
     input_tokens: int | None
     output_tokens: int | None
+    events_with_unknown_tokens: int
     estimated_cost: Money | None = None
+    currency: str | None = None
 
 
 class SessionDetail(BaseModel):

@@ -5,8 +5,15 @@ import sqlite3
 import uuid
 from typing import Any
 
+from tokenpilot.analytics.money import (
+    COST_CURRENCY,
+    GROUP_CURRENCY,
+    SCALED_ESTIMATE,
+    group_money,
+    money_from_scaled,
+)
 from tokenpilot.ledger.normalize import NormalizedEvent
-from tokenpilot.pricing.cost import latest_costs_for, to_cost_summary
+from tokenpilot.pricing.cost import latest_cost_sql, latest_costs_for, to_cost_summary
 from tokenpilot.schemas.common import Page, Paged, decode_cursor, encode_cursor
 from tokenpilot.schemas.projects import Project
 from tokenpilot.schemas.sessions import ModelBreakdown, SessionOutcome, SessionSummary
@@ -26,6 +33,17 @@ _SESSION_SUMMARY = (
     "(SELECT COUNT(*) FROM usage_events u WHERE u.session_id = s.id) AS request_count "
     "FROM sessions s"
 )
+
+
+def _session_costed_events(where: str) -> str:
+    """An `ev` CTE: the events matched by `where` (on `usage_events u`) with their latest cost."""
+    return (
+        f"WITH {latest_cost_sql}, ev AS (SELECT u.session_id, u.model_id, u.input_tokens, "
+        f"u.output_tokens, {SCALED_ESTIMATE} AS est, {COST_CURRENCY} AS cur "
+        f"FROM usage_events u LEFT JOIN latest_costs lc ON lc.usage_event_id = u.id {where}) "
+    )
+
+
 # Fields a correction may change, mapped to the table that must hold the new id.
 ATTRIBUTION_TABLES = {"project_id": "projects", "session_id": "sessions", "task_id": "tasks"}
 _PROJECT_COLUMNS = "id, name, slug, repository_path, default_currency, created_at, updated_at"
@@ -244,15 +262,32 @@ class LedgerRepository:
         return row
 
     def create_session(
-        self, *, source: str, external_session_id: str, project_id: str | None, started_at: str
+        self,
+        *,
+        source: str,
+        external_session_id: str,
+        project_id: str | None,
+        started_at: str,
+        ended_at: str,
     ) -> str:
         session_id = uuid.uuid4().hex
         self._conn.execute(
-            "INSERT INTO sessions (id, project_id, external_session_id, source, started_at) "
-            "VALUES (?, ?, ?, ?, ?)",
-            (session_id, project_id, external_session_id, source, started_at),
+            "INSERT INTO sessions (id, project_id, external_session_id, source, started_at, "
+            "ended_at) VALUES (?, ?, ?, ?, ?, ?)",
+            (session_id, project_id, external_session_id, source, started_at, ended_at),
         )
         return session_id
+
+    def widen_session_span(self, session_id: str, *, started_at: str, ended_at: str) -> None:
+        """Stretch the session so it covers `[started_at, ended_at]`; it never shrinks.
+
+        Fixed-ms `Z` strings compare chronologically, so MIN/MAX work on text.
+        """
+        self._conn.execute(
+            "UPDATE sessions SET started_at = MIN(started_at, ?), "
+            "ended_at = MAX(COALESCE(ended_at, ?), ?) WHERE id = ?",
+            (started_at, ended_at, ended_at, session_id),
+        )
 
     def update_session_origin(
         self, session_id: str, *, project_id: str | None, started_at: str | None
@@ -285,11 +320,37 @@ class LedgerRepository:
         items = [SessionSummary.model_validate(dict(row)) for row in rows[: page.limit]]
         has_more = len(rows) > page.limit
         next_cursor = encode_cursor(items[-1].started_at, items[-1].id) if has_more else None
-        return Paged[SessionSummary](items=items, next_cursor=next_cursor)
+        return Paged[SessionSummary](items=self._with_session_costs(items), next_cursor=next_cursor)
 
     def get_session(self, session_id: str) -> SessionSummary | None:
         row = self._conn.execute(f"{_SESSION_SUMMARY} WHERE s.id = ?", (session_id,)).fetchone()
-        return SessionSummary.model_validate(dict(row)) if row is not None else None
+        if row is None:
+            return None
+        return self._with_session_costs([SessionSummary.model_validate(dict(row))])[0]
+
+    def _with_session_costs(self, sessions: list[SessionSummary]) -> list[SessionSummary]:
+        """Fill `total_estimated_cost`/`currency`; both stay NULL when unknown or mixed."""
+        if not sessions:
+            return sessions
+        placeholders = ", ".join("?" for _ in sessions)
+        rows = self._conn.execute(
+            _session_costed_events(f"WHERE u.session_id IN ({placeholders})")
+            + f"SELECT session_id, {group_money('est')} AS cost, {GROUP_CURRENCY} AS currency "
+            "FROM ev GROUP BY session_id",
+            [session.id for session in sessions],
+        ).fetchall()
+        costs = {row["session_id"]: row for row in rows}
+        return [
+            session.model_copy(
+                update={
+                    "total_estimated_cost": money_from_scaled(costs[session.id]["cost"]),
+                    "currency": costs[session.id]["currency"],
+                }
+            )
+            if session.id in costs
+            else session
+            for session in sessions
+        ]
 
     def session_events(self, session_id: str, limit: int) -> list[UsageEvent]:
         rows = self._conn.execute(
@@ -300,14 +361,28 @@ class LedgerRepository:
         return self.with_costs([_event_from_row(row) for row in rows])
 
     def session_by_model(self, session_id: str) -> list[ModelBreakdown]:
-        """Token sums stay NULL when no event in the group reported them."""
+        """Token sums cover only events that reported them, and stay NULL when none did."""
         rows = self._conn.execute(
-            "SELECT model_id, COUNT(*) AS request_count, SUM(input_tokens) AS input_tokens, "
-            "SUM(output_tokens) AS output_tokens FROM usage_events WHERE session_id = ? "
-            "GROUP BY model_id ORDER BY model_id",
+            _session_costed_events("WHERE u.session_id = ?")
+            + "SELECT model_id, COUNT(*) AS request_count, SUM(input_tokens) AS input_tokens, "
+            "SUM(output_tokens) AS output_tokens, "
+            "SUM(input_tokens IS NULL OR output_tokens IS NULL) AS events_with_unknown_tokens, "
+            f"{group_money('est')} AS cost, {GROUP_CURRENCY} AS currency "
+            "FROM ev GROUP BY model_id ORDER BY model_id",
             (session_id,),
         ).fetchall()
-        return [ModelBreakdown.model_validate(dict(row)) for row in rows]
+        return [
+            ModelBreakdown(
+                model_id=row["model_id"],
+                request_count=row["request_count"],
+                input_tokens=row["input_tokens"],
+                output_tokens=row["output_tokens"],
+                events_with_unknown_tokens=row["events_with_unknown_tokens"],
+                estimated_cost=money_from_scaled(row["cost"]),
+                currency=row["currency"],
+            )
+            for row in rows
+        ]
 
     def set_session_outcome(self, session_id: str, outcome: SessionOutcome, source: str) -> bool:
         cursor = self._conn.execute(

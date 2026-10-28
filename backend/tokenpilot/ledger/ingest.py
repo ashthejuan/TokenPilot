@@ -55,6 +55,7 @@ def ingest_event(
             source,
             attribution.project_id,
             started_at=normalized.started_at,
+            ended_at=normalized.completed_at,
         )
         if normalized.external_session_id
         else None

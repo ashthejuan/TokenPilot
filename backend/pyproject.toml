@@ -27,6 +27,8 @@ pythonpath = ["."]
 asyncio_mode = "auto"
 asyncio_default_fixture_loop_scope = "function"
 markers = ["perf: performance-sensitive tests"]
+# Perf tests seed 100k rows; run them on their own with `pytest -m perf`.
+addopts = "-m 'not perf'"
 
 [tool.ruff]
 line-length = 100

@@ -7,6 +7,7 @@ from fastapi import APIRouter, Body, Depends, HTTPException, Query
 from fastapi.exceptions import RequestValidationError
 from pydantic import Field, TypeAdapter, ValidationError
 
+from tokenpilot.analytics.summary import summarize
 from tokenpilot.db.database import Database, get_db
 from tokenpilot.ledger.ingest import ingest_event
 from tokenpilot.ledger.refs import SessionProjectMismatchError, TaskProjectMismatchError
@@ -18,6 +19,7 @@ from tokenpilot.schemas.common import (
     Page,
     Paged,
 )
+from tokenpilot.schemas.summary import OutcomeClass, SummaryBucket, SummaryFilters, UsageSummary
 from tokenpilot.schemas.usage import (
     AttributionUpdate,
     EventFilters,
@@ -124,6 +126,30 @@ def list_events(
         raise HTTPException(status_code=422, detail="invalid cursor") from exc
 
 
+@router.get("/summary")
+def get_summary(
+    db: Annotated[Database, Depends(get_db)],
+    from_: Annotated[datetime | None, Query(alias="from")] = None,
+    to: datetime | None = None,
+    project_id: str | None = None,
+    provider: str | None = None,
+    model_id: str | None = None,
+    outcome: OutcomeClass | None = None,
+    bucket: SummaryBucket = "day",
+) -> UsageSummary:
+    filters = SummaryFilters(
+        started_from=_utc_bound(from_, "from"),
+        started_to=_utc_bound(to, "to"),
+        project_id=project_id,
+        provider=provider,
+        model_id=model_id,
+        outcome=outcome,
+        bucket=bucket,
+    )
+    with db.read() as conn:
+        return summarize(conn, filters)
+
+
 @router.get("/events/{event_id}")
 def get_event(event_id: str, db: Annotated[Database, Depends(get_db)]) -> UsageEvent:
     with db.read() as conn:
@@ -150,6 +176,13 @@ def correct_attribution(
         _check_task_matches_project(repository, event, changes)
         _check_session_matches_project(repository, event, changes)
         repository.apply_attribution_changes(event, changes, changed_by="local_user")
+        new_session_id = changes.get("session_id")
+        if new_session_id is not None:
+            repository.widen_session_span(
+                new_session_id,
+                started_at=event.started_at,
+                ended_at=max(event.started_at, event.completed_at or event.started_at),
+            )
         updated = repository.get_event(event_id)
     assert updated is not None
     return updated

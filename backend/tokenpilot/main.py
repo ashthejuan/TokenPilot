@@ -8,21 +8,25 @@ from contextlib import asynccontextmanager
 from pathlib import Path
 from typing import Any
 
+import httpx
 from fastapi import Depends, FastAPI, Request
 from fastapi.exceptions import RequestValidationError
 from fastapi.responses import JSONResponse
 from pydantic import SecretStr
 from starlette.exceptions import HTTPException as StarletteHTTPException
 
+from tokenpilot.api.gateway import router as gateway_router
 from tokenpilot.api.health import router as health_router
 from tokenpilot.api.projects import router as projects_router
 from tokenpilot.api.sessions import router as sessions_router
+from tokenpilot.api.settings import router as settings_router
 from tokenpilot.api.usage import router as usage_router
 from tokenpilot.config import Settings
 from tokenpilot.db.connection import connect
 from tokenpilot.db.database import Database
 from tokenpilot.db.migrate import migrate
 from tokenpilot.ledger.refs import LedgerRefError
+from tokenpilot.pricing.catalog import load_catalog
 from tokenpilot.security import redact_text, require_local_token
 
 logger = logging.getLogger("tokenpilot")
@@ -94,7 +98,11 @@ async def _handle_unexpected_error(request: Request, exc: Exception) -> JSONResp
     )
 
 
-def create_app(settings: Settings | None = None) -> FastAPI:
+def create_app(
+    settings: Settings | None = None,
+    *,
+    upstream_transport: httpx.AsyncBaseTransport | None = None,
+) -> FastAPI:
     resolved = settings if settings is not None else Settings()
     if not resolved.local_token.get_secret_value().strip():
         raise ValueError("TOKENPILOT_LOCAL_TOKEN must be set and non-empty")
@@ -108,9 +116,15 @@ def create_app(settings: Settings | None = None) -> FastAPI:
             connection.close()
         db = Database(resolved.db_path)
         app.state.db = db
+        with db.write() as conn:
+            load_catalog(conn, resolved.pricing_catalog_path)
+        timeout = httpx.Timeout(connect=10.0, read=300.0, write=30.0, pool=10.0)
+        upstream = httpx.AsyncClient(timeout=timeout, transport=upstream_transport)
+        app.state.upstream = upstream
         try:
             yield
         finally:
+            await upstream.aclose()
             db.close()
 
     app = FastAPI(title="TokenPilot API", version="0.1.0", lifespan=lifespan)
@@ -122,7 +136,14 @@ def create_app(settings: Settings | None = None) -> FastAPI:
     app.add_exception_handler(Exception, _handle_unexpected_error)
 
     # Auth is applied here, not per router, so a new router cannot forget it.
-    for router in (health_router, usage_router, projects_router, sessions_router):
+    for router in (
+        health_router,
+        usage_router,
+        projects_router,
+        sessions_router,
+        settings_router,
+        gateway_router,
+    ):
         app.include_router(router, dependencies=[Depends(require_local_token)])
     return app
 

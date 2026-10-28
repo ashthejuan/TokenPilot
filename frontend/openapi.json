@@ -45,6 +45,182 @@
         "title": "AttributionUpdate",
         "type": "object"
       },
+      "CostByOutcome": {
+        "description": "Amounts in the summary's top-level `currency`.",
+        "properties": {
+          "failed": {
+            "anyOf": [
+              {
+                "type": "number"
+              },
+              {
+                "type": "null"
+              }
+            ],
+            "title": "Failed"
+          },
+          "passed": {
+            "anyOf": [
+              {
+                "type": "number"
+              },
+              {
+                "type": "null"
+              }
+            ],
+            "title": "Passed"
+          },
+          "unknown": {
+            "anyOf": [
+              {
+                "type": "number"
+              },
+              {
+                "type": "null"
+              }
+            ],
+            "title": "Unknown"
+          }
+        },
+        "required": [
+          "passed",
+          "failed",
+          "unknown"
+        ],
+        "title": "CostByOutcome",
+        "type": "object"
+      },
+      "CostSummary": {
+        "description": "An event's latest cost. Every money field sits next to `currency`.",
+        "properties": {
+          "cost_basis": {
+            "enum": [
+              "estimated",
+              "reported",
+              "billed",
+              "unavailable"
+            ],
+            "title": "Cost Basis",
+            "type": "string"
+          },
+          "currency": {
+            "anyOf": [
+              {
+                "type": "string"
+              },
+              {
+                "type": "null"
+              }
+            ],
+            "title": "Currency"
+          },
+          "estimated_cost": {
+            "anyOf": [
+              {
+                "type": "number"
+              },
+              {
+                "type": "null"
+              }
+            ],
+            "title": "Estimated Cost"
+          },
+          "pricing_version_id": {
+            "anyOf": [
+              {
+                "type": "string"
+              },
+              {
+                "type": "null"
+              }
+            ],
+            "title": "Pricing Version Id"
+          },
+          "reason": {
+            "anyOf": [
+              {
+                "type": "string"
+              },
+              {
+                "type": "null"
+              }
+            ],
+            "title": "Reason"
+          },
+          "reported_cost": {
+            "anyOf": [
+              {
+                "type": "number"
+              },
+              {
+                "type": "null"
+              }
+            ],
+            "title": "Reported Cost"
+          }
+        },
+        "required": [
+          "cost_basis"
+        ],
+        "title": "CostSummary",
+        "type": "object"
+      },
+      "Coverage": {
+        "properties": {
+          "attributed_pct": {
+            "anyOf": [
+              {
+                "type": "number"
+              },
+              {
+                "type": "null"
+              }
+            ],
+            "title": "Attributed Pct"
+          },
+          "mixed_currency": {
+            "anyOf": [
+              {
+                "type": "boolean"
+              },
+              {
+                "type": "null"
+              }
+            ],
+            "title": "Mixed Currency"
+          },
+          "priced_pct": {
+            "anyOf": [
+              {
+                "type": "number"
+              },
+              {
+                "type": "null"
+              }
+            ],
+            "title": "Priced Pct"
+          },
+          "provider_usage_pct": {
+            "anyOf": [
+              {
+                "type": "number"
+              },
+              {
+                "type": "null"
+              }
+            ],
+            "title": "Provider Usage Pct"
+          }
+        },
+        "required": [
+          "attributed_pct",
+          "priced_pct",
+          "provider_usage_pct",
+          "mixed_currency"
+        ],
+        "title": "Coverage",
+        "type": "object"
+      },
       "HTTPValidationError": {
         "properties": {
           "detail": {
@@ -92,8 +268,42 @@
         "title": "IngestResponse",
         "type": "object"
       },
+      "LatencyStats": {
+        "properties": {
+          "avg": {
+            "title": "Avg",
+            "type": "number"
+          },
+          "p50": {
+            "title": "P50",
+            "type": "integer"
+          },
+          "p95": {
+            "title": "P95",
+            "type": "integer"
+          }
+        },
+        "required": [
+          "avg",
+          "p50",
+          "p95"
+        ],
+        "title": "LatencyStats",
+        "type": "object"
+      },
       "ModelBreakdown": {
         "properties": {
+          "currency": {
+            "anyOf": [
+              {
+                "type": "string"
+              },
+              {
+                "type": "null"
+              }
+            ],
+            "title": "Currency"
+          },
           "estimated_cost": {
             "anyOf": [
               {
@@ -104,6 +314,10 @@
               }
             ],
             "title": "Estimated Cost"
+          },
+          "events_with_unknown_tokens": {
+            "title": "Events With Unknown Tokens",
+            "type": "integer"
           },
           "input_tokens": {
             "anyOf": [
@@ -140,9 +354,87 @@
           "model_id",
           "request_count",
           "input_tokens",
-          "output_tokens"
+          "output_tokens",
+          "events_with_unknown_tokens"
         ],
         "title": "ModelBreakdown",
+        "type": "object"
+      },
+      "ModelCost": {
+        "description": "Token sums cover only events that reported them; `events_with_unknown_tokens` says how\nmany did not.",
+        "properties": {
+          "currency": {
+            "anyOf": [
+              {
+                "type": "string"
+              },
+              {
+                "type": "null"
+              }
+            ],
+            "title": "Currency"
+          },
+          "estimated_cost": {
+            "anyOf": [
+              {
+                "type": "number"
+              },
+              {
+                "type": "null"
+              }
+            ],
+            "title": "Estimated Cost"
+          },
+          "events_with_unknown_tokens": {
+            "title": "Events With Unknown Tokens",
+            "type": "integer"
+          },
+          "input_tokens": {
+            "anyOf": [
+              {
+                "type": "integer"
+              },
+              {
+                "type": "null"
+              }
+            ],
+            "title": "Input Tokens"
+          },
+          "model_id": {
+            "title": "Model Id",
+            "type": "string"
+          },
+          "output_tokens": {
+            "anyOf": [
+              {
+                "type": "integer"
+              },
+              {
+                "type": "null"
+              }
+            ],
+            "title": "Output Tokens"
+          },
+          "provider": {
+            "title": "Provider",
+            "type": "string"
+          },
+          "request_count": {
+            "title": "Request Count",
+            "type": "integer"
+          }
+        },
+        "required": [
+          "provider",
+          "model_id",
+          "estimated_cost",
+          "currency",
+          "request_count",
+          "input_tokens",
+          "output_tokens",
+          "events_with_unknown_tokens"
+        ],
+        "title": "ModelCost",
         "type": "object"
       },
       "Paged_SessionSummary_": {
@@ -197,6 +489,204 @@
           "items"
         ],
         "title": "Paged[UsageEvent]",
+        "type": "object"
+      },
+      "PricingVersionCreate": {
+        "additionalProperties": false,
+        "description": "One catalogue entry. A PUT never edits in place; it versions.",
+        "properties": {
+          "cached_input_price": {
+            "anyOf": [
+              {
+                "minimum": 0.0,
+                "type": "number"
+              },
+              {
+                "type": "string"
+              },
+              {
+                "type": "null"
+              }
+            ],
+            "title": "Cached Input Price"
+          },
+          "currency": {
+            "default": "USD",
+            "maxLength": 16,
+            "minLength": 1,
+            "title": "Currency",
+            "type": "string"
+          },
+          "input_price_per_million": {
+            "anyOf": [
+              {
+                "minimum": 0.0,
+                "type": "number"
+              },
+              {
+                "type": "string"
+              },
+              {
+                "type": "null"
+              }
+            ],
+            "title": "Input Price Per Million"
+          },
+          "model_id": {
+            "maxLength": 256,
+            "minLength": 1,
+            "title": "Model Id",
+            "type": "string"
+          },
+          "output_price_per_million": {
+            "anyOf": [
+              {
+                "minimum": 0.0,
+                "type": "number"
+              },
+              {
+                "type": "string"
+              },
+              {
+                "type": "null"
+              }
+            ],
+            "title": "Output Price Per Million"
+          },
+          "pricing_source": {
+            "anyOf": [
+              {
+                "maxLength": 2048,
+                "type": "string"
+              },
+              {
+                "type": "null"
+              }
+            ],
+            "title": "Pricing Source"
+          },
+          "provider": {
+            "maxLength": 256,
+            "minLength": 1,
+            "title": "Provider",
+            "type": "string"
+          },
+          "valid_from": {
+            "anyOf": [
+              {
+                "format": "date-time",
+                "type": "string"
+              },
+              {
+                "type": "null"
+              }
+            ],
+            "title": "Valid From"
+          }
+        },
+        "required": [
+          "provider",
+          "model_id"
+        ],
+        "title": "PricingVersionCreate",
+        "type": "object"
+      },
+      "PricingVersionOut": {
+        "properties": {
+          "cached_input_price": {
+            "anyOf": [
+              {
+                "type": "number"
+              },
+              {
+                "type": "null"
+              }
+            ],
+            "title": "Cached Input Price"
+          },
+          "created_at": {
+            "title": "Created At",
+            "type": "string"
+          },
+          "currency": {
+            "title": "Currency",
+            "type": "string"
+          },
+          "id": {
+            "title": "Id",
+            "type": "string"
+          },
+          "input_price_per_million": {
+            "anyOf": [
+              {
+                "type": "number"
+              },
+              {
+                "type": "null"
+              }
+            ],
+            "title": "Input Price Per Million"
+          },
+          "model_id": {
+            "title": "Model Id",
+            "type": "string"
+          },
+          "output_price_per_million": {
+            "anyOf": [
+              {
+                "type": "number"
+              },
+              {
+                "type": "null"
+              }
+            ],
+            "title": "Output Price Per Million"
+          },
+          "pricing_source": {
+            "anyOf": [
+              {
+                "type": "string"
+              },
+              {
+                "type": "null"
+              }
+            ],
+            "title": "Pricing Source"
+          },
+          "provider": {
+            "title": "Provider",
+            "type": "string"
+          },
+          "valid_from": {
+            "title": "Valid From",
+            "type": "string"
+          },
+          "valid_to": {
+            "anyOf": [
+              {
+                "type": "string"
+              },
+              {
+                "type": "null"
+              }
+            ],
+            "title": "Valid To"
+          }
+        },
+        "required": [
+          "id",
+          "provider",
+          "model_id",
+          "currency",
+          "input_price_per_million",
+          "output_price_per_million",
+          "cached_input_price",
+          "pricing_source",
+          "valid_from",
+          "valid_to",
+          "created_at"
+        ],
+        "title": "PricingVersionOut",
         "type": "object"
       },
       "Project": {
@@ -254,6 +744,60 @@
           "updated_at"
         ],
         "title": "Project",
+        "type": "object"
+      },
+      "ProjectCost": {
+        "properties": {
+          "currency": {
+            "anyOf": [
+              {
+                "type": "string"
+              },
+              {
+                "type": "null"
+              }
+            ],
+            "title": "Currency"
+          },
+          "estimated_cost": {
+            "anyOf": [
+              {
+                "type": "number"
+              },
+              {
+                "type": "null"
+              }
+            ],
+            "title": "Estimated Cost"
+          },
+          "name": {
+            "title": "Name",
+            "type": "string"
+          },
+          "project_id": {
+            "anyOf": [
+              {
+                "type": "string"
+              },
+              {
+                "type": "null"
+              }
+            ],
+            "title": "Project Id"
+          },
+          "request_count": {
+            "title": "Request Count",
+            "type": "integer"
+          }
+        },
+        "required": [
+          "project_id",
+          "name",
+          "estimated_cost",
+          "currency",
+          "request_count"
+        ],
+        "title": "ProjectCost",
         "type": "object"
       },
       "ProjectCreate": {
@@ -355,6 +899,88 @@
           }
         },
         "title": "ProjectUpdate",
+        "type": "object"
+      },
+      "RepriceResponse": {
+        "properties": {
+          "repriced": {
+            "title": "Repriced",
+            "type": "integer"
+          },
+          "version": {
+            "$ref": "#/components/schemas/PricingVersionOut"
+          }
+        },
+        "required": [
+          "version",
+          "repriced"
+        ],
+        "title": "RepriceResponse",
+        "type": "object"
+      },
+      "SessionCost": {
+        "properties": {
+          "currency": {
+            "anyOf": [
+              {
+                "type": "string"
+              },
+              {
+                "type": "null"
+              }
+            ],
+            "title": "Currency"
+          },
+          "estimated_cost": {
+            "anyOf": [
+              {
+                "type": "number"
+              },
+              {
+                "type": "null"
+              }
+            ],
+            "title": "Estimated Cost"
+          },
+          "outcome": {
+            "enum": [
+              "success",
+              "failure",
+              "abandoned",
+              "unknown"
+            ],
+            "title": "Outcome",
+            "type": "string"
+          },
+          "project_id": {
+            "anyOf": [
+              {
+                "type": "string"
+              },
+              {
+                "type": "null"
+              }
+            ],
+            "title": "Project Id"
+          },
+          "request_count": {
+            "title": "Request Count",
+            "type": "integer"
+          },
+          "session_id": {
+            "title": "Session Id",
+            "type": "string"
+          }
+        },
+        "required": [
+          "session_id",
+          "project_id",
+          "estimated_cost",
+          "currency",
+          "request_count",
+          "outcome"
+        ],
+        "title": "SessionCost",
         "type": "object"
       },
       "SessionDetail": {
@@ -537,6 +1163,48 @@
         "title": "SessionUpdate",
         "type": "object"
       },
+      "TimeseriesPoint": {
+        "properties": {
+          "bucket_start": {
+            "title": "Bucket Start",
+            "type": "string"
+          },
+          "currency": {
+            "anyOf": [
+              {
+                "type": "string"
+              },
+              {
+                "type": "null"
+              }
+            ],
+            "title": "Currency"
+          },
+          "estimated_cost": {
+            "anyOf": [
+              {
+                "type": "number"
+              },
+              {
+                "type": "null"
+              }
+            ],
+            "title": "Estimated Cost"
+          },
+          "request_count": {
+            "title": "Request Count",
+            "type": "integer"
+          }
+        },
+        "required": [
+          "bucket_start",
+          "estimated_cost",
+          "currency",
+          "request_count"
+        ],
+        "title": "TimeseriesPoint",
+        "type": "object"
+      },
       "UsageEvent": {
         "description": "A stored event as the API returns it. Never carries `raw_event_json`.",
         "properties": {
@@ -583,6 +1251,16 @@
               }
             ],
             "title": "Completed At"
+          },
+          "cost": {
+            "anyOf": [
+              {
+                "$ref": "#/components/schemas/CostSummary"
+              },
+              {
+                "type": "null"
+              }
+            ]
           },
           "error_category": {
             "anyOf": [
@@ -801,6 +1479,186 @@
           "metadata"
         ],
         "title": "UsageEvent",
+        "type": "object"
+      },
+      "UsageSummary": {
+        "properties": {
+          "by_model": {
+            "items": {
+              "$ref": "#/components/schemas/ModelCost"
+            },
+            "title": "By Model",
+            "type": "array"
+          },
+          "by_project": {
+            "items": {
+              "$ref": "#/components/schemas/ProjectCost"
+            },
+            "title": "By Project",
+            "type": "array"
+          },
+          "cost_basis": {
+            "enum": [
+              "estimated",
+              "reported",
+              "mixed",
+              "simulated",
+              "unavailable"
+            ],
+            "title": "Cost Basis",
+            "type": "string"
+          },
+          "cost_by_outcome": {
+            "$ref": "#/components/schemas/CostByOutcome"
+          },
+          "cost_concentration_top10_pct": {
+            "anyOf": [
+              {
+                "type": "number"
+              },
+              {
+                "type": "null"
+              }
+            ],
+            "title": "Cost Concentration Top10 Pct"
+          },
+          "coverage": {
+            "$ref": "#/components/schemas/Coverage"
+          },
+          "currency": {
+            "anyOf": [
+              {
+                "type": "string"
+              },
+              {
+                "type": "null"
+              }
+            ],
+            "title": "Currency"
+          },
+          "events_with_unknown_cost": {
+            "title": "Events With Unknown Cost",
+            "type": "integer"
+          },
+          "events_with_unknown_tokens": {
+            "title": "Events With Unknown Tokens",
+            "type": "integer"
+          },
+          "failed_count": {
+            "title": "Failed Count",
+            "type": "integer"
+          },
+          "input_tokens": {
+            "anyOf": [
+              {
+                "type": "integer"
+              },
+              {
+                "type": "null"
+              }
+            ],
+            "title": "Input Tokens"
+          },
+          "latency_ms": {
+            "anyOf": [
+              {
+                "$ref": "#/components/schemas/LatencyStats"
+              },
+              {
+                "type": "null"
+              }
+            ]
+          },
+          "output_tokens": {
+            "anyOf": [
+              {
+                "type": "integer"
+              },
+              {
+                "type": "null"
+              }
+            ],
+            "title": "Output Tokens"
+          },
+          "request_count": {
+            "title": "Request Count",
+            "type": "integer"
+          },
+          "retry_cost": {
+            "anyOf": [
+              {
+                "type": "number"
+              },
+              {
+                "type": "null"
+              }
+            ],
+            "title": "Retry Cost"
+          },
+          "retry_count": {
+            "title": "Retry Count",
+            "type": "integer"
+          },
+          "timeseries": {
+            "items": {
+              "$ref": "#/components/schemas/TimeseriesPoint"
+            },
+            "title": "Timeseries",
+            "type": "array"
+          },
+          "top_sessions": {
+            "items": {
+              "$ref": "#/components/schemas/SessionCost"
+            },
+            "title": "Top Sessions",
+            "type": "array"
+          },
+          "total_estimated_cost": {
+            "anyOf": [
+              {
+                "type": "number"
+              },
+              {
+                "type": "null"
+              }
+            ],
+            "title": "Total Estimated Cost"
+          },
+          "total_reported_cost": {
+            "anyOf": [
+              {
+                "type": "number"
+              },
+              {
+                "type": "null"
+              }
+            ],
+            "title": "Total Reported Cost"
+          }
+        },
+        "required": [
+          "total_estimated_cost",
+          "total_reported_cost",
+          "currency",
+          "cost_basis",
+          "events_with_unknown_cost",
+          "input_tokens",
+          "output_tokens",
+          "events_with_unknown_tokens",
+          "request_count",
+          "failed_count",
+          "retry_count",
+          "retry_cost",
+          "latency_ms",
+          "by_project",
+          "by_model",
+          "timeseries",
+          "top_sessions",
+          "cost_by_outcome",
+          "cost_concentration_top10_pct",
+          "coverage"
+        ],
+        "title": "UsageSummary",
         "type": "object"
       },
       "ValidationError": {
@@ -1218,6 +2076,70 @@
         "summary": "Update Session",
         "tags": [
           "sessions"
+        ]
+      }
+    },
+    "/api/v1/settings/pricing": {
+      "get": {
+        "operationId": "list_pricing_api_v1_settings_pricing_get",
+        "responses": {
+          "200": {
+            "content": {
+              "application/json": {
+                "schema": {
+                  "items": {
+                    "$ref": "#/components/schemas/PricingVersionOut"
+                  },
+                  "title": "Response List Pricing Api V1 Settings Pricing Get",
+                  "type": "array"
+                }
+              }
+            },
+            "description": "Successful Response"
+          }
+        },
+        "summary": "List Pricing",
+        "tags": [
+          "settings"
+        ]
+      },
+      "put": {
+        "operationId": "upsert_pricing_api_v1_settings_pricing_put",
+        "requestBody": {
+          "content": {
+            "application/json": {
+              "schema": {
+                "$ref": "#/components/schemas/PricingVersionCreate"
+              }
+            }
+          },
+          "required": true
+        },
+        "responses": {
+          "200": {
+            "content": {
+              "application/json": {
+                "schema": {
+                  "$ref": "#/components/schemas/RepriceResponse"
+                }
+              }
+            },
+            "description": "Successful Response"
+          },
+          "422": {
+            "content": {
+              "application/json": {
+                "schema": {
+                  "$ref": "#/components/schemas/HTTPValidationError"
+                }
+              }
+            },
+            "description": "Validation Error"
+          }
+        },
+        "summary": "Upsert Pricing",
+        "tags": [
+          "settings"
         ]
       }
     },
@@ -2036,6 +2958,274 @@
         "summary": "Correct Attribution",
         "tags": [
           "usage"
+        ]
+      }
+    },
+    "/api/v1/usage/summary": {
+      "get": {
+        "operationId": "get_summary_api_v1_usage_summary_get",
+        "parameters": [
+          {
+            "in": "query",
+            "name": "from",
+            "required": false,
+            "schema": {
+              "anyOf": [
+                {
+                  "format": "date-time",
+                  "type": "string"
+                },
+                {
+                  "type": "null"
+                }
+              ],
+              "title": "From"
+            }
+          },
+          {
+            "in": "query",
+            "name": "to",
+            "required": false,
+            "schema": {
+              "anyOf": [
+                {
+                  "format": "date-time",
+                  "type": "string"
+                },
+                {
+                  "type": "null"
+                }
+              ],
+              "title": "To"
+            }
+          },
+          {
+            "in": "query",
+            "name": "project_id",
+            "required": false,
+            "schema": {
+              "anyOf": [
+                {
+                  "type": "string"
+                },
+                {
+                  "type": "null"
+                }
+              ],
+              "title": "Project Id"
+            }
+          },
+          {
+            "in": "query",
+            "name": "provider",
+            "required": false,
+            "schema": {
+              "anyOf": [
+                {
+                  "type": "string"
+                },
+                {
+                  "type": "null"
+                }
+              ],
+              "title": "Provider"
+            }
+          },
+          {
+            "in": "query",
+            "name": "model_id",
+            "required": false,
+            "schema": {
+              "anyOf": [
+                {
+                  "type": "string"
+                },
+                {
+                  "type": "null"
+                }
+              ],
+              "title": "Model Id"
+            }
+          },
+          {
+            "in": "query",
+            "name": "outcome",
+            "required": false,
+            "schema": {
+              "anyOf": [
+                {
+                  "enum": [
+                    "passed",
+                    "failed",
+                    "unknown"
+                  ],
+                  "type": "string"
+                },
+                {
+                  "type": "null"
+                }
+              ],
+              "title": "Outcome"
+            }
+          },
+          {
+            "in": "query",
+            "name": "bucket",
+            "required": false,
+            "schema": {
+              "default": "day",
+              "enum": [
+                "day",
+                "hour"
+              ],
+              "title": "Bucket",
+              "type": "string"
+            }
+          }
+        ],
+        "responses": {
+          "200": {
+            "content": {
+              "application/json": {
+                "schema": {
+                  "$ref": "#/components/schemas/UsageSummary"
+                }
+              }
+            },
+            "description": "Successful Response"
+          },
+          "422": {
+            "content": {
+              "application/json": {
+                "schema": {
+                  "$ref": "#/components/schemas/HTTPValidationError"
+                }
+              }
+            },
+            "description": "Validation Error"
+          }
+        },
+        "summary": "Get Summary",
+        "tags": [
+          "usage"
+        ]
+      }
+    },
+    "/gateway/p/{project_slug}/v1/chat/completions": {
+      "post": {
+        "operationId": "chat_completions_for_project_gateway_p__project_slug__v1_chat_completions_post",
+        "parameters": [
+          {
+            "in": "path",
+            "name": "project_slug",
+            "required": true,
+            "schema": {
+              "title": "Project Slug",
+              "type": "string"
+            }
+          }
+        ],
+        "responses": {
+          "200": {
+            "content": {
+              "application/json": {
+                "schema": {}
+              }
+            },
+            "description": "Successful Response"
+          },
+          "422": {
+            "content": {
+              "application/json": {
+                "schema": {
+                  "$ref": "#/components/schemas/HTTPValidationError"
+                }
+              }
+            },
+            "description": "Validation Error"
+          }
+        },
+        "summary": "Chat Completions For Project",
+        "tags": [
+          "gateway"
+        ]
+      }
+    },
+    "/gateway/p/{project_slug}/v1/models": {
+      "get": {
+        "operationId": "list_models_for_project_gateway_p__project_slug__v1_models_get",
+        "parameters": [
+          {
+            "in": "path",
+            "name": "project_slug",
+            "required": true,
+            "schema": {
+              "title": "Project Slug",
+              "type": "string"
+            }
+          }
+        ],
+        "responses": {
+          "200": {
+            "content": {
+              "application/json": {
+                "schema": {}
+              }
+            },
+            "description": "Successful Response"
+          },
+          "422": {
+            "content": {
+              "application/json": {
+                "schema": {
+                  "$ref": "#/components/schemas/HTTPValidationError"
+                }
+              }
+            },
+            "description": "Validation Error"
+          }
+        },
+        "summary": "List Models For Project",
+        "tags": [
+          "gateway"
+        ]
+      }
+    },
+    "/gateway/v1/chat/completions": {
+      "post": {
+        "operationId": "chat_completions_gateway_v1_chat_completions_post",
+        "responses": {
+          "200": {
+            "content": {
+              "application/json": {
+                "schema": {}
+              }
+            },
+            "description": "Successful Response"
+          }
+        },
+        "summary": "Chat Completions",
+        "tags": [
+          "gateway"
+        ]
+      }
+    },
+    "/gateway/v1/models": {
+      "get": {
+        "operationId": "list_models_gateway_v1_models_get",
+        "responses": {
+          "200": {
+            "content": {
+              "application/json": {
+                "schema": {}
+              }
+            },
+            "description": "Successful Response"
+          }
+        },
+        "summary": "List Models",
+        "tags": [
+          "gateway"
         ]
       }
     }

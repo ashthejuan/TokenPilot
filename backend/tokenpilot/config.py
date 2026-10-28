@@ -28,6 +28,10 @@ class Settings(BaseSettings):
     upstream_provider: str = "meta"
     upstream_api_key: SecretStr | None = Field(default=None, validation_alias="MODEL_API_KEY")
     investigator_model: str = "muse-spark-1.3-contributor"
+    pricing_catalog_path: Path = Field(
+        default=Path(__file__).parent / "pricing" / "catalog.yaml",
+        validation_alias="TOKENPILOT_PRICING_CATALOG",
+    )
     store_content: bool = False
     allow_content_transmission: bool = False
 

@@ -5,7 +5,7 @@ import sqlite3
 
 from tokenpilot.ledger.repository import LedgerRepository
 from tokenpilot.schemas.common import SLUG_PATTERN
-from tokenpilot.timeutil import parse_utc_z, utc_now_z
+from tokenpilot.timeutil import utc_now_z
 
 _SLUG = re.compile(SLUG_PATTERN)
 
@@ -99,15 +99,17 @@ def get_or_create_session(
     project_id: str | None,
     *,
     started_at: str | None = None,
+    ended_at: str | None = None,
 ) -> str:
     """Return the session keyed on (`source`, `external_session_id`), creating it if new.
 
-    A session without a project adopts one once known. `started_at` is the
-    event time; the session start only ever moves earlier (events can arrive
-    out of order).
+    A session without a project adopts one once known. `started_at`/`ended_at`
+    are the event's start and completion (completion defaults to the start); the
+    session span only ever widens, since events can arrive out of order.
     """
     repository = LedgerRepository(conn)
     when = started_at or utc_now_z()
+    end = max(when, ended_at) if ended_at else when
     row = repository.find_session(source, external_session_id)
     if row is None:
         return repository.create_session(
@@ -115,11 +117,9 @@ def get_or_create_session(
             external_session_id=external_session_id,
             project_id=project_id,
             started_at=when,
+            ended_at=end,
         )
-    adopt_project = project_id if row["project_id"] is None else None
-    move_start = when if parse_utc_z(when) < parse_utc_z(row["started_at"]) else None
-    if adopt_project is not None or move_start is not None:
-        repository.update_session_origin(
-            row["id"], project_id=adopt_project, started_at=move_start
-        )
+    if row["project_id"] is None and project_id is not None:
+        repository.update_session_origin(row["id"], project_id=project_id, started_at=None)
+    repository.widen_session_span(row["id"], started_at=when, ended_at=end)
     return str(row["id"])

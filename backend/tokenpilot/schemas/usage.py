@@ -1,9 +1,13 @@
 """Usage event shapes: the inbound payload, the stored row, and list filters."""
 
+import json
+from collections.abc import Mapping
 from dataclasses import dataclass
 from typing import Annotated, Any, Literal
 
 from pydantic import AwareDatetime, BaseModel, ConfigDict, Field, NonNegativeInt
+
+from tokenpilot.schemas.pricing import CostSummary
 
 # Free-text fields are length-capped so an oversized blob cannot be smuggled in.
 ShortText = Annotated[str, Field(max_length=256)]
@@ -69,6 +73,14 @@ class UsageEvent(BaseModel):
     error_category: str | None
     benchmark_run_id: str | None
     metadata: dict[str, Any]
+    cost: CostSummary | None = None
+
+    @classmethod
+    def from_ledger_row(cls, row: Mapping[str, Any]) -> "UsageEvent":
+        """Build an event from a `usage_events` row; `cost` is attached separately."""
+        values = dict(row)
+        values["metadata"] = json.loads(values.pop("metadata_json"))
+        return cls.model_validate(values)
 
 
 class AttributionUpdate(BaseModel):

@@ -231,7 +231,9 @@ def test_evidence_capped_with_truncation_count(
         )
         previous = f"storm-{i}"
 
-    result = run_detectors(read_conn, db, AnalysisScope(), None, NOW)
+    # Scoped to B: this test is about evidence capping, and the 60-request
+    # storm session now also (correctly) trips runaway_session unscoped.
+    result = run_detectors(read_conn, db, AnalysisScope(), ["retry_amplification"], NOW)
 
     assert result.by_rule == {"retry_amplification": 1}
     (insight,) = _list(db)

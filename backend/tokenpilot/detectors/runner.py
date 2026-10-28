@@ -13,7 +13,9 @@ from tokenpilot.detectors.base import Detector
 from tokenpilot.detectors.facts import AnalysisScope, load_context
 from tokenpilot.detectors.repeated_request import RepeatedRequestDetector
 from tokenpilot.detectors.retry_amplification import RetryAmplificationDetector
+from tokenpilot.detectors.runaway_session import RunawaySessionDetector
 from tokenpilot.detectors.thresholds import load_thresholds
+from tokenpilot.detectors.unsuccessful_task import UnsuccessfulTaskDetector
 from tokenpilot.insights.repository import InsightRepository
 from tokenpilot.timeutil import to_utc_z
 
@@ -26,6 +28,8 @@ class UnknownRuleError(ValueError):
 REGISTRY: dict[str, Detector] = {
     "repeated_request": RepeatedRequestDetector(),
     "retry_amplification": RetryAmplificationDetector(),
+    "unsuccessful_task": UnsuccessfulTaskDetector(),
+    "runaway_session": RunawaySessionDetector(),
 }
 
 

@@ -1,0 +1,130 @@
+{
+  "now": "2026-10-28T13:00:00.000Z",
+  "events": [
+    {
+      "provider": "fake",
+      "model_id": "fake-large",
+      "started_at": "2026-10-28T11:30:00.000Z",
+      "completed_at": "2026-10-28T11:30:02.000Z",
+      "input_tokens": null,
+      "output_tokens": null,
+      "latency_ms": 2000,
+      "usage_source": "unavailable",
+      "status": "unknown",
+      "source_event_id": "ai-1",
+      "project_id": "demo",
+      "external_session_id": "sess-ambiguous",
+      "task_id": "task-ambiguous",
+      "request_fingerprint": "fp-ai-1"
+    },
+    {
+      "provider": "fake",
+      "model_id": "fake-large",
+      "started_at": "2026-10-28T11:50:00.000Z",
+      "completed_at": "2026-10-28T11:50:02.000Z",
+      "input_tokens": null,
+      "output_tokens": null,
+      "latency_ms": 2000,
+      "usage_source": "unavailable",
+      "status": "unknown",
+      "source_event_id": "ai-2",
+      "project_id": "demo",
+      "external_session_id": "sess-ambiguous",
+      "task_id": "task-ambiguous",
+      "request_fingerprint": "fp-ai-2"
+    },
+    {
+      "provider": "fake",
+      "model_id": "fake-large",
+      "started_at": "2026-10-28T12:10:00.000Z",
+      "completed_at": "2026-10-28T12:10:02.000Z",
+      "input_tokens": null,
+      "output_tokens": null,
+      "latency_ms": 2000,
+      "usage_source": "unavailable",
+      "status": "unknown",
+      "source_event_id": "ai-3",
+      "project_id": "demo",
+      "external_session_id": "sess-ambiguous",
+      "task_id": "task-ambiguous",
+      "request_fingerprint": "fp-ai-3"
+    },
+    {
+      "provider": "fake",
+      "model_id": "fake-large",
+      "started_at": "2026-10-28T12:30:00.000Z",
+      "completed_at": "2026-10-28T12:30:02.000Z",
+      "input_tokens": null,
+      "output_tokens": null,
+      "latency_ms": 2000,
+      "usage_source": "unavailable",
+      "status": "unknown",
+      "source_event_id": "ai-4",
+      "project_id": "demo",
+      "external_session_id": "sess-ambiguous",
+      "task_id": "task-ambiguous",
+      "request_fingerprint": "fp-ai-4"
+    },
+    {
+      "provider": "fake",
+      "model_id": "fake-large",
+      "started_at": "2026-10-28T12:45:00.000Z",
+      "completed_at": "2026-10-28T12:45:02.000Z",
+      "input_tokens": null,
+      "output_tokens": null,
+      "latency_ms": 2000,
+      "usage_source": "unavailable",
+      "status": "unknown",
+      "source_event_id": "ai-5",
+      "project_id": "demo",
+      "external_session_id": "sess-ambiguous",
+      "task_id": "task-ambiguous",
+      "request_fingerprint": "fp-ai-5"
+    },
+    {
+      "provider": "fake",
+      "model_id": "fake-large",
+      "started_at": "2026-10-28T12:55:00.000Z",
+      "completed_at": "2026-10-28T12:55:02.000Z",
+      "input_tokens": null,
+      "output_tokens": null,
+      "latency_ms": 2000,
+      "usage_source": "unavailable",
+      "status": "unknown",
+      "source_event_id": "ai-6",
+      "project_id": "demo",
+      "external_session_id": "sess-ambiguous",
+      "task_id": "task-ambiguous",
+      "request_fingerprint": "fp-ai-6"
+    }
+  ],
+  "sessions": [
+    {
+      "source": "api",
+      "external_session_id": "sess-ambiguous",
+      "outcome": "unknown"
+    }
+  ],
+  "tasks": [
+    {
+      "project_id": "demo",
+      "external_task_id": "task-ambiguous",
+      "outcome": "unknown"
+    }
+  ],
+  "expected": [
+    {
+      "rule_id": "runaway_session",
+      "session": "sess-ambiguous",
+      "task": null,
+      "max_severity": "informational"
+    }
+  ],
+  "must_not_fire": [
+    "unsuccessful_task",
+    "repeated_request",
+    "retry_amplification",
+    "repeated_context",
+    "context_ratio"
+  ]
+}

@@ -79,6 +79,7 @@ User instructions in this file and direct human requests take precedence over sk
 - Before merging that phase, finish the same file: what was implemented and which files changed, how it was reviewed (reviewer, commit range, inputs, findings), and the outcomes (test/lint results, manual checks, findings fixed and deferred). Do not merge until this section exists.
 - Keep these paths in the project root `.gitignore` (do not commit them): `.agents/skills/`, `.cursor/`, `.opencode/`, `context/phases/`, `docs/`.
 - Never touch or view `.env` unless explicitly asked. Only make changes to `.env.example`.
+- Never add any agent (including Cursor Agent / cursoragent, Codex, Muse, OpenCode, or similar) as a repository contributor, co-author, or author — not in git commits (`Co-authored-by`, committer identity), `CONTRIBUTORS`, README credits, or GitHub collaborator settings.
 - Prefer pointed, concise communication. Do not invent secrets; request them through the harness secret mechanism when available.
 
 ## Skill locations

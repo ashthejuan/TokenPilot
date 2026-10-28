@@ -181,6 +181,11 @@ def _check_session_matches_project(
     if session_id is None:
         return
     session_project_id = repository.session_project(session_id)
+    if session_project_id is None:
+        # A session with no project yet adopts the event's project, the same way
+        # ingestion adopts a project when one becomes known.
+        repository.update_session_origin(session_id, project_id=project_id, started_at=None)
+        return
     if session_project_id != project_id:
         raise SessionProjectMismatchError(session_id, session_project_id, project_id)
 

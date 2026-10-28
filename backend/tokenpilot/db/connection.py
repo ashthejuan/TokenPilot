@@ -2,7 +2,7 @@
 
 import sqlite3
 from collections.abc import Iterator
-from contextlib import contextmanager
+from contextlib import contextmanager, suppress
 from pathlib import Path
 
 
@@ -29,5 +29,6 @@ def transaction(connection: sqlite3.Connection) -> Iterator[sqlite3.Connection]:
         # A failed COMMIT (SQLITE_BUSY/FULL/IOERR) leaves the shared connection
         # inside the transaction; roll back so later writes still work.
         if connection.in_transaction:
-            connection.execute("ROLLBACK")
+            with suppress(sqlite3.Error):
+                connection.execute("ROLLBACK")
         raise

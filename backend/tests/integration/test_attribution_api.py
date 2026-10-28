@@ -59,6 +59,28 @@ def audit_rows(app: FastAPI) -> list[dict[str, Any]]:
     return [dict(row) for row in rows]
 
 
+def session_id_for(app: FastAPI, external_session_id: str) -> str:
+    db: Database = app.state.db
+    with db.read() as conn:
+        row = conn.execute(
+            "SELECT id FROM sessions WHERE external_session_id = ?", (external_session_id,)
+        ).fetchone()
+    return str(row["id"])
+
+
+def session_project_for(app: FastAPI, external_session_id: str) -> Any:
+    db: Database = app.state.db
+    with db.read() as conn:
+        row = conn.execute(
+            "SELECT project_id FROM sessions WHERE external_session_id = ?", (external_session_id,)
+        ).fetchone()
+    return row["project_id"]
+
+
+def event_session(client: TestClient, headers: dict[str, str], event_id: str) -> Any:
+    return client.get(f"{EVENTS}/{event_id}", headers=headers).json()["session_id"]
+
+
 def test_attribution_correction_is_audited_and_raw_unchanged(
     app: FastAPI, client: TestClient, auth_headers: dict[str, str]
 ) -> None:
@@ -275,19 +297,6 @@ def test_patch_session_only_ignores_task_consistency(
     assert response.status_code == 200
 
 
-def session_id_for(app: FastAPI, external_session_id: str) -> str:
-    db: Database = app.state.db
-    with db.read() as conn:
-        row = conn.execute(
-            "SELECT id FROM sessions WHERE external_session_id = ?", (external_session_id,)
-        ).fetchone()
-    return str(row["id"])
-
-
-def event_session(client: TestClient, headers: dict[str, str], event_id: str) -> Any:
-    return client.get(f"{EVENTS}/{event_id}", headers=headers).json()["session_id"]
-
-
 def test_patch_session_from_other_project_rejected(
     app: FastAPI, client: TestClient, auth_headers: dict[str, str]
 ) -> None:
@@ -341,3 +350,31 @@ def test_patch_project_and_matching_session_together(
     assert response.json()["project_id"] == project_q
     assert response.json()["session_id"] == session_q
     assert {r["field"] for r in audit_rows(app)} == {"project_id", "session_id"}
+
+
+def test_patch_attaches_project_less_session_and_adopts_project(
+    app: FastAPI, client: TestClient, auth_headers: dict[str, str]
+) -> None:
+    post_event(client, auth_headers, external_session_id="s-free")  # no project: session has none
+    event_id = post_event(client, auth_headers, project_id="p1")
+    free_session = session_id_for(app, "s-free")
+    assert session_project_for(app, "s-free") is None
+
+    response = patch(client, auth_headers, event_id, {"session_id": free_session})
+
+    assert response.status_code == 200
+    assert response.json()["session_id"] == free_session
+    assert session_project_for(app, "s-free") == response.json()["project_id"]
+
+
+def test_patch_project_on_event_with_project_less_session(
+    app: FastAPI, client: TestClient, auth_headers: dict[str, str]
+) -> None:
+    event_id = post_event(client, auth_headers, external_session_id="s-free")
+    project = create_project(client, auth_headers, "P1")
+
+    response = patch(client, auth_headers, event_id, {"project_id": project})
+
+    assert response.status_code == 200
+    assert response.json()["project_id"] == project
+    assert session_project_for(app, "s-free") == project

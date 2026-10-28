@@ -80,6 +80,7 @@ User instructions in this file and direct human requests take precedence over sk
 - Keep these paths in the project root `.gitignore` (do not commit them): `.agents/skills/`, `.cursor/`, `.opencode/`, `context/phases/`, `docs/`.
 - Never touch or view `.env` unless explicitly asked. Only make changes to `.env.example`.
 - Never add any agent (including Cursor Agent / cursoragent, Codex, Muse, OpenCode, or similar) as a repository contributor, co-author, or author — not in git commits (`Co-authored-by`, committer identity), `CONTRIBUTORS`, README credits, or GitHub collaborator settings.
+- Execution must be sub-agent driven: dispatch a fresh subagent per implementation task plus a fresh reviewer per task, never implement multi-task plans inline in a single session.
 - Prefer pointed, concise communication. Do not invent secrets; request them through the harness secret mechanism when available.
 
 ## Skill locations

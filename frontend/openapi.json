@@ -2402,6 +2402,124 @@
           "usage"
         ]
       }
+    },
+    "/gateway/p/{project_slug}/v1/chat/completions": {
+      "post": {
+        "operationId": "chat_completions_for_project_gateway_p__project_slug__v1_chat_completions_post",
+        "parameters": [
+          {
+            "in": "path",
+            "name": "project_slug",
+            "required": true,
+            "schema": {
+              "title": "Project Slug",
+              "type": "string"
+            }
+          }
+        ],
+        "responses": {
+          "200": {
+            "content": {
+              "application/json": {
+                "schema": {}
+              }
+            },
+            "description": "Successful Response"
+          },
+          "422": {
+            "content": {
+              "application/json": {
+                "schema": {
+                  "$ref": "#/components/schemas/HTTPValidationError"
+                }
+              }
+            },
+            "description": "Validation Error"
+          }
+        },
+        "summary": "Chat Completions For Project",
+        "tags": [
+          "gateway"
+        ]
+      }
+    },
+    "/gateway/p/{project_slug}/v1/models": {
+      "get": {
+        "operationId": "list_models_for_project_gateway_p__project_slug__v1_models_get",
+        "parameters": [
+          {
+            "in": "path",
+            "name": "project_slug",
+            "required": true,
+            "schema": {
+              "title": "Project Slug",
+              "type": "string"
+            }
+          }
+        ],
+        "responses": {
+          "200": {
+            "content": {
+              "application/json": {
+                "schema": {}
+              }
+            },
+            "description": "Successful Response"
+          },
+          "422": {
+            "content": {
+              "application/json": {
+                "schema": {
+                  "$ref": "#/components/schemas/HTTPValidationError"
+                }
+              }
+            },
+            "description": "Validation Error"
+          }
+        },
+        "summary": "List Models For Project",
+        "tags": [
+          "gateway"
+        ]
+      }
+    },
+    "/gateway/v1/chat/completions": {
+      "post": {
+        "operationId": "chat_completions_gateway_v1_chat_completions_post",
+        "responses": {
+          "200": {
+            "content": {
+              "application/json": {
+                "schema": {}
+              }
+            },
+            "description": "Successful Response"
+          }
+        },
+        "summary": "Chat Completions",
+        "tags": [
+          "gateway"
+        ]
+      }
+    },
+    "/gateway/v1/models": {
+      "get": {
+        "operationId": "list_models_gateway_v1_models_get",
+        "responses": {
+          "200": {
+            "content": {
+              "application/json": {
+                "schema": {}
+              }
+            },
+            "description": "Successful Response"
+          }
+        },
+        "summary": "List Models",
+        "tags": [
+          "gateway"
+        ]
+      }
     }
   }
 }

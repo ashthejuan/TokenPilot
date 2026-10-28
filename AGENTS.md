@@ -72,12 +72,12 @@ User instructions in this file and direct human requests take precedence over sk
 
 ## Project conventions
 
-- Refer to `context` for design and security best practices.
+- Design and security references live under `context/`. `context/phases/` holds local implementation notes (gitignored); agents should create/update files there when features change.
 - Work on one git branch per phase, named `phase-N-<slug>` (for example `phase-0-scaffold`). Never commit phase work directly to `main`.
 - Merge a phase branch into `main` only after the human partner explicitly approves that phase. Approval of one phase is not approval of the next.
 - Before starting a phase or feature, create `context/phases/<date>-phase-N-<slug>.md` describing its scope, the plan/spec it follows, and how it will be verified.
 - Before merging that phase, finish the same file: what was implemented and which files changed, how it was reviewed (reviewer, commit range, inputs, findings), and the outcomes (test/lint results, manual checks, findings fixed and deferred). Do not merge until this section exists.
-- Always keep `context/phases/` in the project root `.gitignore` (do not commit phase notes).
+- Keep these paths in the project root `.gitignore` (do not commit them): `.agents/skills/`, `.cursor/`, `.opencode/`, `context/phases/`, `docs/`.
 - Never touch or view `.env` unless explicitly asked. Only make changes to `.env.example`.
 - Prefer pointed, concise communication. Do not invent secrets; request them through the harness secret mechanism when available.
 

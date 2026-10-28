@@ -3,6 +3,12 @@
 .env.*
 !.env.example
 
+# Local agent / harness paths (not committed)
+.agents/skills/
+.cursor/
+.opencode/
+docs/
+
 # Phase notes (local agent context; not committed)
 context/phases/
 

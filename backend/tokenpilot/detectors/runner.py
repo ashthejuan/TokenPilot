@@ -10,7 +10,10 @@ from datetime import datetime
 
 from tokenpilot.db.database import Database
 from tokenpilot.detectors.base import Detector
+from tokenpilot.detectors.context_ratio import ContextRatioDetector
 from tokenpilot.detectors.facts import AnalysisScope, load_context
+from tokenpilot.detectors.model_inefficiency import ModelInefficiencyDetector
+from tokenpilot.detectors.repeated_context import RepeatedContextDetector
 from tokenpilot.detectors.repeated_request import RepeatedRequestDetector
 from tokenpilot.detectors.retry_amplification import RetryAmplificationDetector
 from tokenpilot.detectors.runaway_session import RunawaySessionDetector
@@ -24,12 +27,15 @@ class UnknownRuleError(ValueError):
     """A requested `rule_id` is not in the registry."""
 
 
-# Filled as rules land; Task 2.3 completes all 7 `RULE_IDS`.
+# All 7 `RULE_IDS` (Task 2.3 completed the registry).
 REGISTRY: dict[str, Detector] = {
     "repeated_request": RepeatedRequestDetector(),
     "retry_amplification": RetryAmplificationDetector(),
+    "repeated_context": RepeatedContextDetector(),
     "unsuccessful_task": UnsuccessfulTaskDetector(),
+    "context_ratio": ContextRatioDetector(),
     "runaway_session": RunawaySessionDetector(),
+    "model_inefficiency": ModelInefficiencyDetector(),
 }
 
 

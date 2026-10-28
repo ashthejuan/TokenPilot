@@ -36,6 +36,23 @@ class TaskProjectMismatchError(LedgerRefError):
         }
 
 
+class SessionProjectMismatchError(LedgerRefError):
+    code = "session_project_mismatch"
+
+    def __init__(
+        self, session_id: str, session_project_id: str | None, project_id: str | None
+    ) -> None:
+        super().__init__(
+            f"session {session_id!r} belongs to project {session_project_id!r}, "
+            f"not {project_id!r}; change the session or the project in the same request"
+        )
+        self.details = {
+            "session_id": session_id,
+            "session_project_id": session_project_id,
+            "project_id": project_id,
+        }
+
+
 class BenchmarkRunRefError(LedgerRefError):
     code = "unknown_benchmark_run"
 

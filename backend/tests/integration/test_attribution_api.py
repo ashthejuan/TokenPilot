@@ -273,3 +273,71 @@ def test_patch_session_only_ignores_task_consistency(
     response = patch(client, auth_headers, event_id, {"session_id": None})
 
     assert response.status_code == 200
+
+
+def session_id_for(app: FastAPI, external_session_id: str) -> str:
+    db: Database = app.state.db
+    with db.read() as conn:
+        row = conn.execute(
+            "SELECT id FROM sessions WHERE external_session_id = ?", (external_session_id,)
+        ).fetchone()
+    return str(row["id"])
+
+
+def event_session(client: TestClient, headers: dict[str, str], event_id: str) -> Any:
+    return client.get(f"{EVENTS}/{event_id}", headers=headers).json()["session_id"]
+
+
+def test_patch_session_from_other_project_rejected(
+    app: FastAPI, client: TestClient, auth_headers: dict[str, str]
+) -> None:
+    event_id = post_event(client, auth_headers, project_id="p1", external_session_id="s1")
+    project_q = create_project(client, auth_headers, "Q")
+    post_event(client, auth_headers, project_id=project_q, external_session_id="s-q")
+    foreign_session = session_id_for(app, "s-q")
+    before = event_state(client, auth_headers, event_id)
+    before_session = event_session(client, auth_headers, event_id)
+
+    response = patch(client, auth_headers, event_id, {"session_id": foreign_session})
+
+    assert response.status_code == 422
+    error = response.json()["error"]
+    assert error["code"] == "session_project_mismatch"
+    assert error["details"]["session_id"] == foreign_session
+    assert error["details"]["session_project_id"] == project_q
+    assert audit_rows(app) == []
+    assert event_state(client, auth_headers, event_id) == before
+    assert event_session(client, auth_headers, event_id) == before_session
+
+
+def test_patch_project_change_alone_with_foreign_session_rejected(
+    app: FastAPI, client: TestClient, auth_headers: dict[str, str]
+) -> None:
+    event_id = post_event(client, auth_headers, project_id="p1", external_session_id="s1")
+    project_q = create_project(client, auth_headers, "Q")
+    before = event_state(client, auth_headers, event_id)
+
+    response = patch(client, auth_headers, event_id, {"project_id": project_q})
+
+    assert response.status_code == 422
+    assert response.json()["error"]["code"] == "session_project_mismatch"
+    assert audit_rows(app) == []
+    assert event_state(client, auth_headers, event_id) == before
+
+
+def test_patch_project_and_matching_session_together(
+    app: FastAPI, client: TestClient, auth_headers: dict[str, str]
+) -> None:
+    event_id = post_event(client, auth_headers, project_id="p1", external_session_id="s1")
+    project_q = create_project(client, auth_headers, "Q")
+    post_event(client, auth_headers, project_id=project_q, external_session_id="s-q")
+    session_q = session_id_for(app, "s-q")
+
+    response = patch(
+        client, auth_headers, event_id, {"project_id": project_q, "session_id": session_q}
+    )
+
+    assert response.status_code == 200
+    assert response.json()["project_id"] == project_q
+    assert response.json()["session_id"] == session_q
+    assert {r["field"] for r in audit_rows(app)} == {"project_id", "session_id"}

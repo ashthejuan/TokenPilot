@@ -14,6 +14,9 @@ class Settings(BaseSettings):
         env_prefix="TOKENPILOT_",
         env_file=REPO_ROOT / ".env",
         env_file_encoding="utf-8",
+        # A copied `.env.example` has empty values. Without this, `TOKENPILOT_DB_PATH=`
+        # becomes `Path("")` -> `Path(".")` and the app cannot open its database.
+        env_ignore_empty=True,
         extra="ignore",
         populate_by_name=True,
     )

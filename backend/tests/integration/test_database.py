@@ -57,6 +57,34 @@ def test_write_commits_and_rolls_back(client: TestClient, app: FastAPI) -> None:
     assert row["status"] == "success"
 
 
+def test_failed_commit_does_not_wedge_shared_connection(
+    client: TestClient, app: FastAPI
+) -> None:
+    """A COMMIT that raises must roll back, or one failure poisons every later write."""
+    db: Database = app.state.db
+    with db.write() as conn:
+        conn.execute(_INSERT_EVENT)
+
+    # Deferred foreign keys are only checked at COMMIT, so the write inside the
+    # transaction succeeds and the commit itself raises.
+    with pytest.raises(sqlite3.IntegrityError), db.write() as conn:
+        conn.execute("PRAGMA defer_foreign_keys = ON")
+        conn.execute(
+            "INSERT INTO usage_events "
+            "(id, idempotency_key, project_id, provider, model_id, usage_source, status, "
+            "started_at, raw_event_json) "
+            "VALUES ('e2', 'k2', 'missing-project', 'meta', 'muse-spark-1.3', 'provider', "
+            "'success', '2026-10-28T00:00:01.000Z', '{}')"
+        )
+
+    with db.write() as conn:
+        conn.execute("UPDATE usage_events SET status = 'error' WHERE id = 'e1'")
+
+    with db.read() as conn:
+        status = conn.execute("SELECT status FROM usage_events WHERE id = 'e1'").fetchone()[0]
+    assert status == "error"
+
+
 def test_close_is_idempotent_and_blocks_use(client: TestClient, app: FastAPI) -> None:
     db: Database = app.state.db
     db.close()

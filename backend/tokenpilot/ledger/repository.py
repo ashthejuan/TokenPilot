@@ -348,6 +348,12 @@ class LedgerRepository:
         row = self._conn.execute(f"SELECT 1 FROM {table} WHERE id = ?", (value,)).fetchone()
         return row is not None
 
+    def session_project(self, session_id: str) -> str | None:
+        row = self._conn.execute(
+            "SELECT project_id FROM sessions WHERE id = ?", (session_id,)
+        ).fetchone()
+        return None if row is None else row["project_id"]
+
     def apply_attribution_changes(
         self, event: UsageEvent, changes: dict[str, str | None], *, changed_by: str
     ) -> None:

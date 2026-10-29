@@ -21,6 +21,7 @@ test("investigate discloses, confirms, and shows evidence-linked facts", async (
   page,
   request,
 }) => {
+  test.setTimeout(120_000);
   const seed = await request.post("/api/tp/api/v1/usage/events", {
     data: [
       event({
@@ -45,11 +46,36 @@ test("investigate discloses, confirms, and shows evidence-linked facts", async (
   });
   expect(seed.ok()).toBeTruthy();
 
+  // Both e2e specs share one database, so find the insight holding this
+  // spec's seeded evidence instead of clicking a rule link that may match
+  // several rows (detector upsert can also merge into one row).
+  async function insightWithSeedEvidence(): Promise<string | null> {
+    const list = await request.get("/api/tp/api/v1/insights", {
+      params: { rule_id: "retry_amplification" },
+    });
+    expect(list.ok()).toBeTruthy();
+    const body = await list.json();
+    const ids = (body.items as { id: string }[]).map((item) => item.id);
+    for (const id of ids) {
+      const detail = await request.get(`/api/tp/api/v1/insights/${id}`);
+      if (!detail.ok()) continue;
+      const detailBody = await detail.json();
+      const rows = detailBody.evidence_rows as {
+        event?: { source_event_id?: string | null } | null;
+      }[];
+      if (rows.some((row) => row.event?.source_event_id?.startsWith("inv-ch-"))) {
+        return id;
+      }
+    }
+    return null;
+  }
+
   await page.goto("/insights");
   await page.getByRole("button", { name: "Run analysis" }).click();
-  const ruleRow = page.getByRole("link", { name: "retry_amplification.v1" });
-  await expect(ruleRow).toBeVisible({ timeout: 60_000 });
-  await ruleRow.click();
+  await expect(page.getByText("Job: succeeded")).toBeVisible({ timeout: 90_000 });
+  await expect.poll(insightWithSeedEvidence, { timeout: 60_000 }).not.toBeNull();
+  const insightId = (await insightWithSeedEvidence()) as string;
+  await page.goto(`/insights/${insightId}`);
 
   const investigateButton = page.getByRole("button", { name: "Investigate" });
   await expect(investigateButton).toBeVisible({ timeout: 15_000 });

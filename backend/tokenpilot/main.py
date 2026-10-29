@@ -15,6 +15,7 @@ from fastapi.responses import JSONResponse
 from pydantic import SecretStr
 from starlette.exceptions import HTTPException as StarletteHTTPException
 
+from tokenpilot.api.data import router as data_router
 from tokenpilot.api.gateway import router as gateway_router
 from tokenpilot.api.health import router as health_router
 from tokenpilot.api.insights import router as insights_router
@@ -131,6 +132,8 @@ def create_app(
         timeout = httpx.Timeout(connect=10.0, read=300.0, write=30.0, pool=10.0)
         upstream = httpx.AsyncClient(timeout=timeout, transport=upstream_transport)
         app.state.upstream = upstream
+        # Sync MetaClient (investigator) reuses the same MockTransport in tests.
+        app.state.upstream_transport = upstream_transport
         try:
             yield
         finally:
@@ -139,6 +142,7 @@ def create_app(
 
     app = FastAPI(title="TokenPilot API", version="0.1.0", lifespan=lifespan)
     app.state.settings = resolved
+    app.state.upstream_transport = upstream_transport
 
     app.add_exception_handler(StarletteHTTPException, _handle_http_exception)
     app.add_exception_handler(RequestValidationError, _handle_validation_error)
@@ -153,6 +157,7 @@ def create_app(
         projects_router,
         sessions_router,
         settings_router,
+        data_router,
         insights_router,
         gateway_router,
     ):

@@ -1,6 +1,6 @@
 import { afterEach, describe, expect, it, vi } from "vitest";
 
-import { ApiError, apiGet, apiSend } from "@/lib/api";
+import { ApiError, apiDelete, apiGet, apiSend } from "@/lib/api";
 
 function jsonResponse(body: unknown, status: number): Response {
   return new Response(JSON.stringify(body), {
@@ -60,6 +60,23 @@ describe("apiSend", () => {
     expect(fetchMock).toHaveBeenCalledWith(
       "/api/tp/api/v1/projects/p1",
       expect.objectContaining({ method: "PATCH", body: JSON.stringify({ name: "x" }) }),
+    );
+  });
+});
+
+describe("apiDelete", () => {
+  it("sends DELETE with query params and returns the body", async () => {
+    const fetchMock = vi.fn().mockResolvedValue(jsonResponse({ deleted_events: 1 }, 200));
+    vi.stubGlobal("fetch", fetchMock);
+
+    const body = await apiDelete<{ deleted_events: number }>("api/v1/data", {
+      before: "2026-06-01T00:00:00.000Z",
+    });
+
+    expect(body).toEqual({ deleted_events: 1 });
+    expect(fetchMock).toHaveBeenCalledWith(
+      "/api/tp/api/v1/data?before=2026-06-01T00%3A00%3A00.000Z",
+      expect.objectContaining({ method: "DELETE" }),
     );
   });
 });

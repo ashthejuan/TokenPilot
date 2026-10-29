@@ -148,3 +148,28 @@ class InsightRepository:
         if cursor.rowcount != 1:
             return None
         return self.get(insight_id)
+
+    def apply_investigation(
+        self,
+        insight_id: str,
+        *,
+        root_cause_hypothesis: str,
+        recommendation: dict,
+        investigator_model: str,
+        now: str,
+    ) -> InsightOut | None:
+        """Write investigator fields onto an existing insight; leave detector columns alone."""
+        cursor = self._conn.execute(
+            "UPDATE insights SET root_cause_hypothesis = ?, recommendation_json = ?, "
+            "investigator_model = ?, updated_at = ? WHERE id = ?",
+            (
+                root_cause_hypothesis,
+                json.dumps(recommendation, sort_keys=True),
+                investigator_model,
+                now,
+                insight_id,
+            ),
+        )
+        if cursor.rowcount != 1:
+            return None
+        return self.get(insight_id)

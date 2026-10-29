@@ -4,17 +4,23 @@ import Link from "next/link";
 import { useParams } from "next/navigation";
 import { useEffect, useState, type ReactNode } from "react";
 
+import { DisclosureDialog } from "@/components/DisclosureDialog";
 import { EvidenceTable } from "@/components/EvidenceTable";
+import { FeedbackButtons } from "@/components/FeedbackButtons";
 import { InsightActions } from "@/components/InsightActions";
+import { InvestigationCard } from "@/components/InvestigationPanel";
 import { MeasurementsTable } from "@/components/MeasurementsTable";
 import { SeverityBadge } from "@/components/SeverityBadge";
 import { Card, CardContent, CardDescription, CardHeader, CardTitle } from "@/components/ui/card";
-import { ApiError, apiGet } from "@/lib/api";
+import { ApiError, apiGet, apiSend } from "@/lib/api";
 import type { components } from "@/lib/api-types";
-import { impactLabel, ruleLabel } from "@/lib/insights";
+import { impactLabel, pollJob, ruleLabel } from "@/lib/insights";
 
 type InsightDetail = components["schemas"]["InsightDetail"];
 type InsightOut = components["schemas"]["InsightOut"];
+type InvestigationOut = components["schemas"]["InvestigationOut"];
+type InvestigationPreviewOut = components["schemas"]["InvestigationPreviewOut"];
+type JobOut = components["schemas"]["JobOut"];
 
 function errorText(error: unknown): string {
   if (error instanceof ApiError) {
@@ -55,16 +61,26 @@ export default function InsightDetailPage() {
   const insightId = params.id;
 
   const [detail, setDetail] = useState<InsightDetail | null>(null);
+  const [investigations, setInvestigations] = useState<InvestigationOut[]>([]);
   const [loading, setLoading] = useState(true);
   const [error, setError] = useState<string | null>(null);
+
+  const [preview, setPreview] = useState<InvestigationPreviewOut | null>(null);
+  const [previewError, setPreviewError] = useState<string | null>(null);
+  const [dialogBusy, setDialogBusy] = useState(false);
+  const [dialogError, setDialogError] = useState<string | null>(null);
 
   useEffect(() => {
     let cancelled = false;
     setLoading(true);
-    apiGet<InsightDetail>(`api/v1/insights/${insightId}`)
-      .then((next) => {
+    Promise.all([
+      apiGet<InsightDetail>(`api/v1/insights/${insightId}`),
+      apiGet<InvestigationOut[]>(`api/v1/insights/${insightId}/investigations`),
+    ])
+      .then(([next, runs]) => {
         if (cancelled) return;
         setDetail(next);
+        setInvestigations(runs);
         setError(null);
       })
       .catch((err: unknown) => {
@@ -80,6 +96,52 @@ export default function InsightDetailPage() {
 
   function onUpdated(insight: InsightOut) {
     setDetail((current) => (current ? { ...current, insight } : current));
+  }
+
+  async function openDisclosure() {
+    setPreviewError(null);
+    try {
+      const next = await apiGet<InvestigationPreviewOut>(
+        `api/v1/insights/${insightId}/investigation-preview`,
+      );
+      setPreview(next);
+    } catch (err: unknown) {
+      // A preview failure must not wipe the loaded insight; it stays scoped
+      // to the investigation action.
+      setPreviewError(errorText(err));
+    }
+  }
+
+  async function confirmInvestigate() {
+    if (dialogBusy) return;
+    setDialogBusy(true);
+    setDialogError(null);
+    try {
+      const accepted = await apiSend<{ job_id: string }>(
+        "POST",
+        `api/v1/insights/${insightId}/investigate`,
+        { mode: "metadata_only" },
+      );
+      // Match the e2e budget: the job may outlive the default 60s poll.
+      const job: JobOut = await pollJob(accepted.job_id, {
+        intervalMs: 1000,
+        timeoutMs: 90000,
+      });
+      if (job.status !== "succeeded") {
+        throw new ApiError("job_failed", job.error ?? "Investigation job failed.", 500);
+      }
+      const [next, runs] = await Promise.all([
+        apiGet<InsightDetail>(`api/v1/insights/${insightId}`),
+        apiGet<InvestigationOut[]>(`api/v1/insights/${insightId}/investigations`),
+      ]);
+      setDetail(next);
+      setInvestigations(runs);
+      setPreview(null);
+    } catch (err: unknown) {
+      setDialogError(errorText(err));
+    } finally {
+      setDialogBusy(false);
+    }
   }
 
   if (loading) {
@@ -146,17 +208,37 @@ export default function InsightDetailPage() {
         </p>
       </Section>
 
-      <Section title="Recommended action">
-        <p className="text-sm">Not yet investigated</p>
+      <InvestigationCard investigations={investigations} evidenceRows={evidenceRows} />
+
+      <Section title="Feedback">
+        <FeedbackButtons insightId={insight.id} />
       </Section>
 
       <Section title="Actions">
+        {previewError ? (
+          <p role="alert" className="mb-3 text-sm text-destructive">
+            {previewError}
+          </p>
+        ) : null}
         <InsightActions
           insightId={insight.id}
           status={insight.status}
           onUpdated={onUpdated}
+          onInvestigate={() => void openDisclosure()}
         />
       </Section>
+
+      {preview ? (
+        <DisclosureDialog
+          preview={preview}
+          busy={dialogBusy}
+          error={dialogError}
+          onConfirm={() => void confirmInvestigate()}
+          onCancel={() => {
+            if (!dialogBusy) setPreview(null);
+          }}
+        />
+      ) : null}
     </div>
   );
 }

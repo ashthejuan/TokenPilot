@@ -3,6 +3,7 @@
 from typing import Annotated
 
 from fastapi import APIRouter, BackgroundTasks, Depends, HTTPException, Query, Request
+from fastapi.responses import JSONResponse
 
 from tokenpilot.db.database import Database, get_db
 from tokenpilot.detectors.base import EvidenceRef, Severity
@@ -10,6 +11,13 @@ from tokenpilot.detectors.runner import REGISTRY
 from tokenpilot.insights.evidence import resolve_evidence
 from tokenpilot.insights.jobs import JobRepository, run_analysis_job
 from tokenpilot.insights.repository import InsightRepository
+from tokenpilot.investigator.evidence import (
+    build_bundle,
+    disclosure_lines,
+    is_contributor_model,
+)
+from tokenpilot.investigator.repository import FeedbackRepository, InvestigationRepository
+from tokenpilot.investigator.service import run_investigation_job
 from tokenpilot.schemas.common import (
     DEFAULT_PAGE_LIMIT,
     MAX_PAGE_LIMIT,
@@ -20,11 +28,18 @@ from tokenpilot.schemas.common import (
 from tokenpilot.schemas.insights import (
     AnalyzeAccepted,
     AnalyzeRequest,
+    FeedbackOut,
+    FeedbackRequest,
     InsightDetail,
     InsightFilters,
     InsightOut,
     InsightStatus,
     InsightStatusUpdate,
+    InvestigateAccepted,
+    InvestigateRequest,
+    InvestigationMode,
+    InvestigationOut,
+    InvestigationPreviewOut,
     JobOut,
     StatusNotSettableError,
 )
@@ -124,3 +139,134 @@ def patch_insight(
     if insight is None:
         raise HTTPException(status_code=404, detail="insight not found")
     return _with_guidance(insight)
+
+
+@router.get("/insights/{insight_id}/investigation-preview", response_model=InvestigationPreviewOut)
+def investigation_preview(
+    insight_id: str,
+    request: Request,
+    db: Annotated[Database, Depends(get_db)],
+    mode: InvestigationMode = "metadata_only",
+) -> InvestigationPreviewOut | JSONResponse:
+    settings = request.app.state.settings
+    try:
+        with db.read() as conn:
+            bundle = build_bundle(conn, insight_id, mode, settings=settings)
+    except LookupError as exc:
+        raise HTTPException(status_code=404, detail="insight not found") from exc
+    except PermissionError:
+        return JSONResponse(
+            status_code=403,
+            content={
+                "error": {
+                    "code": "content_transmission_disabled",
+                    "message": "content transmission or storage is disabled",
+                    "details": None,
+                }
+            },
+        )
+
+    contains_content = mode == "with_excerpts"
+    contributor_training = is_contributor_model(settings.investigator_model)
+    return InvestigationPreviewOut(
+        bundle=bundle.to_dict(),
+        destination=settings.upstream_base_url,
+        model=settings.investigator_model,
+        contains_content=contains_content,
+        contributor_training=contributor_training,
+        disclosure_lines=disclosure_lines(
+            destination=settings.upstream_base_url,
+            model=settings.investigator_model,
+            contains_content=contains_content,
+            contributor_training=contributor_training,
+        ),
+    )
+
+
+def _upstream_key_configured(settings: object) -> bool:
+    api_key = getattr(settings, "upstream_api_key", None)
+    if api_key is None:
+        return False
+    return bool(api_key.get_secret_value().strip())
+
+
+@router.post("/insights/{insight_id}/investigate", status_code=202, response_model=None)
+def investigate_insight(
+    insight_id: str,
+    body: InvestigateRequest,
+    background_tasks: BackgroundTasks,
+    request: Request,
+    db: Annotated[Database, Depends(get_db)],
+) -> InvestigateAccepted | JSONResponse:
+    settings = request.app.state.settings
+    with db.read() as conn:
+        insight = InsightRepository(conn).get(insight_id)
+    if insight is None:
+        raise HTTPException(status_code=404, detail="insight not found")
+
+    if body.mode == "with_excerpts" and not (
+        settings.allow_content_transmission and settings.store_content
+    ):
+        return JSONResponse(
+            status_code=403,
+            content={
+                "error": {
+                    "code": "content_transmission_disabled",
+                    "message": "content transmission or storage is disabled",
+                    "details": None,
+                }
+            },
+        )
+
+    if not _upstream_key_configured(settings):
+        return JSONResponse(
+            status_code=503,
+            content={
+                "error": {
+                    "code": "upstream_not_configured",
+                    "message": "upstream API key is not configured",
+                    "details": None,
+                }
+            },
+        )
+
+    params = {"insight_id": insight_id, "mode": body.mode}
+    with db.write() as conn:
+        job = JobRepository(conn).create("investigate", params)
+
+    background_tasks.add_task(
+        run_investigation_job,
+        db,
+        settings.db_path,
+        settings,
+        job.id,
+        transport=getattr(request.app.state, "upstream_transport", None),
+    )
+    return InvestigateAccepted(job_id=job.id)
+
+
+@router.get("/insights/{insight_id}/investigations")
+def list_investigations(
+    insight_id: str, db: Annotated[Database, Depends(get_db)]
+) -> list[InvestigationOut]:
+    with db.read() as conn:
+        if InsightRepository(conn).get(insight_id) is None:
+            raise HTTPException(status_code=404, detail="insight not found")
+        return InvestigationRepository(conn).list_for_insight(insight_id)
+
+
+@router.post("/insights/{insight_id}/feedback", status_code=201)
+def post_feedback(
+    insight_id: str,
+    body: FeedbackRequest,
+    db: Annotated[Database, Depends(get_db)],
+) -> FeedbackOut:
+    with db.write() as conn:
+        if InsightRepository(conn).get(insight_id) is None:
+            raise HTTPException(status_code=404, detail="insight not found")
+        return FeedbackRepository(conn).add(
+            insight_id=insight_id,
+            verdict=body.verdict,
+            implemented=body.implemented,
+            note=body.note,
+        )

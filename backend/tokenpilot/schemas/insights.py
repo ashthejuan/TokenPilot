@@ -17,6 +17,9 @@ from tokenpilot.schemas.usage import UsageEvent
 
 InsightStatus = Literal["new", "reviewed", "dismissed", "tested"]
 JobStatus = Literal["queued", "running", "succeeded", "failed"]
+InvestigationMode = Literal["metadata_only", "with_excerpts"]
+InvestigationStatus = Literal["completed", "insufficient_evidence", "failed"]
+FeedbackVerdict = Literal["useful", "not_useful", "not_applicable"]
 # Keep in sync with `detectors.base.RULE_IDS` (mypy rejects `Literal[*RULE_IDS]`).
 RuleId = Literal[
     "repeated_request",
@@ -103,6 +106,32 @@ class JobOut(BaseModel):
     finished_at: str | None
 
 
+class InvestigationOut(BaseModel):
+    """One finished investigation run persisted for an insight."""
+
+    id: str
+    insight_id: str
+    model: str | None
+    prompt_version: str | None
+    mode: InvestigationMode
+    status: InvestigationStatus
+    result: dict[str, Any] | None
+    validation_errors: list[str] | None
+    request_disclosure: dict[str, Any] | None
+    created_at: str
+
+
+class FeedbackOut(BaseModel):
+    """One recommendation-feedback row from a user."""
+
+    id: str
+    insight_id: str
+    verdict: FeedbackVerdict
+    implemented: bool | None
+    note: str | None
+    created_at: str
+
+
 class ThresholdsResponse(BaseModel):
     """A saved thresholds object; stored detectors do not re-run on their own."""
 
@@ -124,6 +153,27 @@ class AnalyzeAccepted(BaseModel):
     """202 body: the job id to poll."""
 
     job_id: str
+
+
+InvestigateAccepted = AnalyzeAccepted
+
+
+class InvestigateRequest(BaseModel):
+    """POST body for starting an investigation job."""
+
+    model_config = ConfigDict(extra="forbid")
+
+    mode: InvestigationMode = "metadata_only"
+
+
+class FeedbackRequest(BaseModel):
+    """POST body for recommendation feedback."""
+
+    model_config = ConfigDict(extra="forbid")
+
+    verdict: FeedbackVerdict
+    implemented: bool | None = None
+    note: str | None = None
 
 
 class TaskRef(BaseModel):
@@ -158,3 +208,14 @@ class InsightStatusUpdate(BaseModel):
     model_config = ConfigDict(extra="forbid")
 
     status: InsightStatus
+
+
+class InvestigationPreviewOut(BaseModel):
+    """Disclosure preview: the exact bundle that would be sent, plus Q8 copy."""
+
+    bundle: dict[str, Any]
+    destination: str
+    model: str
+    contains_content: bool
+    contributor_training: bool
+    disclosure_lines: list[str]

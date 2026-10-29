@@ -13,7 +13,12 @@ type ChartPoint = TimeseriesPoint & { label: string };
 function bucketLabel(bucketStart: string, bucket: Bucket): string {
   const date = new Date(bucketStart);
   return bucket === "hour"
-    ? date.toLocaleString("en-US", { month: "short", day: "numeric", hour: "2-digit" })
+    ? date.toLocaleString("en-US", {
+        month: "short",
+        day: "numeric",
+        hour: "2-digit",
+        timeZone: "UTC",
+      })
     : date.toLocaleDateString("en-US", { month: "short", day: "numeric", timeZone: "UTC" });
 }
 

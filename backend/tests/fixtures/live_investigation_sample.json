@@ -1,0 +1,96 @@
+{
+  "allowed_ids": [
+    "3eb9cc270b9d4828af18906fa888f723",
+    "ebf2edf2c2bf48f8a10e9feec1470fe4",
+    "a4e6538e6aa44b2eb1349910e44a2e59",
+    "f147803fe12642b8a1c05091177e3289",
+    "a99ca15b1f7c41799fbdab568b99ba08"
+  ],
+  "evidence_id_support": {
+    "all_cited_in_allowed": true,
+    "cited": [
+      "ebf2edf2c2bf48f8a10e9feec1470fe4",
+      "f147803fe12642b8a1c05091177e3289",
+      "a99ca15b1f7c41799fbdab568b99ba08",
+      "ebf2edf2c2bf48f8a10e9feec1470fe4",
+      "f147803fe12642b8a1c05091177e3289",
+      "a99ca15b1f7c41799fbdab568b99ba08",
+      "3eb9cc270b9d4828af18906fa888f723"
+    ],
+    "cited_count": 7
+  },
+  "insight": {
+    "id": "3eb9cc270b9d4828af18906fa888f723",
+    "rule_id": "retry_amplification",
+    "title": "Retry amplification (3 attempts)"
+  },
+  "investigation": {
+    "created_at": "2026-10-29T05:47:18.600Z",
+    "id": "6d4c7bf20ffc4a1ab0ec182b9a093338",
+    "insight_id": "3eb9cc270b9d4828af18906fa888f723",
+    "mode": "metadata_only",
+    "model": "muse-spark-1.3-contributor",
+    "prompt_version": "investigate_v1",
+    "request_disclosure": {
+      "contains_content": false,
+      "contributor_training": true,
+      "destination": "https://api.meta.ai/v1",
+      "disclosure_lines": [
+        "https://api.meta.ai/v1",
+        "muse-spark-1.3-contributor",
+        "metadata only",
+        "Contributor mode: Meta may use the content you send to train future models."
+      ],
+      "model": "muse-spark-1.3-contributor"
+    },
+    "result": {
+      "confidence": "medium",
+      "impact_assessment": "Retry cost 0.00075 added to total 0.0011250000000000001 with low severity, final attempt succeeded so impact was extra cost without failure.",
+      "limitations": [
+        "Missing latency and cache data limits analysis",
+        "Small sample with unknown session outcome limits generalization"
+      ],
+      "observed_facts": [
+        {
+          "evidence_ids": [
+            "ebf2edf2c2bf48f8a10e9feec1470fe4",
+            "f147803fe12642b8a1c05091177e3289",
+            "a99ca15b1f7c41799fbdab568b99ba08"
+          ],
+          "statement": "3 attempts used model fake-small with 1000 input tokens and 100 output tokens each costing 0.000375"
+        },
+        {
+          "evidence_ids": [
+            "ebf2edf2c2bf48f8a10e9feec1470fe4",
+            "f147803fe12642b8a1c05091177e3289",
+            "a99ca15b1f7c41799fbdab568b99ba08"
+          ],
+          "statement": "2 attempts ended as error with rate_limited category and 1 attempt ended as success"
+        },
+        {
+          "evidence_ids": [
+            "3eb9cc270b9d4828af18906fa888f723"
+          ],
+          "statement": "Retry cost was 0.00075 with 0 unknown cost attempts and total known cost 0.0011250000000000001"
+        }
+      ],
+      "recommendation": {
+        "action": "Adjust retry policy for rate_limited errors to reduce repeated cost while preserving success",
+        "expected_direction": "lower_cost",
+        "proposed_benchmark": {
+          "alternative_change": "Apply limited backoff for rate_limited errors",
+          "baseline_change": "Keep current explicit retry behavior"
+        },
+        "validation_procedure": "Compare baseline versus alternative on retry cost and success outcome",
+        "variable_to_change": "retry_policy"
+      },
+      "root_cause_hypothesis": "Rate limited errors triggered explicit retries, final retry succeeded, indicating transient throttling rather than persistent failure.",
+      "summary": "2 retries with rate_limited errors followed by success, retry cost 0.00075, consistent with retry amplification.",
+      "title": "Retry amplification with 3 attempts",
+      "verdict": "supported"
+    },
+    "status": "completed",
+    "validation_errors": null
+  },
+  "live_check": "ok"
+}

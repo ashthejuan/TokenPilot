@@ -14,7 +14,7 @@ import yaml
 import tokenpilot.pricing.catalog as catalog_module
 from tokenpilot.db.connection import connect
 from tokenpilot.db.migrate import migrate
-from tokenpilot.pricing.catalog import load_catalog, select_pricing
+from tokenpilot.pricing.catalog import load_catalog, select_pricing, select_pricing_many
 from tokenpilot.pricing.cost import compute_cost
 from tokenpilot.schemas.usage import UsageEvent
 from tokenpilot.timeutil import to_utc_z
@@ -177,6 +177,20 @@ def test_pricing_selected_by_event_time(conn: sqlite3.Connection, tmp_path: Path
     after = select_pricing(conn, "acme", "big", "2026-11-01T00:00:00.000Z")
     assert after is not None
     assert after.id == at_cutover.id
+
+    many = select_pricing_many(
+        conn,
+        [
+            ("acme", "big", "2026-09-30T23:59:59.999Z"),
+            ("acme", "big", "2026-10-01T00:00:00.000Z"),
+            ("acme", "big", "2026-11-01T00:00:00.000Z"),
+            ("missing", "model", "2026-11-01T00:00:00.000Z"),
+        ],
+    )
+    assert many[0] is not None and many[0].id == before.id
+    assert many[1] is not None and many[1].id == at_cutover.id
+    assert many[2] is not None and many[2].id == after.id
+    assert many[3] is None
 
 
 def test_load_catalog_idempotent_and_versions_changes(

@@ -44,3 +44,8 @@ export function apiSend<T>(method: "POST" | "PATCH" | "PUT", path: string, body:
     body: JSON.stringify(body),
   });
 }
+
+export function apiDelete<T>(path: string, params?: Record<string, string>): Promise<T> {
+  const query = params && Object.keys(params).length ? `?${new URLSearchParams(params)}` : "";
+  return request<T>("DELETE", `${path}${query}`);
+}

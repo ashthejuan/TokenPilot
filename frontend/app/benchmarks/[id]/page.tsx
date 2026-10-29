@@ -94,11 +94,10 @@ export default function BenchmarkDetailPage() {
   useEffect(() => {
     let cancelled = false;
     setLoading(true);
-    Promise.all([fetchDetail(), fetchComparisons()])
-      .then(([next, comparisons]) => {
+    fetchDetail()
+      .then((next) => {
         if (cancelled) return;
         setDetail(next);
-        setComparison(latestComparison(comparisons));
         setError(null);
       })
       .catch((err: unknown) => {
@@ -106,6 +105,15 @@ export default function BenchmarkDetailPage() {
       })
       .finally(() => {
         if (!cancelled) setLoading(false);
+      });
+    // Independent fetch: a comparisons failure degrades to the potential
+    // badge and never blanks the detail page.
+    fetchComparisons()
+      .then((comparisons) => {
+        if (!cancelled) setComparison(latestComparison(comparisons));
+      })
+      .catch(() => {
+        if (!cancelled) setComparison(null);
       });
     return () => {
       cancelled = true;

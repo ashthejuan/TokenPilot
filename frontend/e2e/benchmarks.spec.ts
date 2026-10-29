@@ -105,3 +105,25 @@ test("benchmark detail shows the persisted latest comparison on a fresh visit", 
   await expect(page.getByText("Total (eligible runs)")).toBeVisible();
   expect(comparePosts).toBe(0);
 });
+
+test("benchmark detail still renders when the comparisons fetch fails", async ({
+  page,
+}) => {
+  await page.route("**/api/tp/api/v1/benchmarks/bench-1/comparisons", (route) =>
+    route.abort(),
+  );
+  await page.route("**/api/tp/api/v1/benchmarks/bench-1", (route) =>
+    route.fulfill({ json: DETAIL }),
+  );
+
+  await page.goto("/benchmarks/bench-1");
+
+  await expect(page.getByRole("heading", { name: "discount bug" })).toBeVisible({
+    timeout: 15_000,
+  });
+  await expect(page.getByRole("table")).toBeVisible();
+  await expect(page.getByText("Potential savings").first()).toBeVisible();
+  // Scoped to main: the Next dev overlay renders its own empty live-region
+  // alert outside the app content.
+  await expect(page.getByRole("main").getByRole("alert")).toHaveCount(0);
+});

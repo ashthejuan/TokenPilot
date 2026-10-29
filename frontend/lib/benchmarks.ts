@@ -33,9 +33,11 @@ export function savingsBadgeLabel(input: SavingsInput): string {
       return "Verified savings";
     case "measured":
     case "correctness_preserving":
+      // A broken-correctness result is never an optimization, whatever it cost.
+      if (input.correctness_preserved === false) return "Not an optimization";
       // A correct result that costs as much or more measured no savings.
       if (input.cost_delta !== null && input.cost_delta <= 0) return "No savings";
-      return input.correctness_preserved === false ? "Not an optimization" : "Measured savings";
+      return "Measured savings";
     case "inconclusive":
       return "Inconclusive";
     case "incomparable":

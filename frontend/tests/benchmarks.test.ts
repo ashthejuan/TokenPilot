@@ -91,6 +91,15 @@ describe("savingsBadgeLabel", () => {
     ).toBe("No savings");
   });
 
+  it("labels measured-but-incorrect as not an optimization even when costlier", () => {
+    expect(
+      savingsBadgeLabel({ status: "measured", correctness_preserved: false, cost_delta: -0.05 }),
+    ).toBe("Not an optimization");
+    expect(
+      savingsBadgeLabel({ status: "measured", correctness_preserved: false, cost_delta: 0 }),
+    ).toBe("Not an optimization");
+  });
+
   it("labels a zero delta as no savings and keeps a null delta as measured", () => {
     expect(
       savingsBadgeLabel({ status: "measured", correctness_preserved: true, cost_delta: 0 }),

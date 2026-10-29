@@ -1,5 +1,7 @@
 """`POST /api/v1/benchmarks/{id}/compare`: persist the classification and return it."""
 
+import json
+
 from fastapi.testclient import TestClient
 
 from tokenpilot.benchmarks.runner import BenchmarkStore
@@ -131,6 +133,30 @@ def test_compare_persists_verified_row_and_returns_it(
     assert rows[0]["cost_delta"] == 0.18
     assert body["baseline_run_id"] == rows[0]["baseline_run_id"]
     assert body["alternative_run_id"] == rows[0]["alternative_run_id"]
+
+
+def test_compare_returns_reasons_and_persists_them(
+    client: TestClient, auth_headers: dict[str, str], settings: Settings
+) -> None:
+    benchmark_id = _seed_benchmark(settings)
+
+    body = _compare(client, auth_headers, benchmark_id)
+
+    # The fixture verifies via cost-range separation (0.12 < 0.30, n = 1
+    # each), so the deciding reason must name the separation rule.
+    assert body["reasons"], "compare response must carry reasons"
+    assert any("strictly below" in reason for reason in body["reasons"])
+    conn = connect(settings.db_path)
+    try:
+        row = conn.execute(
+            "SELECT methodology_json FROM benchmark_comparisons "
+            "WHERE benchmark_id = ?",
+            (benchmark_id,),
+        ).fetchone()
+    finally:
+        conn.close()
+    stored = json.loads(row["methodology_json"])
+    assert stored["reasons"] == body["reasons"]
 
 
 def test_compare_unknown_benchmark_is_404(

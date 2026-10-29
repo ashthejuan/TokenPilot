@@ -60,6 +60,7 @@ class ComparisonOut(BaseModel):
     correctness_preserved: bool | None
     comparison_status: ComparisonStatus
     methodology: dict[str, Any]
+    reasons: list[str] = Field(default_factory=list)
     created_at: str
 
 
@@ -246,6 +247,7 @@ def compare_variants(
     result = compare(benchmark, baseline, alternative)
     comparison_id = uuid.uuid4().hex
     created_at = utc_now_z()
+    methodology_json = {**result.methodology, "reasons": result.reasons}
     with db.write() as conn:
         conn.execute(
             "INSERT INTO benchmark_comparisons (id, benchmark_id, baseline_run_id, "
@@ -269,7 +271,7 @@ def compare_variants(
                     else int(result.correctness_preserved)
                 ),
                 result.comparison_status,
-                json.dumps(result.methodology, sort_keys=True),
+                json.dumps(methodology_json, sort_keys=True),
                 created_at,
             ),
         )
@@ -285,6 +287,7 @@ def compare_variants(
         correctness_preserved=result.correctness_preserved,
         comparison_status=result.comparison_status,
         methodology=result.methodology,
+        reasons=result.reasons,
         created_at=created_at,
     )
 

@@ -1,13 +1,15 @@
-"""Benchmark experiments, run enqueue, run detail, and cancel."""
+"""Benchmark experiments, run enqueue, run detail, cancel, and compare."""
 
+import json
 import subprocess
 import uuid
+from decimal import Decimal
 from pathlib import Path
 from typing import Annotated, Any
 
 from fastapi import APIRouter, Depends, Header, HTTPException, Request
 from fastapi.responses import JSONResponse
-from pydantic import ValidationError
+from pydantic import BaseModel, ConfigDict, Field, ValidationError
 
 from tokenpilot.benchmarks.agent import PROMPT_TEMPLATES
 from tokenpilot.benchmarks.runner import BenchmarkStore
@@ -15,6 +17,8 @@ from tokenpilot.benchmarks.worker import BenchmarkWorker
 from tokenpilot.benchmarks.worktree import resolve_sha
 from tokenpilot.db.database import Database, get_db
 from tokenpilot.ledger.repository import LedgerRepository
+from tokenpilot.pricing.cost import quantize_money
+from tokenpilot.savings.classify import ComparisonStatus, compare
 from tokenpilot.schemas.benchmarks import (
     AlternativeSpec,
     BenchmarkCreate,
@@ -25,11 +29,38 @@ from tokenpilot.schemas.benchmarks import (
     CreateRunsRequest,
     merge_variant_config,
 )
+from tokenpilot.schemas.common import Money
 from tokenpilot.timeutil import utc_now_z
 
 router = APIRouter(prefix="/api/v1", tags=["benchmarks"])
 
 BASELINE_VARIANT = "baseline"
+
+
+class CompareRequest(BaseModel):
+    """`POST /api/v1/benchmarks/{id}/compare` body: the two variants to pair."""
+
+    model_config = ConfigDict(extra="forbid")
+
+    baseline_variant: str = Field(min_length=1)
+    alternative_variant: str = Field(min_length=1)
+
+
+class ComparisonOut(BaseModel):
+    """One persisted `benchmark_comparisons` row, with its methodology."""
+
+    id: str
+    benchmark_id: str
+    baseline_variant: str
+    alternative_variant: str
+    baseline_run_id: str
+    alternative_run_id: str
+    cost_delta: Money | None
+    cost_delta_pct: Decimal | None
+    correctness_preserved: bool | None
+    comparison_status: ComparisonStatus
+    methodology: dict[str, Any]
+    created_at: str
 
 
 def _worker(request: Request) -> BenchmarkWorker:
@@ -179,6 +210,83 @@ def start_runs(
     for run in runs:
         worker.enqueue(run.id)
     return runs
+
+
+@router.post("/benchmarks/{benchmark_id}/compare", status_code=201)
+def compare_variants(
+    benchmark_id: str,
+    body: CompareRequest,
+    db: Annotated[Database, Depends(get_db)],
+) -> ComparisonOut:
+    with db.read() as conn:
+        store = BenchmarkStore(conn)
+        benchmark = store.get_benchmark(benchmark_id)
+        runs = store.list_runs(benchmark_id) if benchmark is not None else []
+    if benchmark is None:
+        raise HTTPException(status_code=404, detail="benchmark not found")
+    known = {BASELINE_VARIANT} | {spec.name for spec in benchmark.alternatives}
+    for name in (body.baseline_variant, body.alternative_variant):
+        if name not in known:
+            raise HTTPException(status_code=404, detail=f"unknown variant {name!r}")
+    if body.baseline_variant == body.alternative_variant:
+        raise HTTPException(
+            status_code=422,
+            detail="baseline_variant and alternative_variant must differ",
+        )
+    baseline = [run for run in runs if run.variant_name == body.baseline_variant]
+    alternative = [run for run in runs if run.variant_name == body.alternative_variant]
+    for name, variant_runs in (
+        (body.baseline_variant, baseline),
+        (body.alternative_variant, alternative),
+    ):
+        if not variant_runs:
+            raise HTTPException(
+                status_code=422, detail=f"variant {name!r} has no runs to compare"
+            )
+    result = compare(benchmark, baseline, alternative)
+    comparison_id = uuid.uuid4().hex
+    created_at = utc_now_z()
+    with db.write() as conn:
+        conn.execute(
+            "INSERT INTO benchmark_comparisons (id, benchmark_id, baseline_run_id, "
+            "alternative_run_id, cost_delta, cost_delta_pct, correctness_preserved, "
+            "comparison_status, methodology_json, created_at) "
+            "VALUES (?, ?, ?, ?, ?, ?, ?, ?, ?, ?)",
+            (
+                comparison_id,
+                benchmark_id,
+                baseline[0].id,
+                alternative[0].id,
+                (
+                    None
+                    if result.cost_delta is None
+                    else float(quantize_money(result.cost_delta))
+                ),
+                None if result.cost_delta_pct is None else float(result.cost_delta_pct),
+                (
+                    None
+                    if result.correctness_preserved is None
+                    else int(result.correctness_preserved)
+                ),
+                result.comparison_status,
+                json.dumps(result.methodology, sort_keys=True),
+                created_at,
+            ),
+        )
+    return ComparisonOut(
+        id=comparison_id,
+        benchmark_id=benchmark_id,
+        baseline_variant=body.baseline_variant,
+        alternative_variant=body.alternative_variant,
+        baseline_run_id=baseline[0].id,
+        alternative_run_id=alternative[0].id,
+        cost_delta=result.cost_delta,
+        cost_delta_pct=result.cost_delta_pct,
+        correctness_preserved=result.correctness_preserved,
+        comparison_status=result.comparison_status,
+        methodology=result.methodology,
+        created_at=created_at,
+    )
 
 
 @router.get("/benchmark-runs/{run_id}")

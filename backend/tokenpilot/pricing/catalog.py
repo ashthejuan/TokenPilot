@@ -24,6 +24,7 @@ __all__ = [
     "current_versions",
     "load_catalog",
     "select_pricing",
+    "select_pricing_many",
 ]
 
 _VERSION_COLUMNS = (
@@ -244,6 +245,47 @@ def select_pricing(
         (provider, model_id, at, at),
     ).fetchone()
     return _version_from_row(row) if row is not None else None
+
+
+def select_pricing_many(
+    conn: sqlite3.Connection, keys: list[tuple[str, str, str]]
+) -> list[PricingVersion | None]:
+    """Resolve many `(provider, model_id, at)` lookups with one catalogue read.
+
+    Result order matches `keys`. Semantics match `select_pricing` for each entry.
+    """
+    if not keys:
+        return []
+
+    unique_pairs = list(dict.fromkeys((provider, model_id) for provider, model_id, _at in keys))
+    clauses: list[str] = []
+    params: list[str] = []
+    for provider, model_id in unique_pairs:
+        clauses.append("(provider = ? AND model_id = ?)")
+        params.extend([provider, model_id])
+
+    rows = conn.execute(
+        f"SELECT {_VERSION_COLUMNS} FROM pricing_versions WHERE {' OR '.join(clauses)}",
+        params,
+    ).fetchall()
+
+    by_pair: dict[tuple[str, str], list[PricingVersion]] = {}
+    for row in rows:
+        version = _version_from_row(row)
+        by_pair.setdefault((version.provider, version.model_id), []).append(version)
+
+    resolved: list[PricingVersion | None] = []
+    for provider, model_id, at in keys:
+        eligible = [
+            version
+            for version in by_pair.get((provider, model_id), [])
+            if version.valid_from <= at and (version.valid_to is None or at < version.valid_to)
+        ]
+        if not eligible:
+            resolved.append(None)
+            continue
+        resolved.append(max(eligible, key=lambda version: version.valid_from))
+    return resolved
 
 
 def current_versions(conn: sqlite3.Connection) -> list[PricingVersion]:

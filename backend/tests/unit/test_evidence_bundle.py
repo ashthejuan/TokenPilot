@@ -342,3 +342,40 @@ def test_allowed_numbers_include_measurement_values(conn: sqlite3.Connection) ->
     bundle = build_bundle(conn, insight_id, "metadata_only", settings=settings)
 
     assert 0.22 in bundle.allowed_numbers
+
+
+def test_pricing_rows_batch_dedupes_same_model(
+    conn: sqlite3.Connection, monkeypatch: pytest.MonkeyPatch
+) -> None:
+    """Many same-model events resolve pricing in one batched catalogue call."""
+    import tokenpilot.investigator.evidence as evidence_mod
+    from tokenpilot.pricing.catalog import select_pricing_many
+
+    event_ids = [f"e{i}" for i in range(12)]
+    for i, event_id in enumerate(event_ids):
+        _insert_event(
+            conn,
+            event_id,
+            started_at=to_utc_z(BASE + timedelta(seconds=i)),
+            estimated_cost=0.01,
+        )
+    insight_id = _insight_with_evidence(conn, event_ids)
+    settings = _settings()
+
+    calls: list[list[tuple[str, str, str]]] = []
+
+    def tracking_select(
+        c: sqlite3.Connection, keys: list[tuple[str, str, str]]
+    ) -> object:
+        calls.append(list(keys))
+        return select_pricing_many(c, keys)
+
+    monkeypatch.setattr(evidence_mod, "select_pricing_many", tracking_select)
+
+    bundle = build_bundle(conn, insight_id, "metadata_only", settings=settings)
+
+    assert len(calls) == 1
+    assert len(calls[0]) == 1
+    assert calls[0][0][:2] == ("fake", "fake-small")
+    assert len(bundle.pricing) == 1
+    assert bundle.pricing[0]["model_id"] == "fake-small"

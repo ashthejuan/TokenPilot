@@ -11,7 +11,7 @@ from typing import Any
 from tokenpilot.config import Settings
 from tokenpilot.insights.repository import InsightRepository
 from tokenpilot.ledger.repository import LedgerRepository
-from tokenpilot.pricing.catalog import select_pricing
+from tokenpilot.pricing.catalog import PricingVersion, select_pricing_many
 from tokenpilot.schemas.insights import InsightOut, InvestigationMode
 from tokenpilot.schemas.usage import UsageEvent
 from tokenpilot.security import redact_text
@@ -218,49 +218,51 @@ def _outcomes(
     return outcomes
 
 
-def _pricing_rows(conn: sqlite3.Connection, events: list[EventBundleRow]) -> list[dict[str, Any]]:
+def _pricing_entry(model_id: str, version: PricingVersion | None) -> dict[str, Any]:
+    if version is None:
+        return {
+            "model_id": redact_text(model_id),
+            "input_price_per_million": None,
+            "output_price_per_million": None,
+            "pricing_source": None,
+        }
+    return {
+        "model_id": redact_text(version.model_id),
+        "input_price_per_million": (
+            None
+            if version.input_price_per_million is None
+            else float(version.input_price_per_million)
+        ),
+        "output_price_per_million": (
+            None
+            if version.output_price_per_million is None
+            else float(version.output_price_per_million)
+        ),
+        "pricing_source": version.pricing_source,
+    }
+
+
+def _pricing_rows(conn: sqlite3.Connection, events: list[UsageEvent]) -> list[dict[str, Any]]:
+    """One catalogue read for all distinct (provider, model_id) pairs in `events`.
+
+    Uses already-loaded ledger events (raw provider/model) so we never re-SELECT
+    each usage row just to price it. First-seen `started_at` per pair wins, matching
+    the previous per-event walk.
+    """
+    keys: list[tuple[str, str, str]] = []
     seen: set[tuple[str, str]] = set()
-    rows: list[dict[str, Any]] = []
     for event in events:
-        # Provider is redacted on the row; look up from the raw event table.
-        raw = conn.execute(
-            "SELECT provider, model_id, started_at FROM usage_events WHERE id = ?",
-            (event.id,),
-        ).fetchone()
-        if raw is None:
+        pair = (event.provider, event.model_id)
+        if pair in seen:
             continue
-        key = (str(raw["provider"]), str(raw["model_id"]))
-        if key in seen:
-            continue
-        seen.add(key)
-        version = select_pricing(conn, key[0], key[1], str(raw["started_at"]))
-        if version is None:
-            rows.append(
-                {
-                    "model_id": redact_text(key[1]),
-                    "input_price_per_million": None,
-                    "output_price_per_million": None,
-                    "pricing_source": None,
-                }
-            )
-            continue
-        rows.append(
-            {
-                "model_id": redact_text(version.model_id),
-                "input_price_per_million": (
-                    None
-                    if version.input_price_per_million is None
-                    else float(version.input_price_per_million)
-                ),
-                "output_price_per_million": (
-                    None
-                    if version.output_price_per_million is None
-                    else float(version.output_price_per_million)
-                ),
-                "pricing_source": version.pricing_source,
-            }
-        )
-    return rows
+        seen.add(pair)
+        keys.append((event.provider, event.model_id, event.started_at))
+
+    versions = select_pricing_many(conn, keys)
+    return [
+        _pricing_entry(model_id, version)
+        for (_provider, model_id, _at), version in zip(keys, versions, strict=True)
+    ]
 
 
 def _load_excerpts(conn: sqlite3.Connection, event_ids: list[str]) -> list[dict[str, Any]]:
@@ -401,11 +403,13 @@ def build_bundle(
     selected_ids = selected_ids + neighbour_ids
 
     all_loaded = {**loaded, **_load_events(conn, neighbour_ids)}
+    selected_events: list[UsageEvent] = []
     event_rows: list[EventBundleRow] = []
     for event_id in selected_ids:
         event = all_loaded.get(event_id)
         if event is None:
             continue
+        selected_events.append(event)
         event_rows.append(_to_event_row(event))
 
     insight_slice = {
@@ -419,7 +423,7 @@ def build_bundle(
     }
     aggregates = _aggregates(event_rows)
     outcomes = _outcomes(conn, insight, event_rows)
-    pricing = _pricing_rows(conn, event_rows)
+    pricing = _pricing_rows(conn, selected_events)
     excerpts = (
         _load_excerpts(conn, [row.id for row in event_rows]) if mode == "with_excerpts" else []
     )

@@ -1,9 +1,10 @@
 "use client";
 
-import { useState } from "react";
+import { useEffect, useState } from "react";
 
 import { ApiError, apiSend } from "@/lib/api";
 import type { components } from "@/lib/api-types";
+import { outcomeSelectValue, reconcilePendingOutcome } from "@/lib/sessions";
 
 type SessionOutcome = components["schemas"]["SessionUpdate"]["outcome"];
 type SessionSummary = components["schemas"]["SessionSummary"];
@@ -30,17 +31,25 @@ function errorText(error: unknown): string {
 }
 
 export function OutcomeSetter({ sessionId, outcome, onUpdated }: OutcomeSetterProps) {
+  const [pending, setPending] = useState<SessionOutcome | null>(null);
   const [saving, setSaving] = useState(false);
   const [error, setError] = useState<string | null>(null);
+  const display = outcomeSelectValue(outcome, pending);
+
+  useEffect(() => {
+    setPending((current) => reconcilePendingOutcome(outcome, current));
+  }, [outcome]);
 
   async function handleChange(next: SessionOutcome) {
-    if (next === outcome || saving) return;
+    if (next === display || saving) return;
+    setPending(next);
     setSaving(true);
     setError(null);
     try {
       await apiSend<SessionSummary>("PATCH", `api/v1/sessions/${sessionId}`, { outcome: next });
       onUpdated();
     } catch (err: unknown) {
+      setPending(null);
       setError(errorText(err));
     } finally {
       setSaving(false);
@@ -51,7 +60,7 @@ export function OutcomeSetter({ sessionId, outcome, onUpdated }: OutcomeSetterPr
     <div className="space-y-1">
       <select
         className={SELECT_CLASS}
-        value={outcome}
+        value={display}
         disabled={saving}
         aria-label="Session outcome"
         onChange={(e) => void handleChange(e.target.value as SessionOutcome)}

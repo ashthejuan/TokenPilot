@@ -18,6 +18,7 @@ import {
 import { ApiError, apiGet } from "@/lib/api";
 import type { components } from "@/lib/api-types";
 import { formatCount, formatTimestamp } from "@/lib/format";
+import { shouldCommitFetch } from "@/lib/sessions";
 
 type SessionSummary = components["schemas"]["SessionSummary"];
 type PagedSessions = components["schemas"]["Paged_SessionSummary_"];
@@ -64,39 +65,44 @@ export default function SessionsPage() {
   const [loadingMore, setLoadingMore] = useState(false);
   const [error, setError] = useState<string | null>(null);
 
-  const load = useCallback(
-    async (cursor: string | null, append: boolean) => {
-      const params: Record<string, string> = {};
-      if (outcome) params.outcome = outcome;
-      if (cursor) params.cursor = cursor;
-      const page = await apiGet<PagedSessions>("api/v1/sessions", params);
-      setItems((current) => (append ? [...current, ...page.items] : page.items));
-      setNextCursor(page.next_cursor ?? null);
-      setError(null);
-    },
-    [outcome],
-  );
+  const fetchPage = useCallback(async (cursor: string | null, outcomeFilter: Outcome) => {
+    const params: Record<string, string> = {};
+    if (outcomeFilter) params.outcome = outcomeFilter;
+    if (cursor) params.cursor = cursor;
+    return apiGet<PagedSessions>("api/v1/sessions", params);
+  }, []);
 
   useEffect(() => {
     let cancelled = false;
     setLoading(true);
-    load(null, false)
+    setItems([]);
+    setNextCursor(null);
+    fetchPage(null, outcome)
+      .then((page) => {
+        if (!shouldCommitFetch(cancelled)) return;
+        setItems(page.items);
+        setNextCursor(page.next_cursor ?? null);
+        setError(null);
+      })
       .catch((err: unknown) => {
-        if (!cancelled) setError(errorText(err));
+        if (shouldCommitFetch(cancelled)) setError(errorText(err));
       })
       .finally(() => {
-        if (!cancelled) setLoading(false);
+        if (shouldCommitFetch(cancelled)) setLoading(false);
       });
     return () => {
       cancelled = true;
     };
-  }, [load]);
+  }, [outcome, fetchPage]);
 
   async function loadMore() {
     if (!nextCursor || loadingMore) return;
     setLoadingMore(true);
     try {
-      await load(nextCursor, true);
+      const page = await fetchPage(nextCursor, outcome);
+      setItems((current) => [...current, ...page.items]);
+      setNextCursor(page.next_cursor ?? null);
+      setError(null);
     } catch (err: unknown) {
       setError(errorText(err));
     } finally {
@@ -138,7 +144,7 @@ export default function SessionsPage() {
           <CardTitle>All sessions</CardTitle>
         </CardHeader>
         <CardContent className="space-y-4">
-          {loading && items.length === 0 ? (
+          {loading ? (
             <p className="text-sm text-muted-foreground">Loading sessions…</p>
           ) : items.length === 0 ? (
             <p className="text-sm text-muted-foreground">No sessions match this filter.</p>
@@ -194,7 +200,7 @@ export default function SessionsPage() {
             </Table>
           )}
 
-          {nextCursor ? (
+          {!loading && nextCursor ? (
             <Button variant="outline" size="sm" onClick={() => void loadMore()} disabled={loadingMore}>
               {loadingMore ? "Loading…" : "Load more"}
             </Button>

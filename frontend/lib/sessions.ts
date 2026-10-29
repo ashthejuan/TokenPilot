@@ -1,6 +1,7 @@
 import type { components } from "@/lib/api-types";
 
 type InsightOut = components["schemas"]["InsightOut"];
+type SessionOutcome = components["schemas"]["SessionUpdate"]["outcome"];
 
 export function formatTokens(n: number | null): string {
   if (n === null) return "unknown";
@@ -24,4 +25,27 @@ export function eventsTruncated(requestCount: number, shown: number): boolean {
 
 export function contextSignals(insights: InsightOut[]): InsightOut[] {
   return insights.filter((insight) => insight.rule_id === "repeated_context");
+}
+
+/** Gate stale in-flight list fetches after the effect cleans up (filter change). */
+export function shouldCommitFetch(cancelled: boolean): boolean {
+  return !cancelled;
+}
+
+/** Select value while a PATCH may still be awaiting parent refetch. */
+export function outcomeSelectValue(
+  serverOutcome: SessionOutcome,
+  pendingOutcome: SessionOutcome | null,
+): SessionOutcome {
+  return pendingOutcome ?? serverOutcome;
+}
+
+/** Drop pending once the server prop matches; keep it while refetch lags. */
+export function reconcilePendingOutcome(
+  serverOutcome: SessionOutcome,
+  pendingOutcome: SessionOutcome | null,
+): SessionOutcome | null {
+  if (pendingOutcome === null) return null;
+  if (serverOutcome === pendingOutcome) return null;
+  return pendingOutcome;
 }

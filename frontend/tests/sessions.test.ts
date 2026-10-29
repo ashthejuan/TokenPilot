@@ -5,7 +5,10 @@ import {
   contextSignals,
   eventsTruncated,
   formatTokens,
+  outcomeSelectValue,
+  reconcilePendingOutcome,
   retryChipLabel,
+  shouldCommitFetch,
 } from "@/lib/sessions";
 
 type InsightOut = components["schemas"]["InsightOut"];
@@ -81,5 +84,25 @@ describe("contextSignals", () => {
       insight({ id: "3", rule_id: "repeated_context" }),
     ];
     expect(contextSignals(insights).map((i) => i.id)).toEqual(["1", "3"]);
+  });
+});
+
+describe("shouldCommitFetch", () => {
+  it("skips applying results after cancel", () => {
+    expect(shouldCommitFetch(true)).toBe(false);
+    expect(shouldCommitFetch(false)).toBe(true);
+  });
+});
+
+describe("outcomeSelectValue / reconcilePendingOutcome", () => {
+  it("holds pending selection until server catches up", () => {
+    expect(outcomeSelectValue("unknown", "failure")).toBe("failure");
+    expect(outcomeSelectValue("failure", null)).toBe("failure");
+    expect(reconcilePendingOutcome("unknown", "failure")).toBe("failure");
+    expect(reconcilePendingOutcome("failure", "failure")).toBeNull();
+  });
+
+  it("rolls pending back to null on error", () => {
+    expect(reconcilePendingOutcome("unknown", null)).toBeNull();
   });
 });

@@ -15,6 +15,7 @@ from fastapi.responses import JSONResponse
 from pydantic import SecretStr
 from starlette.exceptions import HTTPException as StarletteHTTPException
 
+from tokenpilot.api.data import router as data_router
 from tokenpilot.api.gateway import router as gateway_router
 from tokenpilot.api.health import router as health_router
 from tokenpilot.api.insights import router as insights_router
@@ -156,6 +157,7 @@ def create_app(
         projects_router,
         sessions_router,
         settings_router,
+        data_router,
         insights_router,
         gateway_router,
     ):

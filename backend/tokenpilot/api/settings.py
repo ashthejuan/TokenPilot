@@ -2,10 +2,11 @@
 
 from typing import Annotated
 
-from fastapi import APIRouter, Depends, HTTPException
+from fastapi import APIRouter, Depends, HTTPException, Request
 
 from tokenpilot.db.database import Database, get_db
 from tokenpilot.detectors.thresholds import Thresholds, load_thresholds, save_thresholds
+from tokenpilot.investigator.evidence import is_contributor_model
 from tokenpilot.pricing.catalog import (
     PricingVersion,
     PricingVersionConflictError,
@@ -15,6 +16,7 @@ from tokenpilot.pricing.catalog import (
 from tokenpilot.pricing.cost import reprice_all
 from tokenpilot.schemas.insights import ThresholdsResponse
 from tokenpilot.schemas.pricing import PricingVersionCreate, PricingVersionOut, RepriceResponse
+from tokenpilot.schemas.settings import PrivacyOut
 from tokenpilot.timeutil import to_utc_z, utc_now_z
 
 router = APIRouter(prefix="/api/v1/settings", tags=["settings"])
@@ -76,6 +78,20 @@ def get_thresholds(db: Annotated[Database, Depends(get_db)]) -> Thresholds:
     """The saved thresholds, or the code defaults when nothing was saved yet."""
     with db.read() as conn:
         return load_thresholds(conn)
+
+
+@router.get("/privacy")
+def get_privacy(request: Request) -> PrivacyOut:
+    """Read-only privacy reflections of `Settings`/env (Q14). No PUT."""
+    settings = request.app.state.settings
+    return PrivacyOut(
+        store_content=settings.store_content,
+        allow_content_transmission=settings.allow_content_transmission,
+        upstream_base_url=settings.upstream_base_url,
+        investigator_model=settings.investigator_model,
+        local_token_configured=bool(settings.local_token.get_secret_value().strip()),
+        contributor_training=is_contributor_model(settings.investigator_model),
+    )
 
 
 @router.put("/thresholds")

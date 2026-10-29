@@ -1,6 +1,6 @@
 PYTHON ?= uv run
 
-.PHONY: dev-api dev-web test lint types demo
+.PHONY: dev-api dev-web test lint types demo e2e
 
 dev-api:
 	cd backend && uv run uvicorn tokenpilot.main:create_app --factory --host 127.0.0.1 --port 8787 --reload
@@ -22,3 +22,6 @@ types:
 
 demo:
 	bash demo/scripts/run_demo.sh
+
+e2e:
+	cd frontend && npx playwright test

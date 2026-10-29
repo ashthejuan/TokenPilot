@@ -1,5 +1,6 @@
 "use client";
 
+import Link from "next/link";
 import { useEffect, useMemo, useState, type ReactNode } from "react";
 
 import { BasisBadge } from "@/components/BasisBadge";
@@ -7,6 +8,7 @@ import { CostValue } from "@/components/CostValue";
 import { CoverageBanner } from "@/components/CoverageBanner";
 import { Filters } from "@/components/Filters";
 import { RankingTable, type RankingRow } from "@/components/RankingTable";
+import { SeverityBadge } from "@/components/SeverityBadge";
 import { SpendChart } from "@/components/SpendChart";
 import { Button } from "@/components/ui/button";
 import { Card, CardContent, CardDescription, CardHeader, CardTitle } from "@/components/ui/card";
@@ -14,9 +16,12 @@ import { ApiError, apiGet } from "@/lib/api";
 import type { components } from "@/lib/api-types";
 import { DEFAULT_FILTERS, summaryParams } from "@/lib/filters";
 import { addMoney, formatCount, moneyOrZero } from "@/lib/format";
+import { impactLabel, ruleLabel } from "@/lib/insights";
 
 type UsageSummary = components["schemas"]["UsageSummary"];
 type Project = components["schemas"]["Project"];
+type InsightOut = components["schemas"]["InsightOut"];
+type PagedInsights = components["schemas"]["Paged_InsightOut_"];
 type Bucket = "day" | "hour";
 
 // A summary holds the backend's single DB lock (~0.7 s at 100k events), so fetch on change only.
@@ -86,6 +91,9 @@ export default function OverviewPage() {
   const [models, setModels] = useState<string[]>([]);
   const [loading, setLoading] = useState(true);
   const [error, setError] = useState<string | null>(null);
+  const [recentInsights, setRecentInsights] = useState<InsightOut[]>([]);
+  const [insightsLoading, setInsightsLoading] = useState(true);
+  const [insightsError, setInsightsError] = useState<string | null>(null);
 
   const rangeError =
     filters.range === "custom" && summaryParams(filters, new Date()) === null
@@ -105,6 +113,26 @@ export default function OverviewPage() {
       cancelled = true;
     };
   }, []);
+
+  useEffect(() => {
+    let cancelled = false;
+    setInsightsLoading(true);
+    apiGet<PagedInsights>("api/v1/insights", { status: "new", limit: "5" })
+      .then((page) => {
+        if (cancelled) return;
+        setRecentInsights(page.items);
+        setInsightsError(null);
+      })
+      .catch((err: unknown) => {
+        if (!cancelled) setInsightsError(errorText(err));
+      })
+      .finally(() => {
+        if (!cancelled) setInsightsLoading(false);
+      });
+    return () => {
+      cancelled = true;
+    };
+  }, [refreshKey]);
 
   useEffect(() => {
     const params = summaryParams(filters, new Date());
@@ -309,8 +337,38 @@ export default function OverviewPage() {
           </div>
 
           <div className="grid gap-6 lg:grid-cols-2">
-            <Section title="Recent insights (Phase 2)">
-              <p className="text-sm text-muted-foreground">No insights yet. Waste detection arrives in Phase 2.</p>
+            <Section title="Recent insights">
+              {insightsLoading ? (
+                <p className="text-sm text-muted-foreground">Loading insights…</p>
+              ) : insightsError ? (
+                <p className="text-sm text-destructive">{insightsError}</p>
+              ) : recentInsights.length === 0 ? (
+                <p className="text-sm text-muted-foreground">No new insights yet.</p>
+              ) : (
+                <ul className="space-y-3">
+                  {recentInsights.map((insight) => (
+                    <li key={insight.id} className="flex flex-wrap items-start gap-2">
+                      <SeverityBadge severity={insight.severity} />
+                      <div className="min-w-0 flex-1">
+                        <Link
+                          href={`/insights/${insight.id}`}
+                          className="block truncate text-sm font-medium underline-offset-4 hover:underline"
+                          title={insight.title}
+                        >
+                          {insight.title}
+                        </Link>
+                        <p className="truncate text-xs text-muted-foreground">
+                          <span className="font-mono">
+                            {ruleLabel(insight.rule_id, insight.rule_version)}
+                          </span>
+                          {" · "}
+                          {impactLabel(insight.estimated_impact, insight.impact_currency)}
+                        </p>
+                      </div>
+                    </li>
+                  ))}
+                </ul>
+              )}
             </Section>
             <Section title="Latest benchmarks (Phase 4)">
               <p className="text-sm text-muted-foreground">No benchmarks yet. Benchmarking arrives in Phase 4.</p>

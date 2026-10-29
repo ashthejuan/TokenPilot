@@ -89,6 +89,34 @@ def test_metadata_parsing_reads_two_keys_and_skips_malformed_blocks(db: Database
     )
 
 
+def test_oversized_forged_context_blocks_skipped_at_parse(db: Database) -> None:
+    """Non-physical client sizes must not enter DetectionContext (D-2 Important #2)."""
+    _ingest(
+        db,
+        external_session_id="sess-forge",
+        metadata={
+            "context_blocks": [
+                {"hash": "forged-chars", "chars": 10**12, "approx_tokens": 2000},
+                {"hash": "forged-tokens", "chars": 8000, "approx_tokens": 10**12},
+                {"hash": "ok", "chars": 8000, "approx_tokens": 2000},
+                {
+                    "hash": "at-cap",
+                    "chars": 2_000_000,
+                    "approx_tokens": 500_000,
+                },
+            ],
+        },
+    )
+
+    with db.read() as conn:
+        context = load_context(conn, AnalysisScope(), Thresholds(), NOW)
+
+    assert context.events[0].context_blocks == (
+        ContextBlockFact(hash="ok", chars=8000, approx_tokens=2000),
+        ContextBlockFact(hash="at-cap", chars=2_000_000, approx_tokens=500_000),
+    )
+
+
 def test_non_list_blocks_and_falsy_repeat_parsed_as_absent(db: Database) -> None:
     _ingest(
         db, external_session_id="sess-m", metadata={"context_blocks": {"hash": "h1"}}

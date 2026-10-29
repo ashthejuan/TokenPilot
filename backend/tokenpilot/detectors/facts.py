@@ -3,6 +3,13 @@
 `load_context` reads the scoped, costed ledger in one SQL pass (plus small
 session/task lookups), excluding benchmark traffic (P7). Rules stay pure over
 the returned `DetectionContext`, so they unit-test without a database (P4).
+
+Client-supplied `metadata.context_blocks` sizes are untrusted. `_parse_block`
+rejects entries whose `chars` or `approx_tokens` exceed physical caps so forged
+or buggy values cannot inflate Detector C severity (D-2 Important #2):
+
+- `MAX_CONTEXT_BLOCK_CHARS = 2_000_000`
+- `MAX_CONTEXT_BLOCK_APPROX_TOKENS = 500_000`
 """
 
 import json
@@ -15,6 +22,10 @@ from typing import Any, TypeGuard
 from tokenpilot.detectors.thresholds import Thresholds
 from tokenpilot.pricing.cost import latest_cost_sql
 from tokenpilot.timeutil import parse_utc_z
+
+# Physical enough for real prompts; non-physical client forgeries (e.g. 10**12) drop.
+MAX_CONTEXT_BLOCK_CHARS = 2_000_000
+MAX_CONTEXT_BLOCK_APPROX_TOKENS = 500_000
 
 
 @dataclass(frozen=True, slots=True)
@@ -99,6 +110,7 @@ def _is_count(value: Any) -> TypeGuard[int]:
 
 
 def _parse_block(item: Any) -> ContextBlockFact | None:
+    """Parse one context block; return None when malformed or over size caps."""
     if not isinstance(item, dict):
         return None
     block_hash = item.get("hash")
@@ -107,6 +119,8 @@ def _parse_block(item: Any) -> ContextBlockFact | None:
     if not isinstance(block_hash, str) or not block_hash:
         return None
     if not _is_count(chars) or not _is_count(approx_tokens):
+        return None
+    if chars > MAX_CONTEXT_BLOCK_CHARS or approx_tokens > MAX_CONTEXT_BLOCK_APPROX_TOKENS:
         return None
     return ContextBlockFact(hash=block_hash, chars=chars, approx_tokens=approx_tokens)
 

@@ -4,7 +4,7 @@ from datetime import timedelta
 from typing import Any
 
 from tests.unit.detectors.conftest import BASE, ctx, event
-from tokenpilot.detectors.facts import ContextBlockFact, EventFact
+from tokenpilot.detectors.facts import ContextBlockFact, EventFact, _parse_block
 from tokenpilot.detectors.repeated_context import RepeatedContextDetector
 
 DETECTOR = RepeatedContextDetector()
@@ -83,3 +83,23 @@ def test_blocks_in_different_sessions_not_combined() -> None:
     ]
 
     assert DETECTOR.detect(ctx(events)) == []
+
+
+def test_forged_huge_block_sizes_skipped_no_medium_finding() -> None:
+    """Forged 10**12 sizes are dropped at parse; Detector C must not escalate."""
+    raw = {"hash": "forged", "chars": 10**12, "approx_tokens": 10**12}
+    parsed = _parse_block(raw)
+    assert parsed is None
+
+    blocks = () if parsed is None else (parsed,)
+    events = [
+        event(
+            id=f"f{i}",
+            started_at=BASE + timedelta(seconds=i),
+            context_blocks=blocks,
+        )
+        for i in range(3)
+    ]
+    findings = DETECTOR.detect(ctx(events))
+    assert findings == []
+    assert all(f.severity != "medium" for f in findings)

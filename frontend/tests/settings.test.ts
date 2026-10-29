@@ -3,13 +3,12 @@ import { describe, expect, it } from "vitest";
 import { parseThresholdNumber, retentionBeforeParam } from "@/lib/settings";
 
 describe("retentionBeforeParam", () => {
-  it("converts a datetime-local value to a UTC Z bound", () => {
-    const param = retentionBeforeParam("2026-06-01T00:00");
+  it("reads a datetime-local value as UTC", () => {
+    expect(retentionBeforeParam("2026-06-01T00:00")).toBe("2026-06-01T00:00:00.000Z");
+  });
 
-    expect(param).toMatch(/^\d{4}-\d{2}-\d{2}T\d{2}:\d{2}:\d{2}(\.\d{3})?Z$/);
-    expect(param === null ? null : Date.parse(param)).toBe(
-      new Date("2026-06-01T00:00").getTime(),
-    );
+  it("passes aware offsets through, normalized to UTC", () => {
+    expect(retentionBeforeParam("2026-06-01T02:00+02:00")).toBe("2026-06-01T00:00:00.000Z");
   });
 
   it("returns null for empty or invalid input", () => {

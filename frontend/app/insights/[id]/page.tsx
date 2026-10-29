@@ -66,6 +66,7 @@ export default function InsightDetailPage() {
   const [error, setError] = useState<string | null>(null);
 
   const [preview, setPreview] = useState<InvestigationPreviewOut | null>(null);
+  const [previewError, setPreviewError] = useState<string | null>(null);
   const [dialogBusy, setDialogBusy] = useState(false);
   const [dialogError, setDialogError] = useState<string | null>(null);
 
@@ -98,14 +99,16 @@ export default function InsightDetailPage() {
   }
 
   async function openDisclosure() {
-    setDialogError(null);
+    setPreviewError(null);
     try {
       const next = await apiGet<InvestigationPreviewOut>(
         `api/v1/insights/${insightId}/investigation-preview`,
       );
       setPreview(next);
     } catch (err: unknown) {
-      setError(errorText(err));
+      // A preview failure must not wipe the loaded insight; it stays scoped
+      // to the investigation action.
+      setPreviewError(errorText(err));
     }
   }
 
@@ -119,7 +122,11 @@ export default function InsightDetailPage() {
         `api/v1/insights/${insightId}/investigate`,
         { mode: "metadata_only" },
       );
-      const job: JobOut = await pollJob(accepted.job_id);
+      // Match the e2e budget: the job may outlive the default 60s poll.
+      const job: JobOut = await pollJob(accepted.job_id, {
+        intervalMs: 1000,
+        timeoutMs: 90000,
+      });
       if (job.status !== "succeeded") {
         throw new ApiError("job_failed", job.error ?? "Investigation job failed.", 500);
       }
@@ -208,6 +215,11 @@ export default function InsightDetailPage() {
       </Section>
 
       <Section title="Actions">
+        {previewError ? (
+          <p role="alert" className="mb-3 text-sm text-destructive">
+            {previewError}
+          </p>
+        ) : null}
         <InsightActions
           insightId={insight.id}
           status={insight.status}

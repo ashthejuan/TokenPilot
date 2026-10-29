@@ -3,6 +3,8 @@
 from fastapi.testclient import TestClient
 
 from tokenpilot.db.database import Database
+from tokenpilot.detectors.base import Finding, Scope
+from tokenpilot.insights.repository import InsightRepository
 
 PRIVACY = "/api/v1/settings/privacy"
 DATA = "/api/v1/data"
@@ -80,6 +82,80 @@ def test_delete_data_before_removes_old_events_and_cascades_costs(
             ).fetchone()["n"]
             >= 1
         )
+
+
+def test_delete_data_keeps_insights_sessions_pricing_and_boundary_event(
+    client: TestClient, auth_headers: dict[str, str], app: object
+) -> None:
+    """Q13 keep-half: only strictly-older events go; insights, sessions,
+    pricing, and the boundary event survive, and the counts shape holds."""
+    pricing = client.put(
+        "/api/v1/settings/pricing",
+        json={
+            "provider": "meta",
+            "model_id": "muse-spark-1.3",
+            "currency": "USD",
+            "input_price_per_million": 1.0,
+            "output_price_per_million": 2.0,
+        },
+        headers=auth_headers,
+    )
+    assert pricing.status_code == 200, pricing.text
+    kept = client.post(
+        EVENTS,
+        json=make_event(
+            source_event_id="keep-1",
+            external_session_id="keep-s1",
+            started_at="2026-01-01T00:00:00Z",
+        ),
+        headers=auth_headers,
+    )
+    assert kept.status_code == 201, kept.text
+    edge = client.post(
+        EVENTS,
+        json=make_event(source_event_id="edge-1", started_at="2026-06-01T00:00:00Z"),
+        headers=auth_headers,
+    )
+    assert edge.status_code == 201, edge.text
+    finding = Finding(
+        rule_id="repeated_request",
+        rule_version=1,
+        anchor="keep",
+        severity="low",
+        confidence=0.5,
+        title="keep",
+        summary="keep",
+        scope=Scope(),
+        evidence=[],
+        measurements={},
+        estimated_impact=None,
+        impact_currency=None,
+    )
+    db: Database = app.state.db  # type: ignore[attr-defined]
+    with db.write() as conn:
+        InsightRepository(conn).upsert(finding, "2026-01-01T00:00:00.000Z")
+
+    response = client.delete(
+        DATA, params={"before": "2026-06-01T00:00:00Z"}, headers=auth_headers
+    )
+
+    assert response.status_code == 200, response.text
+    assert response.json() == {
+        "deleted_events": 1,
+        "deleted_excerpt_files": 0,
+        "deleted_worktrees": 0,
+    }
+    assert client.get("/api/v1/settings/pricing", headers=auth_headers).json() != []
+    sessions = client.get("/api/v1/sessions", headers=auth_headers).json()["items"]
+    assert any(item["external_session_id"] == "keep-s1" for item in sessions)
+    insights = client.get("/api/v1/insights", headers=auth_headers).json()["items"]
+    assert any(item["rule_id"] == "repeated_request" for item in insights)
+    remaining = {
+        item["source_event_id"]
+        for item in client.get(EVENTS, headers=auth_headers).json()["items"]
+    }
+    assert "keep-1" not in remaining
+    assert "edge-1" in remaining
 
 
 def test_delete_data_requires_before_param(

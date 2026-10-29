@@ -21,7 +21,7 @@ test("investigate discloses, confirms, and shows evidence-linked facts", async (
   page,
   request,
 }) => {
-  test.setTimeout(120_000);
+  test.setTimeout(180_000);
   const seed = await request.post("/api/tp/api/v1/usage/events", {
     data: [
       event({
@@ -87,7 +87,7 @@ test("investigate discloses, confirms, and shows evidence-linked facts", async (
 
   await dialog.getByRole("button", { name: "Confirm and investigate" }).click();
   const panel = page.getByTestId("investigation-panel");
-  await expect(panel).toBeVisible({ timeout: 120_000 });
+  await expect(panel).toBeVisible({ timeout: 90_000 });
   const evidenceLinks = panel.getByRole("link");
   await expect(evidenceLinks.first()).toBeVisible();
   expect(await evidenceLinks.count()).toBeGreaterThanOrEqual(1);

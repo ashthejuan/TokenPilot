@@ -4035,6 +4035,52 @@
         ]
       }
     },
+    "/api/v1/benchmarks/{benchmark_id}/comparisons": {
+      "get": {
+        "operationId": "list_comparisons_api_v1_benchmarks__benchmark_id__comparisons_get",
+        "parameters": [
+          {
+            "in": "path",
+            "name": "benchmark_id",
+            "required": true,
+            "schema": {
+              "title": "Benchmark Id",
+              "type": "string"
+            }
+          }
+        ],
+        "responses": {
+          "200": {
+            "content": {
+              "application/json": {
+                "schema": {
+                  "items": {
+                    "$ref": "#/components/schemas/ComparisonOut"
+                  },
+                  "title": "Response List Comparisons Api V1 Benchmarks  Benchmark Id  Comparisons Get",
+                  "type": "array"
+                }
+              }
+            },
+            "description": "Successful Response"
+          },
+          "422": {
+            "content": {
+              "application/json": {
+                "schema": {
+                  "$ref": "#/components/schemas/HTTPValidationError"
+                }
+              }
+            },
+            "description": "Validation Error"
+          }
+        },
+        "summary": "List Comparisons",
+        "tags": [
+          "benchmarks"
+        ]
+      }
+    },
     "/api/v1/benchmarks/{benchmark_id}/runs": {
       "post": {
         "operationId": "start_runs_api_v1_benchmarks__benchmark_id__runs_post",

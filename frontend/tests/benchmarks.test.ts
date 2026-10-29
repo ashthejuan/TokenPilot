@@ -1,6 +1,30 @@
 import { describe, expect, it } from "vitest";
 
-import { savingsBadgeKind, savingsBadgeLabel } from "@/lib/benchmarks";
+import {
+  latestComparison,
+  savingsBadgeKind,
+  savingsBadgeLabel,
+  type ComparisonOut,
+} from "@/lib/benchmarks";
+
+function comparisonFixture(overrides: Partial<ComparisonOut>): ComparisonOut {
+  return {
+    id: "cmp-1",
+    benchmark_id: "bench-1",
+    baseline_variant: "baseline",
+    alternative_variant: "targeted-context",
+    baseline_run_id: "run-base",
+    alternative_run_id: "run-alt",
+    cost_delta: 0.18,
+    cost_delta_pct: "60.0",
+    correctness_preserved: true,
+    comparison_status: "verified",
+    methodology: {},
+    reasons: [],
+    created_at: "2026-10-28T00:00:02.000Z",
+    ...overrides,
+  };
+}
 
 describe("savingsBadgeLabel", () => {
   it("labels cheaper-but-incorrect as not an optimization", () => {
@@ -70,5 +94,18 @@ describe("savingsBadgeKind", () => {
     expect(
       savingsBadgeKind({ status: "potential", correctness_preserved: null, cost_delta: null }),
     ).toBe("potential");
+  });
+});
+
+describe("latestComparison", () => {
+  it("returns null when no comparison exists", () => {
+    expect(latestComparison([])).toBeNull();
+  });
+
+  it("returns the first row of the newest-first list", () => {
+    const older = comparisonFixture({ id: "cmp-old", comparison_status: "measured" });
+    const newer = comparisonFixture({ id: "cmp-new", comparison_status: "verified" });
+
+    expect(latestComparison([newer, older])).toBe(newer);
   });
 });

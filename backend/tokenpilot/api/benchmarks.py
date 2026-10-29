@@ -1,6 +1,7 @@
 """Benchmark experiments, run enqueue, run detail, cancel, and compare."""
 
 import json
+import sqlite3
 import subprocess
 import uuid
 from decimal import Decimal
@@ -27,6 +28,7 @@ from tokenpilot.schemas.benchmarks import (
     BenchmarkRunOut,
     CancelRunsResponse,
     CreateRunsRequest,
+    cost_to_decimal,
     merge_variant_config,
 )
 from tokenpilot.schemas.common import Money
@@ -290,6 +292,57 @@ def compare_variants(
         reasons=result.reasons,
         created_at=created_at,
     )
+
+
+def _comparison_from_row(
+    row: sqlite3.Row, variants_by_run_id: dict[str, str]
+) -> ComparisonOut:
+    stored: dict[str, Any] = (
+        json.loads(row["methodology_json"]) if row["methodology_json"] else {}
+    )
+    reasons = stored.pop("reasons", [])
+    return ComparisonOut(
+        id=row["id"],
+        benchmark_id=row["benchmark_id"],
+        baseline_variant=variants_by_run_id[row["baseline_run_id"]],
+        alternative_variant=variants_by_run_id[row["alternative_run_id"]],
+        baseline_run_id=row["baseline_run_id"],
+        alternative_run_id=row["alternative_run_id"],
+        cost_delta=cost_to_decimal(row["cost_delta"]),
+        cost_delta_pct=cost_to_decimal(row["cost_delta_pct"]),
+        correctness_preserved=(
+            None
+            if row["correctness_preserved"] is None
+            else bool(row["correctness_preserved"])
+        ),
+        comparison_status=row["comparison_status"],
+        methodology=stored,
+        reasons=reasons,
+        created_at=row["created_at"],
+    )
+
+
+@router.get("/benchmarks/{benchmark_id}/comparisons")
+def list_comparisons(
+    benchmark_id: str, db: Annotated[Database, Depends(get_db)]
+) -> list[ComparisonOut]:
+    with db.read() as conn:
+        store = BenchmarkStore(conn)
+        if store.get_benchmark(benchmark_id) is None:
+            raise HTTPException(status_code=404, detail="benchmark not found")
+        variants_by_run_id = {
+            run.id: run.variant_name for run in store.list_runs(benchmark_id)
+        }
+        rows = conn.execute(
+            "SELECT id, benchmark_id, baseline_run_id, alternative_run_id, "
+            "cost_delta, cost_delta_pct, correctness_preserved, comparison_status, "
+            "methodology_json, created_at FROM benchmark_comparisons "
+            "WHERE benchmark_id = ? ORDER BY created_at DESC, rowid DESC",
+            (benchmark_id,),
+        ).fetchall()
+        return [
+            _comparison_from_row(row, variants_by_run_id) for row in rows
+        ]
 
 
 @router.get("/benchmark-runs/{run_id}")

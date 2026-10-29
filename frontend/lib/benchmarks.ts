@@ -70,6 +70,14 @@ export function benchmarkStatus(runs: Pick<BenchmarkRunOut, "run_status">[]): Be
   return runs.some(isRunActive) ? "running" : "done";
 }
 
+/**
+ * Latest persisted comparison. The list endpoint returns rows newest-first,
+ * so the head is the latest; null when the benchmark was never compared.
+ */
+export function latestComparison(comparisons: ComparisonOut[]): ComparisonOut | null {
+  return comparisons[0] ?? null;
+}
+
 /** Direct download link for a run's patch, served through the API proxy as text. */
 export function patchHref(runId: string): string {
   return `/api/tp/api/v1/benchmark-runs/${encodeURIComponent(runId)}/patch`;

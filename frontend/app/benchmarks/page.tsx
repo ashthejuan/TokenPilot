@@ -20,9 +20,11 @@ import {
 import { ApiError, apiGet } from "@/lib/api";
 import {
   benchmarkStatus,
+  latestComparison,
   type BenchmarkDetail,
   type BenchmarkOut,
   type BenchmarkStatus,
+  type ComparisonOut,
 } from "@/lib/benchmarks";
 import { formatTimestamp } from "@/lib/format";
 import { cn } from "@/lib/utils";
@@ -51,7 +53,9 @@ function errorText(error: unknown): string {
 
 export default function BenchmarksPage() {
   const router = useRouter();
-  const [rows, setRows] = useState<{ benchmark: BenchmarkOut; runs: number; status: BenchmarkStatus }[]>([]);
+  const [rows, setRows] = useState<
+    { benchmark: BenchmarkOut; runs: number; status: BenchmarkStatus; latest: ComparisonOut | null }[]
+  >([]);
   const [loading, setLoading] = useState(true);
   const [error, setError] = useState<string | null>(null);
   const [showForm, setShowForm] = useState(false);
@@ -62,15 +66,24 @@ export default function BenchmarksPage() {
     apiGet<BenchmarkOut[]>("api/v1/benchmarks")
       .then(async (benchmarks) => {
         const details = await Promise.all(
-          benchmarks.map((benchmark) =>
-            apiGet<BenchmarkDetail>(`api/v1/benchmarks/${benchmark.id}`),
-          ),
+          benchmarks.map(async (benchmark) => {
+            const [detail, comparisons] = await Promise.all([
+              apiGet<BenchmarkDetail>(`api/v1/benchmarks/${benchmark.id}`),
+              apiGet<ComparisonOut[]>(`api/v1/benchmarks/${benchmark.id}/comparisons`),
+            ]);
+            return { detail, comparisons };
+          }),
         );
         if (cancelled) return;
         setRows(
-          details.map((detail) => {
+          details.map(({ detail, comparisons }) => {
             const runs = detail.runs ?? [];
-            return { benchmark: detail, runs: runs.length, status: benchmarkStatus(runs) };
+            return {
+              benchmark: detail,
+              runs: runs.length,
+              status: benchmarkStatus(runs),
+              latest: latestComparison(comparisons),
+            };
           }),
         );
         setError(null);
@@ -141,7 +154,7 @@ export default function BenchmarksPage() {
                 </TableRow>
               </TableHeader>
               <TableBody>
-                {rows.map(({ benchmark, runs, status }) => {
+                {rows.map(({ benchmark, runs, status, latest }) => {
                   const badge = STATUS_BADGE[status];
                   return (
                     <TableRow key={benchmark.id}>
@@ -160,14 +173,20 @@ export default function BenchmarksPage() {
                         </Badge>
                       </TableCell>
                       <TableCell>
-                        {/* No GET comparisons endpoint exists, so the list cannot
-                            show a persisted latest comparison; everything
-                            un-compared is potential savings. */}
-                        <SavingsBadge
-                          status="potential"
-                          correctness_preserved={null}
-                          cost_delta={null}
-                        />
+                        {latest !== null ? (
+                          <SavingsBadge
+                            status={latest.comparison_status}
+                            correctness_preserved={latest.correctness_preserved}
+                            cost_delta={latest.cost_delta}
+                            reasons={latest.reasons ?? []}
+                          />
+                        ) : (
+                          <SavingsBadge
+                            status="potential"
+                            correctness_preserved={null}
+                            cost_delta={null}
+                          />
+                        )}
                       </TableCell>
                       <TableCell className="tabular-nums text-muted-foreground">
                         {formatTimestamp(benchmark.created_at)}

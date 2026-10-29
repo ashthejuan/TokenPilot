@@ -8,7 +8,7 @@ from pathlib import Path
 from typing import Annotated, Any
 
 from fastapi import APIRouter, Depends, Header, HTTPException, Request
-from fastapi.responses import JSONResponse
+from fastapi.responses import JSONResponse, PlainTextResponse
 from pydantic import BaseModel, ConfigDict, Field, ValidationError
 
 from tokenpilot.benchmarks.agent import PROMPT_TEMPLATES
@@ -299,6 +299,21 @@ def get_run(run_id: str, db: Annotated[Database, Depends(get_db)]) -> BenchmarkR
     if run is None:
         raise HTTPException(status_code=404, detail="benchmark run not found")
     return run
+
+
+@router.get("/benchmark-runs/{run_id}/patch", response_class=PlainTextResponse)
+def get_run_patch(run_id: str, db: Annotated[Database, Depends(get_db)]) -> PlainTextResponse:
+    with db.read() as conn:
+        run = BenchmarkStore(conn).get_run(run_id)
+    if run is None:
+        raise HTTPException(status_code=404, detail="benchmark run not found")
+    if not run.patch_path:
+        raise HTTPException(status_code=404, detail="benchmark run has no patch")
+    try:
+        text = Path(run.patch_path).read_text(encoding="utf-8")
+    except OSError:
+        raise HTTPException(status_code=404, detail="patch file not found") from None
+    return PlainTextResponse(text)
 
 
 @router.post("/benchmarks/{benchmark_id}/cancel")

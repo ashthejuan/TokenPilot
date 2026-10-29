@@ -4,6 +4,126 @@
  */
 
 export interface paths {
+    "/api/v1/benchmark-runs/{run_id}": {
+        parameters: {
+            query?: never;
+            header?: never;
+            path?: never;
+            cookie?: never;
+        };
+        /** Get Run */
+        get: operations["get_run_api_v1_benchmark_runs__run_id__get"];
+        put?: never;
+        post?: never;
+        delete?: never;
+        options?: never;
+        head?: never;
+        patch?: never;
+        trace?: never;
+    };
+    "/api/v1/benchmark-runs/{run_id}/patch": {
+        parameters: {
+            query?: never;
+            header?: never;
+            path?: never;
+            cookie?: never;
+        };
+        /** Get Run Patch */
+        get: operations["get_run_patch_api_v1_benchmark_runs__run_id__patch_get"];
+        put?: never;
+        post?: never;
+        delete?: never;
+        options?: never;
+        head?: never;
+        patch?: never;
+        trace?: never;
+    };
+    "/api/v1/benchmarks": {
+        parameters: {
+            query?: never;
+            header?: never;
+            path?: never;
+            cookie?: never;
+        };
+        /** List Benchmarks */
+        get: operations["list_benchmarks_api_v1_benchmarks_get"];
+        put?: never;
+        /** Create Benchmark */
+        post: operations["create_benchmark_api_v1_benchmarks_post"];
+        delete?: never;
+        options?: never;
+        head?: never;
+        patch?: never;
+        trace?: never;
+    };
+    "/api/v1/benchmarks/{benchmark_id}": {
+        parameters: {
+            query?: never;
+            header?: never;
+            path?: never;
+            cookie?: never;
+        };
+        /** Get Benchmark */
+        get: operations["get_benchmark_api_v1_benchmarks__benchmark_id__get"];
+        put?: never;
+        post?: never;
+        delete?: never;
+        options?: never;
+        head?: never;
+        patch?: never;
+        trace?: never;
+    };
+    "/api/v1/benchmarks/{benchmark_id}/cancel": {
+        parameters: {
+            query?: never;
+            header?: never;
+            path?: never;
+            cookie?: never;
+        };
+        get?: never;
+        put?: never;
+        /** Cancel Benchmark */
+        post: operations["cancel_benchmark_api_v1_benchmarks__benchmark_id__cancel_post"];
+        delete?: never;
+        options?: never;
+        head?: never;
+        patch?: never;
+        trace?: never;
+    };
+    "/api/v1/benchmarks/{benchmark_id}/compare": {
+        parameters: {
+            query?: never;
+            header?: never;
+            path?: never;
+            cookie?: never;
+        };
+        get?: never;
+        put?: never;
+        /** Compare Variants */
+        post: operations["compare_variants_api_v1_benchmarks__benchmark_id__compare_post"];
+        delete?: never;
+        options?: never;
+        head?: never;
+        patch?: never;
+        trace?: never;
+    };
+    "/api/v1/benchmarks/{benchmark_id}/runs": {
+        parameters: {
+            query?: never;
+            header?: never;
+            path?: never;
+            cookie?: never;
+        };
+        get?: never;
+        put?: never;
+        /** Start Runs */
+        post: operations["start_runs_api_v1_benchmarks__benchmark_id__runs_post"];
+        delete?: never;
+        options?: never;
+        head?: never;
+        patch?: never;
+        trace?: never;
+    };
     "/api/v1/data": {
         parameters: {
             query?: never;
@@ -452,6 +572,32 @@ export interface paths {
 export type webhooks = Record<string, never>;
 export interface components {
     schemas: {
+        /** AcceptanceConfig */
+        AcceptanceConfig: {
+            /** Command */
+            command: string[];
+            /**
+             * Min Success Rate
+             * @default 1
+             */
+            min_success_rate: number;
+            /** Required Pass */
+            required_pass?: string[];
+        };
+        /**
+         * AlternativeSpec
+         * @description One alternative variant: a name, baseline changes, and targeted files.
+         */
+        AlternativeSpec: {
+            /** Changes */
+            changes?: {
+                [key: string]: unknown;
+            };
+            /** Context Files */
+            context_files?: string[];
+            /** Name */
+            name: string;
+        };
         /**
          * AnalyzeAccepted
          * @description 202 body: the job id to poll.
@@ -483,6 +629,209 @@ export interface components {
             session_id?: string | null;
             /** Task Id */
             task_id?: string | null;
+        };
+        /**
+         * BenchmarkCreate
+         * @description `POST /api/v1/benchmarks` body: the `benchmark_task.yaml` shape plus project.
+         */
+        BenchmarkCreate: {
+            acceptance: components["schemas"]["AcceptanceConfig"];
+            /** Alternatives */
+            alternatives?: components["schemas"]["AlternativeSpec"][];
+            baseline: components["schemas"]["RunConfig"];
+            /** Description */
+            description?: string | null;
+            /**
+             * Initial Ref
+             * @default main
+             */
+            initial_ref: string;
+            /** Name */
+            name: string;
+            /** Project Id */
+            project_id: string;
+            /**
+             * Repeat Count
+             * @default 1
+             */
+            repeat_count: number;
+            /** Repository Path */
+            repository_path: string;
+            /** Task Prompt */
+            task_prompt: string;
+            /**
+             * Timeout S
+             * @default 300
+             */
+            timeout_s: number;
+        };
+        /** BenchmarkDetail */
+        BenchmarkDetail: {
+            acceptance: components["schemas"]["AcceptanceConfig"];
+            /** Alternatives */
+            alternatives: components["schemas"]["AlternativeSpec"][];
+            baseline: components["schemas"]["RunConfig"];
+            /** Created At */
+            created_at: string;
+            /** Description */
+            description: string | null;
+            /** Id */
+            id: string;
+            /** Initial Git Sha */
+            initial_git_sha: string | null;
+            /** Initial Ref */
+            initial_ref: string;
+            /** Name */
+            name: string;
+            /** Project Id */
+            project_id: string;
+            /** Repeat Count */
+            repeat_count: number | null;
+            /** Runs */
+            runs?: components["schemas"]["BenchmarkRunOut"][];
+            /** Task Id */
+            task_id: string | null;
+            /** Task Prompt */
+            task_prompt: string;
+            /** Timeout S */
+            timeout_s: number | null;
+        };
+        /** BenchmarkOut */
+        BenchmarkOut: {
+            acceptance: components["schemas"]["AcceptanceConfig"];
+            /** Alternatives */
+            alternatives: components["schemas"]["AlternativeSpec"][];
+            baseline: components["schemas"]["RunConfig"];
+            /** Created At */
+            created_at: string;
+            /** Description */
+            description: string | null;
+            /** Id */
+            id: string;
+            /** Initial Git Sha */
+            initial_git_sha: string | null;
+            /** Initial Ref */
+            initial_ref: string;
+            /** Name */
+            name: string;
+            /** Project Id */
+            project_id: string;
+            /** Repeat Count */
+            repeat_count: number | null;
+            /** Task Id */
+            task_id: string | null;
+            /** Task Prompt */
+            task_prompt: string;
+            /** Timeout S */
+            timeout_s: number | null;
+        };
+        /** BenchmarkRunOut */
+        BenchmarkRunOut: {
+            /** Benchmark Id */
+            benchmark_id: string;
+            /** Completed At */
+            completed_at: string | null;
+            /** Config */
+            config: {
+                [key: string]: unknown;
+            };
+            /** Currency */
+            currency: string | null;
+            /** Duration Ms */
+            duration_ms: number | null;
+            /** Eligible */
+            eligible: boolean | null;
+            /** Error */
+            error: string | null;
+            /** Id */
+            id: string;
+            /** Model Id */
+            model_id: string | null;
+            /** Outcome */
+            outcome: ("passed" | "failed" | "timed_out" | "cancelled" | "inconclusive") | null;
+            /** Patch Path */
+            patch_path: string | null;
+            /** Repeat Index */
+            repeat_index: number | null;
+            /** Request Count */
+            request_count: number;
+            /** Retry Count */
+            retry_count: number;
+            /**
+             * Run Status
+             * @enum {string}
+             */
+            run_status: "queued" | "running" | "completed" | "failed";
+            /** Started At */
+            started_at: string | null;
+            /** Test Exit Code */
+            test_exit_code: number | null;
+            /** Test Results */
+            test_results: {
+                [key: string]: unknown;
+            } | null;
+            /** Total Cost */
+            total_cost: number | null;
+            /** Total Tokens */
+            total_tokens: number | null;
+            /** Unknown Cost Events */
+            unknown_cost_events: number;
+            /** Variant Name */
+            variant_name: string;
+            /** Worktree Path */
+            worktree_path: string | null;
+        };
+        /** CancelRunsResponse */
+        CancelRunsResponse: {
+            /** Cancelled Run Ids */
+            cancelled_run_ids: string[];
+        };
+        /**
+         * CompareRequest
+         * @description `POST /api/v1/benchmarks/{id}/compare` body: the two variants to pair.
+         */
+        CompareRequest: {
+            /** Alternative Variant */
+            alternative_variant: string;
+            /** Baseline Variant */
+            baseline_variant: string;
+        };
+        /**
+         * ComparisonOut
+         * @description One persisted `benchmark_comparisons` row, with its methodology.
+         */
+        ComparisonOut: {
+            /** Alternative Run Id */
+            alternative_run_id: string;
+            /** Alternative Variant */
+            alternative_variant: string;
+            /** Baseline Run Id */
+            baseline_run_id: string;
+            /** Baseline Variant */
+            baseline_variant: string;
+            /** Benchmark Id */
+            benchmark_id: string;
+            /**
+             * Comparison Status
+             * @enum {string}
+             */
+            comparison_status: "incomparable" | "measured" | "correctness_preserving" | "verified" | "inconclusive";
+            /** Correctness Preserved */
+            correctness_preserved: boolean | null;
+            /** Cost Delta */
+            cost_delta: number | null;
+            /** Cost Delta Pct */
+            cost_delta_pct: string | null;
+            /** Created At */
+            created_at: string;
+            /** Id */
+            id: string;
+            /** Methodology */
+            methodology: {
+                [key: string]: unknown;
+            };
+            /** Reasons */
+            reasons?: string[];
         };
         /**
          * CostByOutcome
@@ -527,6 +876,13 @@ export interface components {
             priced_pct: number | null;
             /** Provider Usage Pct */
             provider_usage_pct: number | null;
+        };
+        /** CreateRunsRequest */
+        CreateRunsRequest: {
+            /** Repeat Count */
+            repeat_count?: number | null;
+            /** Variants */
+            variants: string[];
         };
         /**
          * DataDeleteResponse
@@ -1013,6 +1369,40 @@ export interface components {
             session?: components["schemas"]["SessionSummary"] | null;
             task?: components["schemas"]["TaskRef"] | null;
         };
+        /** RetryPolicy */
+        RetryPolicy: {
+            /**
+             * Max Retries
+             * @default 0
+             */
+            max_retries: number;
+        };
+        /**
+         * RunConfig
+         * @description One variant's agent configuration, as stored in `benchmark_runs.config_json`.
+         */
+        RunConfig: {
+            /** Context Files */
+            context_files?: string[];
+            /**
+             * Context Strategy
+             * @default full_repo
+             * @enum {string}
+             */
+            context_strategy: "full_repo" | "targeted";
+            /** Max Steps */
+            max_steps: number;
+            /** Model Id */
+            model_id: string;
+            /**
+             * Prompt Template
+             * @default fix_v1
+             */
+            prompt_template: string;
+            retry_policy?: components["schemas"]["RetryPolicy"];
+            /** Temperature */
+            temperature?: number | null;
+        };
         /** SessionCost */
         SessionCost: {
             /** Currency */
@@ -1418,6 +1808,255 @@ export interface components {
 }
 export type $defs = Record<string, never>;
 export interface operations {
+    get_run_api_v1_benchmark_runs__run_id__get: {
+        parameters: {
+            query?: never;
+            header?: never;
+            path: {
+                run_id: string;
+            };
+            cookie?: never;
+        };
+        requestBody?: never;
+        responses: {
+            /** @description Successful Response */
+            200: {
+                headers: {
+                    [name: string]: unknown;
+                };
+                content: {
+                    "application/json": components["schemas"]["BenchmarkRunOut"];
+                };
+            };
+            /** @description Validation Error */
+            422: {
+                headers: {
+                    [name: string]: unknown;
+                };
+                content: {
+                    "application/json": components["schemas"]["HTTPValidationError"];
+                };
+            };
+        };
+    };
+    get_run_patch_api_v1_benchmark_runs__run_id__patch_get: {
+        parameters: {
+            query?: never;
+            header?: never;
+            path: {
+                run_id: string;
+            };
+            cookie?: never;
+        };
+        requestBody?: never;
+        responses: {
+            /** @description Successful Response */
+            200: {
+                headers: {
+                    [name: string]: unknown;
+                };
+                content: {
+                    "text/plain": string;
+                };
+            };
+            /** @description Validation Error */
+            422: {
+                headers: {
+                    [name: string]: unknown;
+                };
+                content: {
+                    "application/json": components["schemas"]["HTTPValidationError"];
+                };
+            };
+        };
+    };
+    list_benchmarks_api_v1_benchmarks_get: {
+        parameters: {
+            query?: never;
+            header?: never;
+            path?: never;
+            cookie?: never;
+        };
+        requestBody?: never;
+        responses: {
+            /** @description Successful Response */
+            200: {
+                headers: {
+                    [name: string]: unknown;
+                };
+                content: {
+                    "application/json": components["schemas"]["BenchmarkOut"][];
+                };
+            };
+        };
+    };
+    create_benchmark_api_v1_benchmarks_post: {
+        parameters: {
+            query?: never;
+            header?: {
+                "Idempotency-Key"?: string | null;
+            };
+            path?: never;
+            cookie?: never;
+        };
+        requestBody: {
+            content: {
+                "application/json": components["schemas"]["BenchmarkCreate"];
+            };
+        };
+        responses: {
+            /** @description Successful Response */
+            201: {
+                headers: {
+                    [name: string]: unknown;
+                };
+                content: {
+                    "application/json": unknown;
+                };
+            };
+            /** @description Validation Error */
+            422: {
+                headers: {
+                    [name: string]: unknown;
+                };
+                content: {
+                    "application/json": components["schemas"]["HTTPValidationError"];
+                };
+            };
+        };
+    };
+    get_benchmark_api_v1_benchmarks__benchmark_id__get: {
+        parameters: {
+            query?: never;
+            header?: never;
+            path: {
+                benchmark_id: string;
+            };
+            cookie?: never;
+        };
+        requestBody?: never;
+        responses: {
+            /** @description Successful Response */
+            200: {
+                headers: {
+                    [name: string]: unknown;
+                };
+                content: {
+                    "application/json": components["schemas"]["BenchmarkDetail"];
+                };
+            };
+            /** @description Validation Error */
+            422: {
+                headers: {
+                    [name: string]: unknown;
+                };
+                content: {
+                    "application/json": components["schemas"]["HTTPValidationError"];
+                };
+            };
+        };
+    };
+    cancel_benchmark_api_v1_benchmarks__benchmark_id__cancel_post: {
+        parameters: {
+            query?: never;
+            header?: never;
+            path: {
+                benchmark_id: string;
+            };
+            cookie?: never;
+        };
+        requestBody?: never;
+        responses: {
+            /** @description Successful Response */
+            200: {
+                headers: {
+                    [name: string]: unknown;
+                };
+                content: {
+                    "application/json": components["schemas"]["CancelRunsResponse"];
+                };
+            };
+            /** @description Validation Error */
+            422: {
+                headers: {
+                    [name: string]: unknown;
+                };
+                content: {
+                    "application/json": components["schemas"]["HTTPValidationError"];
+                };
+            };
+        };
+    };
+    compare_variants_api_v1_benchmarks__benchmark_id__compare_post: {
+        parameters: {
+            query?: never;
+            header?: never;
+            path: {
+                benchmark_id: string;
+            };
+            cookie?: never;
+        };
+        requestBody: {
+            content: {
+                "application/json": components["schemas"]["CompareRequest"];
+            };
+        };
+        responses: {
+            /** @description Successful Response */
+            201: {
+                headers: {
+                    [name: string]: unknown;
+                };
+                content: {
+                    "application/json": components["schemas"]["ComparisonOut"];
+                };
+            };
+            /** @description Validation Error */
+            422: {
+                headers: {
+                    [name: string]: unknown;
+                };
+                content: {
+                    "application/json": components["schemas"]["HTTPValidationError"];
+                };
+            };
+        };
+    };
+    start_runs_api_v1_benchmarks__benchmark_id__runs_post: {
+        parameters: {
+            query?: never;
+            header?: never;
+            path: {
+                benchmark_id: string;
+            };
+            cookie?: never;
+        };
+        requestBody: {
+            content: {
+                "application/json": components["schemas"]["CreateRunsRequest"];
+            };
+        };
+        responses: {
+            /** @description Successful Response */
+            202: {
+                headers: {
+                    [name: string]: unknown;
+                };
+                content: {
+                    "application/json": components["schemas"]["BenchmarkRunOut"][];
+                };
+            };
+            /** @description Validation Error */
+            422: {
+                headers: {
+                    [name: string]: unknown;
+                };
+                content: {
+                    "application/json": components["schemas"]["HTTPValidationError"];
+                };
+            };
+        };
+    };
     delete_data_api_v1_data_delete: {
         parameters: {
             query: {

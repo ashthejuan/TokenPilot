@@ -26,6 +26,14 @@ def _git(args: list[str], cwd: Path) -> str:
     return completed.stdout.strip()
 
 
+def _git_bytes(args: list[str], cwd: Path) -> bytes:
+    completed = subprocess.run(
+        ["git", *args], cwd=cwd, check=True,
+        capture_output=True,
+    )
+    return completed.stdout
+
+
 def resolve_sha(repo: Path, ref: str) -> str:
     """Resolve `ref` to a full commit SHA in `repo`."""
     return _git(["rev-parse", ref], cwd=repo)
@@ -69,8 +77,10 @@ def export_patch(wt: Worktree, data_dir: Path | None = None) -> Path:
     ]
     if untracked:
         _git(["add", "-N", "--", *untracked], cwd=wt.path)
-    diff = _git(["diff", "HEAD"], cwd=wt.path)
-    patch_path.write_text(diff, encoding="utf-8")
+    diff = _git_bytes(["diff", "HEAD"], cwd=wt.path)
+    if diff:
+        diff = diff.rstrip(b"\n") + b"\n"
+    patch_path.write_bytes(diff)
     return patch_path
 
 

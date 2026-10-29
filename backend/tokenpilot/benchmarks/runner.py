@@ -18,6 +18,7 @@ import subprocess
 import sys
 import threading
 import uuid
+from collections.abc import Coroutine
 from dataclasses import dataclass
 from decimal import Decimal
 from pathlib import Path
@@ -449,6 +450,34 @@ def _cancelled_between_steps(cancel: threading.Event | None) -> bool:
     return cancel is not None and cancel.is_set()
 
 
+_thread_loops = threading.local()
+
+
+def _worker_event_loop() -> asyncio.AbstractEventLoop:
+    """One reused event loop per calling thread.
+
+    The gateway proxy forwards through the single shared app.state.upstream
+    AsyncClient, whose keep-alive pool holds connections bound to the loop
+    that opened them. A fresh loop per run closes run 1's loop while pooled
+    connections still reference it, so run 2 fails with `Event loop is
+    closed`. Reusing one loop per worker thread keeps pooled connections
+    valid across sequential runs. Concurrent server-loop traffic sharing
+    the client stays a disclosed limitation.
+    """
+    loop = getattr(_thread_loops, "loop", None)
+    if loop is None or loop.is_closed():
+        loop = asyncio.new_event_loop()
+        _thread_loops.loop = loop
+    return loop
+
+
+def _run_on_worker_loop[T](coro: Coroutine[Any, Any, T]) -> T:
+    """Run `coro` on the calling thread's reused event loop."""
+    loop = _worker_event_loop()
+    asyncio.set_event_loop(loop)
+    return loop.run_until_complete(coro)
+
+
 @dataclass(frozen=True)
 class _PhaseOutcome:
     run_status: RunStatus
@@ -539,7 +568,7 @@ def _execute_phases(
     model's behavior only ever reaches `passed`/`failed` via the test results."""
     timeout_s = benchmark.timeout_s or DEFAULT_TIMEOUT_S
     config = RunConfig.model_validate(run.config)
-    asyncio.run(
+    _run_on_worker_loop(
         run_agent(
             benchmark.task_prompt,
             config,

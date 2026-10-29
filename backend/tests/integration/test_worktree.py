@@ -94,3 +94,36 @@ def test_patch_includes_untracked_files(repo: Path, data_dir: Path) -> None:
         assert "untracked-content-here" in text
     finally:
         remove_worktree(wt)
+
+
+def test_exported_patch_applies_cleanly(repo: Path, data_dir: Path) -> None:
+    wt = create_worktree(repo, "HEAD", "run-apply-check", data_dir=data_dir)
+    try:
+        AgentTools(wt.path).write_file("calc.py", "def add(a, b):\n    return a - b\n")
+        patch = export_patch(wt, data_dir=data_dir)
+        raw = patch.read_bytes()
+        assert raw, "patch must be non-empty"
+        assert raw.endswith(b"\n"), "patch must end with a trailing newline"
+        assert not raw.endswith(b"\n\n"), "patch must end with exactly one newline"
+        clean = create_worktree(repo, "HEAD", "run-apply-check-clean", data_dir=data_dir)
+        try:
+            subprocess.run(
+                ["git", "apply", "--check", str(patch)],
+                cwd=clean.path,
+                check=True,
+                capture_output=True,
+                text=True,
+            )
+        finally:
+            remove_worktree(clean)
+    finally:
+        remove_worktree(wt)
+
+
+def test_exported_empty_patch_stays_empty(repo: Path, data_dir: Path) -> None:
+    wt = create_worktree(repo, "HEAD", "run-empty-patch", data_dir=data_dir)
+    try:
+        patch = export_patch(wt, data_dir=data_dir)
+        assert patch.read_bytes() == b""
+    finally:
+        remove_worktree(wt)

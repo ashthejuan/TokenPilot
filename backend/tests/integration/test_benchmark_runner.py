@@ -1,5 +1,6 @@
 """Benchmark runner, run API, worker, and metrics tests."""
 
+import asyncio
 import contextlib
 import json
 import subprocess
@@ -602,3 +603,80 @@ def test_worker_executes_enqueued_run_to_completion(
             time.sleep(0.2)
         assert final["run_status"] == "completed", final
         assert final["outcome"] == "passed", final
+
+
+def test_worker_thread_event_loop_reused_across_entries() -> None:
+    from tokenpilot.benchmarks import runner
+
+    async def _probe() -> asyncio.AbstractEventLoop:
+        return asyncio.get_running_loop()
+
+    loop1 = runner._run_on_worker_loop(_probe())
+    loop2 = runner._run_on_worker_loop(_probe())
+    assert loop1 is loop2
+    assert not loop1.is_closed()
+    loop1.close()
+    loop3 = runner._run_on_worker_loop(_probe())
+    assert loop3 is not loop1
+    assert not loop3.is_closed()
+
+
+class _LoopAffinityTransport(httpx.AsyncBaseTransport):
+    """Simulates a keep-alive pool bound to its first event loop.
+
+    The real upstream HTTP pool holds connections tied to the loop that
+    opened them; reuse from a fresh loop fails with `Event loop is closed`.
+    The scripted MockTransport has no such affinity, so this wrapper adds
+    it back to reproduce the second-sequential-run failure in-process.
+    """
+
+    def __init__(self, inner: httpx.AsyncBaseTransport) -> None:
+        self._inner = inner
+        self._first_loop: asyncio.AbstractEventLoop | None = None
+
+    async def handle_async_request(self, request: httpx.Request) -> httpx.Response:
+        loop = asyncio.get_running_loop()
+        if self._first_loop is None:
+            self._first_loop = loop
+        elif loop is not self._first_loop:
+            raise RuntimeError("Event loop is closed")
+        return await self._inner.handle_async_request(request)
+
+
+def test_sequential_runs_second_is_not_inconclusive(
+    settings: Settings, tmp_path: Path
+) -> None:
+    repo = _make_repo(tmp_path / "repo")
+    scripted = ScriptedModel(_fix_script() + _fix_script())
+    app_settings = Settings(
+        _env_file=None,
+        local_token=settings.local_token,
+        db_path=settings.db_path,
+        data_dir=settings.data_dir,
+        upstream_api_key=SecretStr("fake-test-key"),
+        upstream_provider="fake",
+    )
+    app = create_app(
+        app_settings,
+        upstream_transport=_LoopAffinityTransport(scripted.transport()),
+    )
+    with TestClient(app) as client:
+        app.state.benchmark_worker.stop()
+        project = _register_project(client, repo)
+        bench = _create_benchmark(client, project["id"], repo)
+        conn = connect(settings.db_path)
+        try:
+            run1 = BenchmarkStore(conn).create_run(
+                bench["id"], "baseline", "fake-large", _run_config(), 0
+            )
+            run2 = BenchmarkStore(conn).create_run(
+                bench["id"], "baseline", "fake-large", _run_config(), 1
+            )
+            conn.commit()
+        finally:
+            conn.close()
+        finished1 = _execute(settings, app, run1.id)
+        finished2 = _execute(settings, app, run2.id)
+    assert finished1.outcome == "passed", finished1
+    assert finished2.outcome == "passed", finished2
+    assert finished2.outcome != "inconclusive"

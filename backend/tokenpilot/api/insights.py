@@ -141,7 +141,7 @@ def patch_insight(
     return _with_guidance(insight)
 
 
-@router.get("/insights/{insight_id}/investigation-preview", response_model=None)
+@router.get("/insights/{insight_id}/investigation-preview", response_model=InvestigationPreviewOut)
 def investigation_preview(
     insight_id: str,
     request: Request,

@@ -4,6 +4,23 @@
  */
 
 export interface paths {
+    "/api/v1/data": {
+        parameters: {
+            query?: never;
+            header?: never;
+            path?: never;
+            cookie?: never;
+        };
+        get?: never;
+        put?: never;
+        post?: never;
+        /** Delete Data */
+        delete: operations["delete_data_api_v1_data_delete"];
+        options?: never;
+        head?: never;
+        patch?: never;
+        trace?: never;
+    };
     "/api/v1/health": {
         parameters: {
             query?: never;
@@ -71,6 +88,74 @@ export interface paths {
         head?: never;
         /** Patch Insight */
         patch: operations["patch_insight_api_v1_insights__insight_id__patch"];
+        trace?: never;
+    };
+    "/api/v1/insights/{insight_id}/feedback": {
+        parameters: {
+            query?: never;
+            header?: never;
+            path?: never;
+            cookie?: never;
+        };
+        get?: never;
+        put?: never;
+        /** Post Feedback */
+        post: operations["post_feedback_api_v1_insights__insight_id__feedback_post"];
+        delete?: never;
+        options?: never;
+        head?: never;
+        patch?: never;
+        trace?: never;
+    };
+    "/api/v1/insights/{insight_id}/investigate": {
+        parameters: {
+            query?: never;
+            header?: never;
+            path?: never;
+            cookie?: never;
+        };
+        get?: never;
+        put?: never;
+        /** Investigate Insight */
+        post: operations["investigate_insight_api_v1_insights__insight_id__investigate_post"];
+        delete?: never;
+        options?: never;
+        head?: never;
+        patch?: never;
+        trace?: never;
+    };
+    "/api/v1/insights/{insight_id}/investigation-preview": {
+        parameters: {
+            query?: never;
+            header?: never;
+            path?: never;
+            cookie?: never;
+        };
+        /** Investigation Preview */
+        get: operations["investigation_preview_api_v1_insights__insight_id__investigation_preview_get"];
+        put?: never;
+        post?: never;
+        delete?: never;
+        options?: never;
+        head?: never;
+        patch?: never;
+        trace?: never;
+    };
+    "/api/v1/insights/{insight_id}/investigations": {
+        parameters: {
+            query?: never;
+            header?: never;
+            path?: never;
+            cookie?: never;
+        };
+        /** List Investigations */
+        get: operations["list_investigations_api_v1_insights__insight_id__investigations_get"];
+        put?: never;
+        post?: never;
+        delete?: never;
+        options?: never;
+        head?: never;
+        patch?: never;
         trace?: never;
     };
     "/api/v1/jobs/{job_id}": {
@@ -172,6 +257,26 @@ export interface paths {
         get: operations["list_pricing_api_v1_settings_pricing_get"];
         /** Upsert Pricing */
         put: operations["upsert_pricing_api_v1_settings_pricing_put"];
+        post?: never;
+        delete?: never;
+        options?: never;
+        head?: never;
+        patch?: never;
+        trace?: never;
+    };
+    "/api/v1/settings/privacy": {
+        parameters: {
+            query?: never;
+            header?: never;
+            path?: never;
+            cookie?: never;
+        };
+        /**
+         * Get Privacy
+         * @description Read-only privacy reflections of `Settings`/env (Q14). No PUT.
+         */
+        get: operations["get_privacy_api_v1_settings_privacy_get"];
+        put?: never;
         post?: never;
         delete?: never;
         options?: never;
@@ -424,6 +529,18 @@ export interface components {
             provider_usage_pct: number | null;
         };
         /**
+         * DataDeleteResponse
+         * @description Counts from `DELETE /api/v1/data` (Q13).
+         */
+        DataDeleteResponse: {
+            /** Deleted Events */
+            deleted_events: number;
+            /** Deleted Excerpt Files */
+            deleted_excerpt_files: number;
+            /** Deleted Worktrees */
+            deleted_worktrees: number;
+        };
+        /**
          * EvidenceRefOut
          * @description The wire form of `EvidenceRef`: what an insight points at, and why.
          */
@@ -439,6 +556,42 @@ export interface components {
             measurement: {
                 [key: string]: unknown;
             };
+        };
+        /**
+         * FeedbackOut
+         * @description One recommendation-feedback row from a user.
+         */
+        FeedbackOut: {
+            /** Created At */
+            created_at: string;
+            /** Id */
+            id: string;
+            /** Implemented */
+            implemented: boolean | null;
+            /** Insight Id */
+            insight_id: string;
+            /** Note */
+            note: string | null;
+            /**
+             * Verdict
+             * @enum {string}
+             */
+            verdict: "useful" | "not_useful" | "not_applicable";
+        };
+        /**
+         * FeedbackRequest
+         * @description POST body for recommendation feedback.
+         */
+        FeedbackRequest: {
+            /** Implemented */
+            implemented?: boolean | null;
+            /** Note */
+            note?: string | null;
+            /**
+             * Verdict
+             * @enum {string}
+             */
+            verdict: "useful" | "not_useful" | "not_applicable";
         };
         /** HTTPValidationError */
         HTTPValidationError: {
@@ -546,6 +699,74 @@ export interface components {
              * @enum {string}
              */
             status: "new" | "reviewed" | "dismissed" | "tested";
+        };
+        /**
+         * InvestigateRequest
+         * @description POST body for starting an investigation job.
+         */
+        InvestigateRequest: {
+            /**
+             * Mode
+             * @default metadata_only
+             * @enum {string}
+             */
+            mode: "metadata_only" | "with_excerpts";
+        };
+        /**
+         * InvestigationOut
+         * @description One finished investigation run persisted for an insight.
+         */
+        InvestigationOut: {
+            /** Created At */
+            created_at: string;
+            /** Id */
+            id: string;
+            /** Insight Id */
+            insight_id: string;
+            /**
+             * Mode
+             * @enum {string}
+             */
+            mode: "metadata_only" | "with_excerpts";
+            /** Model */
+            model: string | null;
+            /** Prompt Version */
+            prompt_version: string | null;
+            /** Request Disclosure */
+            request_disclosure: {
+                [key: string]: unknown;
+            } | null;
+            /** Result */
+            result: {
+                [key: string]: unknown;
+            } | null;
+            /**
+             * Status
+             * @enum {string}
+             */
+            status: "completed" | "insufficient_evidence" | "failed";
+            /** Validation Errors */
+            validation_errors: string[] | null;
+        };
+        /**
+         * InvestigationPreviewOut
+         * @description Disclosure preview: the exact bundle that would be sent, plus Q8 copy.
+         */
+        InvestigationPreviewOut: {
+            /** Bundle */
+            bundle: {
+                [key: string]: unknown;
+            };
+            /** Contains Content */
+            contains_content: boolean;
+            /** Contributor Training */
+            contributor_training: boolean;
+            /** Destination */
+            destination: string;
+            /** Disclosure Lines */
+            disclosure_lines: string[];
+            /** Model */
+            model: string;
         };
         /**
          * JobOut
@@ -697,6 +918,24 @@ export interface components {
             valid_from: string;
             /** Valid To */
             valid_to: string | null;
+        };
+        /**
+         * PrivacyOut
+         * @description Read-only reflections of `Settings`/env (Q14). No PUT: edit `.env` and restart.
+         */
+        PrivacyOut: {
+            /** Allow Content Transmission */
+            allow_content_transmission: boolean;
+            /** Contributor Training */
+            contributor_training: boolean;
+            /** Investigator Model */
+            investigator_model: string;
+            /** Local Token Configured */
+            local_token_configured: boolean;
+            /** Store Content */
+            store_content: boolean;
+            /** Upstream Base Url */
+            upstream_base_url: string;
         };
         /** Project */
         Project: {
@@ -1179,6 +1418,38 @@ export interface components {
 }
 export type $defs = Record<string, never>;
 export interface operations {
+    delete_data_api_v1_data_delete: {
+        parameters: {
+            query: {
+                /** @description ISO 8601 UTC bound; older events are deleted */
+                before: string;
+            };
+            header?: never;
+            path?: never;
+            cookie?: never;
+        };
+        requestBody?: never;
+        responses: {
+            /** @description Successful Response */
+            200: {
+                headers: {
+                    [name: string]: unknown;
+                };
+                content: {
+                    "application/json": components["schemas"]["DataDeleteResponse"];
+                };
+            };
+            /** @description Validation Error */
+            422: {
+                headers: {
+                    [name: string]: unknown;
+                };
+                content: {
+                    "application/json": components["schemas"]["HTTPValidationError"];
+                };
+            };
+        };
+    };
     health_api_v1_health_get: {
         parameters: {
             query?: never;
@@ -1324,6 +1595,140 @@ export interface operations {
                 };
                 content: {
                     "application/json": components["schemas"]["InsightOut"];
+                };
+            };
+            /** @description Validation Error */
+            422: {
+                headers: {
+                    [name: string]: unknown;
+                };
+                content: {
+                    "application/json": components["schemas"]["HTTPValidationError"];
+                };
+            };
+        };
+    };
+    post_feedback_api_v1_insights__insight_id__feedback_post: {
+        parameters: {
+            query?: never;
+            header?: never;
+            path: {
+                insight_id: string;
+            };
+            cookie?: never;
+        };
+        requestBody: {
+            content: {
+                "application/json": components["schemas"]["FeedbackRequest"];
+            };
+        };
+        responses: {
+            /** @description Successful Response */
+            201: {
+                headers: {
+                    [name: string]: unknown;
+                };
+                content: {
+                    "application/json": components["schemas"]["FeedbackOut"];
+                };
+            };
+            /** @description Validation Error */
+            422: {
+                headers: {
+                    [name: string]: unknown;
+                };
+                content: {
+                    "application/json": components["schemas"]["HTTPValidationError"];
+                };
+            };
+        };
+    };
+    investigate_insight_api_v1_insights__insight_id__investigate_post: {
+        parameters: {
+            query?: never;
+            header?: never;
+            path: {
+                insight_id: string;
+            };
+            cookie?: never;
+        };
+        requestBody: {
+            content: {
+                "application/json": components["schemas"]["InvestigateRequest"];
+            };
+        };
+        responses: {
+            /** @description Successful Response */
+            202: {
+                headers: {
+                    [name: string]: unknown;
+                };
+                content: {
+                    "application/json": unknown;
+                };
+            };
+            /** @description Validation Error */
+            422: {
+                headers: {
+                    [name: string]: unknown;
+                };
+                content: {
+                    "application/json": components["schemas"]["HTTPValidationError"];
+                };
+            };
+        };
+    };
+    investigation_preview_api_v1_insights__insight_id__investigation_preview_get: {
+        parameters: {
+            query?: {
+                mode?: "metadata_only" | "with_excerpts";
+            };
+            header?: never;
+            path: {
+                insight_id: string;
+            };
+            cookie?: never;
+        };
+        requestBody?: never;
+        responses: {
+            /** @description Successful Response */
+            200: {
+                headers: {
+                    [name: string]: unknown;
+                };
+                content: {
+                    "application/json": components["schemas"]["InvestigationPreviewOut"];
+                };
+            };
+            /** @description Validation Error */
+            422: {
+                headers: {
+                    [name: string]: unknown;
+                };
+                content: {
+                    "application/json": components["schemas"]["HTTPValidationError"];
+                };
+            };
+        };
+    };
+    list_investigations_api_v1_insights__insight_id__investigations_get: {
+        parameters: {
+            query?: never;
+            header?: never;
+            path: {
+                insight_id: string;
+            };
+            cookie?: never;
+        };
+        requestBody?: never;
+        responses: {
+            /** @description Successful Response */
+            200: {
+                headers: {
+                    [name: string]: unknown;
+                };
+                content: {
+                    "application/json": components["schemas"]["InvestigationOut"][];
                 };
             };
             /** @description Validation Error */
@@ -1636,6 +2041,26 @@ export interface operations {
                 };
                 content: {
                     "application/json": components["schemas"]["HTTPValidationError"];
+                };
+            };
+        };
+    };
+    get_privacy_api_v1_settings_privacy_get: {
+        parameters: {
+            query?: never;
+            header?: never;
+            path?: never;
+            cookie?: never;
+        };
+        requestBody?: never;
+        responses: {
+            /** @description Successful Response */
+            200: {
+                headers: {
+                    [name: string]: unknown;
+                };
+                content: {
+                    "application/json": components["schemas"]["PrivacyOut"];
                 };
             };
         };

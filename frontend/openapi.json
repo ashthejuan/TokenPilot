@@ -288,6 +288,30 @@
         "title": "Coverage",
         "type": "object"
       },
+      "DataDeleteResponse": {
+        "description": "Counts from `DELETE /api/v1/data` (Q13).",
+        "properties": {
+          "deleted_events": {
+            "title": "Deleted Events",
+            "type": "integer"
+          },
+          "deleted_excerpt_files": {
+            "title": "Deleted Excerpt Files",
+            "type": "integer"
+          },
+          "deleted_worktrees": {
+            "title": "Deleted Worktrees",
+            "type": "integer"
+          }
+        },
+        "required": [
+          "deleted_events",
+          "deleted_excerpt_files",
+          "deleted_worktrees"
+        ],
+        "title": "DataDeleteResponse",
+        "type": "object"
+      },
       "EvidenceRefOut": {
         "description": "The wire form of `EvidenceRef`: what an insight points at, and why.",
         "properties": {
@@ -318,6 +342,106 @@
           "measurement"
         ],
         "title": "EvidenceRefOut",
+        "type": "object"
+      },
+      "FeedbackOut": {
+        "description": "One recommendation-feedback row from a user.",
+        "properties": {
+          "created_at": {
+            "title": "Created At",
+            "type": "string"
+          },
+          "id": {
+            "title": "Id",
+            "type": "string"
+          },
+          "implemented": {
+            "anyOf": [
+              {
+                "type": "boolean"
+              },
+              {
+                "type": "null"
+              }
+            ],
+            "title": "Implemented"
+          },
+          "insight_id": {
+            "title": "Insight Id",
+            "type": "string"
+          },
+          "note": {
+            "anyOf": [
+              {
+                "type": "string"
+              },
+              {
+                "type": "null"
+              }
+            ],
+            "title": "Note"
+          },
+          "verdict": {
+            "enum": [
+              "useful",
+              "not_useful",
+              "not_applicable"
+            ],
+            "title": "Verdict",
+            "type": "string"
+          }
+        },
+        "required": [
+          "id",
+          "insight_id",
+          "verdict",
+          "implemented",
+          "note",
+          "created_at"
+        ],
+        "title": "FeedbackOut",
+        "type": "object"
+      },
+      "FeedbackRequest": {
+        "additionalProperties": false,
+        "description": "POST body for recommendation feedback.",
+        "properties": {
+          "implemented": {
+            "anyOf": [
+              {
+                "type": "boolean"
+              },
+              {
+                "type": "null"
+              }
+            ],
+            "title": "Implemented"
+          },
+          "note": {
+            "anyOf": [
+              {
+                "type": "string"
+              },
+              {
+                "type": "null"
+              }
+            ],
+            "title": "Note"
+          },
+          "verdict": {
+            "enum": [
+              "useful",
+              "not_useful",
+              "not_applicable"
+            ],
+            "title": "Verdict",
+            "type": "string"
+          }
+        },
+        "required": [
+          "verdict"
+        ],
+        "title": "FeedbackRequest",
         "type": "object"
       },
       "HTTPValidationError": {
@@ -639,6 +763,174 @@
           "status"
         ],
         "title": "InsightStatusUpdate",
+        "type": "object"
+      },
+      "InvestigateRequest": {
+        "additionalProperties": false,
+        "description": "POST body for starting an investigation job.",
+        "properties": {
+          "mode": {
+            "default": "metadata_only",
+            "enum": [
+              "metadata_only",
+              "with_excerpts"
+            ],
+            "title": "Mode",
+            "type": "string"
+          }
+        },
+        "title": "InvestigateRequest",
+        "type": "object"
+      },
+      "InvestigationOut": {
+        "description": "One finished investigation run persisted for an insight.",
+        "properties": {
+          "created_at": {
+            "title": "Created At",
+            "type": "string"
+          },
+          "id": {
+            "title": "Id",
+            "type": "string"
+          },
+          "insight_id": {
+            "title": "Insight Id",
+            "type": "string"
+          },
+          "mode": {
+            "enum": [
+              "metadata_only",
+              "with_excerpts"
+            ],
+            "title": "Mode",
+            "type": "string"
+          },
+          "model": {
+            "anyOf": [
+              {
+                "type": "string"
+              },
+              {
+                "type": "null"
+              }
+            ],
+            "title": "Model"
+          },
+          "prompt_version": {
+            "anyOf": [
+              {
+                "type": "string"
+              },
+              {
+                "type": "null"
+              }
+            ],
+            "title": "Prompt Version"
+          },
+          "request_disclosure": {
+            "anyOf": [
+              {
+                "additionalProperties": true,
+                "type": "object"
+              },
+              {
+                "type": "null"
+              }
+            ],
+            "title": "Request Disclosure"
+          },
+          "result": {
+            "anyOf": [
+              {
+                "additionalProperties": true,
+                "type": "object"
+              },
+              {
+                "type": "null"
+              }
+            ],
+            "title": "Result"
+          },
+          "status": {
+            "enum": [
+              "completed",
+              "insufficient_evidence",
+              "failed"
+            ],
+            "title": "Status",
+            "type": "string"
+          },
+          "validation_errors": {
+            "anyOf": [
+              {
+                "items": {
+                  "type": "string"
+                },
+                "type": "array"
+              },
+              {
+                "type": "null"
+              }
+            ],
+            "title": "Validation Errors"
+          }
+        },
+        "required": [
+          "id",
+          "insight_id",
+          "model",
+          "prompt_version",
+          "mode",
+          "status",
+          "result",
+          "validation_errors",
+          "request_disclosure",
+          "created_at"
+        ],
+        "title": "InvestigationOut",
+        "type": "object"
+      },
+      "InvestigationPreviewOut": {
+        "description": "Disclosure preview: the exact bundle that would be sent, plus Q8 copy.",
+        "properties": {
+          "bundle": {
+            "additionalProperties": true,
+            "title": "Bundle",
+            "type": "object"
+          },
+          "contains_content": {
+            "title": "Contains Content",
+            "type": "boolean"
+          },
+          "contributor_training": {
+            "title": "Contributor Training",
+            "type": "boolean"
+          },
+          "destination": {
+            "title": "Destination",
+            "type": "string"
+          },
+          "disclosure_lines": {
+            "items": {
+              "type": "string"
+            },
+            "title": "Disclosure Lines",
+            "type": "array"
+          },
+          "model": {
+            "title": "Model",
+            "type": "string"
+          }
+        },
+        "required": [
+          "bundle",
+          "destination",
+          "model",
+          "contains_content",
+          "contributor_training",
+          "disclosure_lines"
+        ],
+        "title": "InvestigationPreviewOut",
         "type": "object"
       },
       "JobOut": {
@@ -1177,6 +1469,45 @@
           "created_at"
         ],
         "title": "PricingVersionOut",
+        "type": "object"
+      },
+      "PrivacyOut": {
+        "description": "Read-only reflections of `Settings`/env (Q14). No PUT: edit `.env` and restart.",
+        "properties": {
+          "allow_content_transmission": {
+            "title": "Allow Content Transmission",
+            "type": "boolean"
+          },
+          "contributor_training": {
+            "title": "Contributor Training",
+            "type": "boolean"
+          },
+          "investigator_model": {
+            "title": "Investigator Model",
+            "type": "string"
+          },
+          "local_token_configured": {
+            "title": "Local Token Configured",
+            "type": "boolean"
+          },
+          "store_content": {
+            "title": "Store Content",
+            "type": "boolean"
+          },
+          "upstream_base_url": {
+            "title": "Upstream Base Url",
+            "type": "string"
+          }
+        },
+        "required": [
+          "store_content",
+          "allow_content_transmission",
+          "upstream_base_url",
+          "investigator_model",
+          "local_token_configured",
+          "contributor_training"
+        ],
+        "title": "PrivacyOut",
         "type": "object"
       },
       "Project": {
@@ -2533,6 +2864,50 @@
   },
   "openapi": "3.1.0",
   "paths": {
+    "/api/v1/data": {
+      "delete": {
+        "operationId": "delete_data_api_v1_data_delete",
+        "parameters": [
+          {
+            "description": "ISO 8601 UTC bound; older events are deleted",
+            "in": "query",
+            "name": "before",
+            "required": true,
+            "schema": {
+              "description": "ISO 8601 UTC bound; older events are deleted",
+              "title": "Before",
+              "type": "string"
+            }
+          }
+        ],
+        "responses": {
+          "200": {
+            "content": {
+              "application/json": {
+                "schema": {
+                  "$ref": "#/components/schemas/DataDeleteResponse"
+                }
+              }
+            },
+            "description": "Successful Response"
+          },
+          "422": {
+            "content": {
+              "application/json": {
+                "schema": {
+                  "$ref": "#/components/schemas/HTTPValidationError"
+                }
+              }
+            },
+            "description": "Validation Error"
+          }
+        },
+        "summary": "Delete Data",
+        "tags": [
+          "data"
+        ]
+      }
+    },
     "/api/v1/health": {
       "get": {
         "operationId": "health_api_v1_health_get",
@@ -2837,6 +3212,210 @@
           }
         },
         "summary": "Patch Insight",
+        "tags": [
+          "insights"
+        ]
+      }
+    },
+    "/api/v1/insights/{insight_id}/feedback": {
+      "post": {
+        "operationId": "post_feedback_api_v1_insights__insight_id__feedback_post",
+        "parameters": [
+          {
+            "in": "path",
+            "name": "insight_id",
+            "required": true,
+            "schema": {
+              "title": "Insight Id",
+              "type": "string"
+            }
+          }
+        ],
+        "requestBody": {
+          "content": {
+            "application/json": {
+              "schema": {
+                "$ref": "#/components/schemas/FeedbackRequest"
+              }
+            }
+          },
+          "required": true
+        },
+        "responses": {
+          "201": {
+            "content": {
+              "application/json": {
+                "schema": {
+                  "$ref": "#/components/schemas/FeedbackOut"
+                }
+              }
+            },
+            "description": "Successful Response"
+          },
+          "422": {
+            "content": {
+              "application/json": {
+                "schema": {
+                  "$ref": "#/components/schemas/HTTPValidationError"
+                }
+              }
+            },
+            "description": "Validation Error"
+          }
+        },
+        "summary": "Post Feedback",
+        "tags": [
+          "insights"
+        ]
+      }
+    },
+    "/api/v1/insights/{insight_id}/investigate": {
+      "post": {
+        "operationId": "investigate_insight_api_v1_insights__insight_id__investigate_post",
+        "parameters": [
+          {
+            "in": "path",
+            "name": "insight_id",
+            "required": true,
+            "schema": {
+              "title": "Insight Id",
+              "type": "string"
+            }
+          }
+        ],
+        "requestBody": {
+          "content": {
+            "application/json": {
+              "schema": {
+                "$ref": "#/components/schemas/InvestigateRequest"
+              }
+            }
+          },
+          "required": true
+        },
+        "responses": {
+          "202": {
+            "content": {
+              "application/json": {
+                "schema": {}
+              }
+            },
+            "description": "Successful Response"
+          },
+          "422": {
+            "content": {
+              "application/json": {
+                "schema": {
+                  "$ref": "#/components/schemas/HTTPValidationError"
+                }
+              }
+            },
+            "description": "Validation Error"
+          }
+        },
+        "summary": "Investigate Insight",
+        "tags": [
+          "insights"
+        ]
+      }
+    },
+    "/api/v1/insights/{insight_id}/investigation-preview": {
+      "get": {
+        "operationId": "investigation_preview_api_v1_insights__insight_id__investigation_preview_get",
+        "parameters": [
+          {
+            "in": "path",
+            "name": "insight_id",
+            "required": true,
+            "schema": {
+              "title": "Insight Id",
+              "type": "string"
+            }
+          },
+          {
+            "in": "query",
+            "name": "mode",
+            "required": false,
+            "schema": {
+              "default": "metadata_only",
+              "enum": [
+                "metadata_only",
+                "with_excerpts"
+              ],
+              "title": "Mode",
+              "type": "string"
+            }
+          }
+        ],
+        "responses": {
+          "200": {
+            "content": {
+              "application/json": {
+                "schema": {
+                  "$ref": "#/components/schemas/InvestigationPreviewOut"
+                }
+              }
+            },
+            "description": "Successful Response"
+          },
+          "422": {
+            "content": {
+              "application/json": {
+                "schema": {
+                  "$ref": "#/components/schemas/HTTPValidationError"
+                }
+              }
+            },
+            "description": "Validation Error"
+          }
+        },
+        "summary": "Investigation Preview",
+        "tags": [
+          "insights"
+        ]
+      }
+    },
+    "/api/v1/insights/{insight_id}/investigations": {
+      "get": {
+        "operationId": "list_investigations_api_v1_insights__insight_id__investigations_get",
+        "parameters": [
+          {
+            "in": "path",
+            "name": "insight_id",
+            "required": true,
+            "schema": {
+              "title": "Insight Id",
+              "type": "string"
+            }
+          }
+        ],
+        "responses": {
+          "200": {
+            "content": {
+              "application/json": {
+                "schema": {
+                  "items": {
+                    "$ref": "#/components/schemas/InvestigationOut"
+                  },
+                  "title": "Response List Investigations Api V1 Insights  Insight Id  Investigations Get",
+                  "type": "array"
+                }
+              }
+            },
+            "description": "Successful Response"
+          },
+          "422": {
+            "content": {
+              "application/json": {
+                "schema": {
+                  "$ref": "#/components/schemas/HTTPValidationError"
+                }
+              }
+            },
+            "description": "Validation Error"
+          }
+        },
+        "summary": "List Investigations",
         "tags": [
           "insights"
         ]
@@ -3290,6 +3869,28 @@
           }
         },
         "summary": "Upsert Pricing",
+        "tags": [
+          "settings"
+        ]
+      }
+    },
+    "/api/v1/settings/privacy": {
+      "get": {
+        "description": "Read-only privacy reflections of `Settings`/env (Q14). No PUT.",
+        "operationId": "get_privacy_api_v1_settings_privacy_get",
+        "responses": {
+          "200": {
+            "content": {
+              "application/json": {
+                "schema": {
+                  "$ref": "#/components/schemas/PrivacyOut"
+                }
+              }
+            },
+            "description": "Successful Response"
+          }
+        },
+        "summary": "Get Privacy",
         "tags": [
           "settings"
         ]

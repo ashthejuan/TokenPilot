@@ -179,6 +179,88 @@ def _body_wants_stream(raw_body: bytes) -> bool:
     return isinstance(parsed, dict) and parsed.get("stream") is True
 
 
+def _request_bundle(payload: dict[str, Any]) -> dict[str, Any]:
+    """The evidence bundle JSON carried in the user message, or {} when absent."""
+    messages = payload.get("messages")
+    if not isinstance(messages, list):
+        return {}
+    for message in messages:
+        if not isinstance(message, dict) or message.get("role") != "user":
+            continue
+        try:
+            candidate = json.loads(message.get("content", ""))
+        except (ValueError, TypeError, AttributeError):
+            continue
+        if isinstance(candidate, dict) and isinstance(candidate.get("events"), list):
+            return candidate
+    return {}
+
+
+def canned_investigation_for_request(raw_body: bytes) -> dict[str, Any] | None:
+    """A valid `InvestigationOutput` derived from the request's own bundle.
+
+    The CLI fake server has no seeded insight, so it cites the bundle it was
+    sent: the first event id (via ``evidence_ids`` only, never embedded in
+    prose where digit runs would fail number validation) and the aggregate
+    ``event_count``. Every other string is digit-free by construction.
+    Returns None for non-investigation requests.
+    """
+    try:
+        payload = json.loads(raw_body.decode("utf-8"))
+    except (ValueError, UnicodeDecodeError):
+        return None
+    if not isinstance(payload, dict):
+        return None
+    response_format = payload.get("response_format")
+    schema = response_format.get("json_schema") if isinstance(response_format, dict) else None
+    if not isinstance(schema, dict) or schema.get("name") != "investigation":
+        return None
+
+    bundle = _request_bundle(payload)
+    events = bundle.get("events") or []
+    first = events[0] if events and isinstance(events[0], dict) else {}
+    evidence_id = first.get("id") if isinstance(first.get("id"), str) else None
+    aggregates = bundle.get("aggregates") if isinstance(bundle.get("aggregates"), dict) else {}
+    event_count = aggregates.get("event_count", len(events))
+    count = event_count if isinstance(event_count, int) else len(events)
+    summary = (
+        "Bundle holds no related events for review."
+        if count == 0
+        else f"Bundle holds {count} related events for review."
+    )
+
+    return {
+        "title": "Retry pattern under review",
+        "summary": summary,
+        "observed_facts": [
+            {
+                "statement": (
+                    "The earliest related event in the bundle shows "
+                    "a retry after a rate limit."
+                ),
+                "evidence_ids": [evidence_id] if evidence_id else [],
+            }
+        ],
+        "root_cause_hypothesis": (
+            "Retries after rate limits repeat work that the first attempt started."
+        ),
+        "impact_assessment": "Each retry adds spend without new progress.",
+        "recommendation": {
+            "action": "Cap automatic retries for rate-limited calls.",
+            "variable_to_change": "retry_policy",
+            "expected_direction": "lower_cost",
+            "validation_procedure": "Compare retry spend before and after the cap.",
+            "proposed_benchmark": {
+                "baseline_change": "Keep current retry behavior.",
+                "alternative_change": "Cap retries after rate limits.",
+            },
+        },
+        "confidence": "medium",
+        "limitations": ["The bundle covers recent events only."],
+        "verdict": "supported",
+    }
+
+
 def _delta_chunk(index: int) -> str:
     return json.dumps({"choices": [{"index": 0, "delta": {"content": f"tok{index}"}}]})
 
@@ -308,6 +390,29 @@ class _Handler(BaseHTTPRequestHandler):
             content=raw_body,
             headers={"content-type": self.headers.get("Content-Type", "application/json")},
         )
+        async def read_all(response: httpx.Response) -> bytes:
+            if isinstance(response.stream, httpx.AsyncByteStream):
+                chunks = [chunk async for chunk in response.stream]
+                return b"".join(chunks)
+            return response.read()
+
+        def send(response: httpx.Response) -> None:
+            body = asyncio.run(read_all(response))
+            self.send_response(response.status_code)
+            self.send_header(
+                "Content-Type", response.headers.get("content-type", "application/json")
+            )
+            self.send_header("Content-Length", str(len(body)))
+            self.end_headers()
+            self.wfile.write(body)
+
+        canned = canned_investigation_for_request(raw_body)
+        if canned is not None:
+            with _CLI_LOCK:
+                _CLI_FAKE.enqueue_investigation(canned, usage=dict(DEFAULT_OK_USAGE))
+                send(_CLI_FAKE._handle(request))
+            return
+
         name = self.headers.get("X-Fake-Behavior")
         if name is None and _body_wants_stream(raw_body):
             name = "stream"
@@ -337,18 +442,7 @@ class _Handler(BaseHTTPRequestHandler):
             self.close_connection = True
             return
 
-        async def read_all() -> bytes:
-            if isinstance(response.stream, httpx.AsyncByteStream):
-                chunks = [chunk async for chunk in response.stream]
-                return b"".join(chunks)
-            return response.read()
-
-        body = asyncio.run(read_all())
-        self.send_response(response.status_code)
-        self.send_header("Content-Type", response.headers.get("content-type", "application/json"))
-        self.send_header("Content-Length", str(len(body)))
-        self.end_headers()
-        self.wfile.write(body)
+        send(response)
 
     do_GET = _serve
     do_POST = _serve

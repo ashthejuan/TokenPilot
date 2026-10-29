@@ -14,6 +14,7 @@ type InsightActionsProps = {
   insightId: string;
   status: InsightStatus;
   onUpdated: (insight: InsightOut) => void;
+  onInvestigate?: () => void;
 };
 
 function errorText(error: unknown): string {
@@ -21,7 +22,7 @@ function errorText(error: unknown): string {
   return "Could not update insight status.";
 }
 
-export function InsightActions({ insightId, status, onUpdated }: InsightActionsProps) {
+export function InsightActions({ insightId, status, onUpdated, onInvestigate }: InsightActionsProps) {
   const [busy, setBusy] = useState<string | null>(null);
   const [error, setError] = useState<string | null>(null);
 
@@ -75,14 +76,25 @@ export function InsightActions({ insightId, status, onUpdated }: InsightActionsP
               {busy === "reopen" ? "Saving…" : "Reopen"}
             </Button>
           ) : null}
-          <Tooltip>
-            <TooltipTrigger delay={0} render={<span className="inline-flex cursor-not-allowed" />}>
-              <Button size="sm" variant="outline" disabled>
-                Investigate
-              </Button>
-            </TooltipTrigger>
-            <TooltipContent>Phase 3</TooltipContent>
-          </Tooltip>
+          {onInvestigate ? (
+            <Button
+              size="sm"
+              variant="outline"
+              disabled={busy !== null}
+              onClick={onInvestigate}
+            >
+              Investigate
+            </Button>
+          ) : (
+            <Tooltip>
+              <TooltipTrigger delay={0} render={<span className="inline-flex cursor-not-allowed" />}>
+                <Button size="sm" variant="outline" disabled>
+                  Investigate
+                </Button>
+              </TooltipTrigger>
+              <TooltipContent>Phase 3</TooltipContent>
+            </Tooltip>
+          )}
           <Tooltip>
             <TooltipTrigger delay={0} render={<span className="inline-flex cursor-not-allowed" />}>
               <Button size="sm" variant="outline" disabled>

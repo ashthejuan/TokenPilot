@@ -120,6 +120,31 @@ def test_exported_patch_applies_cleanly(repo: Path, data_dir: Path) -> None:
         remove_worktree(wt)
 
 
+def test_patch_skips_cache_noise_but_keeps_new_files(
+    repo: Path, data_dir: Path
+) -> None:
+    wt = create_worktree(repo, "HEAD", "run-cache-noise", data_dir=data_dir)
+    try:
+        cache = wt.path / ".pytest_cache" / "v" / "cache"
+        cache.mkdir(parents=True)
+        (cache / "lastfailed").write_text("{}\n")
+        pycache = wt.path / "__pycache__"
+        pycache.mkdir()
+        (pycache / "calc.cpython-312.pyc").write_bytes(b"\x00\x01fake-bytecode")
+        result = AgentTools(wt.path).write_file(
+            "brand_new.py", "NEW_MARKER = 'real-content-here'\n"
+        )
+        assert not result.startswith("Error: ")
+        patch = export_patch(wt, data_dir=data_dir)
+        text = patch.read_text()
+        assert "brand_new.py" in text
+        assert "real-content-here" in text
+        assert ".pytest_cache" not in text
+        assert "__pycache__" not in text
+    finally:
+        remove_worktree(wt)
+
+
 def test_exported_empty_patch_stays_empty(repo: Path, data_dir: Path) -> None:
     wt = create_worktree(repo, "HEAD", "run-empty-patch", data_dir=data_dir)
     try:

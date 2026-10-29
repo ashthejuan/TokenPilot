@@ -134,6 +134,13 @@ def create_app(
         timeout = httpx.Timeout(connect=10.0, read=300.0, write=30.0, pool=10.0)
         upstream = httpx.AsyncClient(timeout=timeout, transport=upstream_transport)
         app.state.upstream = upstream
+        # Worker-driven benchmark traffic runs on a different event loop than
+        # the server, and a pooled connection is bound to its loop: sharing
+        # one client breaks concurrent gateway traffic with
+        # "Event loop is closed". The gateway routes benchmark-header
+        # requests to this dedicated client instead.
+        benchmark_upstream = httpx.AsyncClient(timeout=timeout, transport=upstream_transport)
+        app.state.benchmark_upstream = benchmark_upstream
         # Sync MetaClient (investigator) reuses the same MockTransport in tests.
         app.state.upstream_transport = upstream_transport
         # The benchmark worker drives the agent through this same app over ASGI,
@@ -153,6 +160,7 @@ def create_app(
         finally:
             worker.stop()
             await upstream.aclose()
+            await benchmark_upstream.aclose()
             db.close()
 
     app = FastAPI(title="TokenPilot API", version="0.1.0", lifespan=lifespan)

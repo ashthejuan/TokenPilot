@@ -146,6 +146,11 @@ def read_attribution(headers: Mapping[str, str]) -> Attribution:
     )
 
 
+def is_benchmark_request(headers: Mapping[str, str]) -> bool:
+    """True when the benchmark-run attribution header marks worker traffic."""
+    return read_attribution(headers).benchmark_run is not None
+
+
 def build_upstream_headers(headers: Mapping[str, str], api_key: str) -> dict[str, str]:
     """Rewrite client headers for upstream: fresh auth, identity encoding."""
     forwarded = {

@@ -7,6 +7,11 @@ from pathlib import Path
 
 from tokenpilot.config import DEFAULT_DATA_DIR
 
+# Top-level entries never staged into the patch: acceptance runs create
+# interpreter and pytest caches in the worktree, and the fixture ships no
+# .gitignore to exclude them.
+_SKIP_TOP_SEGMENTS = frozenset({".git", ".pytest_cache", "__pycache__"})
+
 
 @dataclass(frozen=True)
 class Worktree:
@@ -73,7 +78,7 @@ def export_patch(wt: Worktree, data_dir: Path | None = None) -> Path:
     untracked = [
         entry
         for entry in others
-        if entry and entry.split("/")[0].casefold() != ".git"
+        if entry and entry.split("/")[0].casefold() not in _SKIP_TOP_SEGMENTS
     ]
     if untracked:
         _git(["add", "-N", "--", *untracked], cwd=wt.path)

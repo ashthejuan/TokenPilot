@@ -384,12 +384,30 @@ def test_metrics_none_when_no_eligible_runs() -> None:
     assert cost_per_success([_run_out("passed", None)]) is None
 
 
+def test_retry_amplification_is_retry_cost_share() -> None:
+    runs = [
+        _run_out("passed", "0.20", requests=4, retries=1),
+        _run_out("passed", "0.20", requests=4, retries=3),
+    ]
+    # Retry cost 0.20*1/4 + 0.20*3/4 = 0.20 over total cost 0.40.
+    assert retry_amplification(runs) == Decimal("0.5")
+    assert retry_amplification([]) is None
+    assert (
+        retry_amplification([_run_out("passed", "0.10", requests=0, retries=0)])
+        is None
+    )
+    assert retry_amplification([_run_out("passed", None)]) is None
+    assert retry_amplification([_run_out("cancelled", "0.10")]) is None
+
+
 def test_metrics_retry_latency_and_stdev() -> None:
     runs = [
         _run_out("passed", "0.10", requests=4, retries=1, duration_ms=1000),
         _run_out("passed", "0.14", requests=2, retries=0, duration_ms=3000),
     ]
-    assert retry_amplification(runs) == Decimal(6) / Decimal(5)
+    # Was requests/first-attempts (6/5); PRD §11.3 defines retry cost share:
+    # 0.10*1/4 + 0.14*0/2 = 0.025 retry cost over 0.24 total cost.
+    assert retry_amplification(runs) == Decimal("0.025") / Decimal("0.24")
     assert retry_amplification([]) is None
     stats = latency_stats(runs)
     assert stats == {"median": 2000.0, "p90": 3000.0}

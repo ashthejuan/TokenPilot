@@ -9,6 +9,7 @@ import {
   TableRow,
 } from "@/components/ui/table";
 import {
+  eligibleRuns,
   formatDurationMs,
   methodologyFlag,
   methodologyNumber,
@@ -90,7 +91,7 @@ export function ComparisonView({
   const sides = [
     { label: comparison.baseline_variant, runs: baselineRuns },
     { label: comparison.alternative_variant, runs: alternativeRuns },
-  ];
+  ].map((side) => ({ ...side, eligible: eligibleRuns(side.runs) }));
   const currency = firstCurrency(baselineRuns) ?? firstCurrency(alternativeRuns);
   const methodology = comparison.methodology;
   const lowSample = methodologyFlag(methodology, "low_sample");
@@ -146,12 +147,12 @@ export function ComparisonView({
             ))}
           </TableRow>
           <TableRow>
-            <TableCell className="font-medium">Total cost</TableCell>
+            <TableCell className="font-medium">Total (eligible runs)</TableCell>
             {sides.map((side) => (
               <TableCell key={side.label} className="tabular-nums">
                 <CostValue
-                  value={addMoney(...side.runs.map((run) => run.total_cost))}
-                  currency={firstCurrency(side.runs)}
+                  value={addMoney(...side.eligible.map((run) => run.total_cost))}
+                  currency={firstCurrency(side.eligible)}
                 />
               </TableCell>
             ))}
@@ -160,7 +161,7 @@ export function ComparisonView({
             <TableCell className="font-medium">Tokens</TableCell>
             {sides.map((side) => (
               <TableCell key={side.label} className="tabular-nums">
-                {formatCount(sumNullable(...side.runs.map((run) => run.total_tokens)))}
+                {formatCount(sumNullable(...side.eligible.map((run) => run.total_tokens)))}
               </TableCell>
             ))}
           </TableRow>
@@ -168,7 +169,7 @@ export function ComparisonView({
             <TableCell className="font-medium">Runtime</TableCell>
             {sides.map((side) => (
               <TableCell key={side.label} className="tabular-nums">
-                {formatDurationMs(sumNullable(...side.runs.map((run) => run.duration_ms)))}
+                {formatDurationMs(sumNullable(...side.eligible.map((run) => run.duration_ms)))}
               </TableCell>
             ))}
           </TableRow>
@@ -176,7 +177,7 @@ export function ComparisonView({
             <TableCell className="font-medium">Requests</TableCell>
             {sides.map((side) => (
               <TableCell key={side.label} className="tabular-nums">
-                {side.runs.reduce((sum, run) => sum + run.request_count, 0)}
+                {side.eligible.reduce((sum, run) => sum + run.request_count, 0)}
               </TableCell>
             ))}
           </TableRow>
@@ -184,7 +185,7 @@ export function ComparisonView({
             <TableCell className="font-medium">Retries</TableCell>
             {sides.map((side) => (
               <TableCell key={side.label} className="tabular-nums">
-                {side.runs.reduce((sum, run) => sum + run.retry_count, 0)}
+                {side.eligible.reduce((sum, run) => sum + run.retry_count, 0)}
               </TableCell>
             ))}
           </TableRow>

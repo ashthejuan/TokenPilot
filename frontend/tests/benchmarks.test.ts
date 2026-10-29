@@ -1,9 +1,11 @@
 import { describe, expect, it } from "vitest";
 
 import {
+  eligibleRuns,
   latestComparison,
   savingsBadgeKind,
   savingsBadgeLabel,
+  type BenchmarkRunOut,
   type ComparisonOut,
 } from "@/lib/benchmarks";
 
@@ -75,6 +77,28 @@ describe("savingsBadgeLabel", () => {
       savingsBadgeLabel({ status: "potential", correctness_preserved: null, cost_delta: null }),
     ).toBe("Potential savings");
   });
+
+  it("labels a costlier-but-correct alternative as no savings", () => {
+    expect(
+      savingsBadgeLabel({ status: "measured", correctness_preserved: true, cost_delta: -0.05 }),
+    ).toBe("No savings");
+    expect(
+      savingsBadgeLabel({
+        status: "correctness_preserving",
+        correctness_preserved: true,
+        cost_delta: -0.05,
+      }),
+    ).toBe("No savings");
+  });
+
+  it("labels a zero delta as no savings and keeps a null delta as measured", () => {
+    expect(
+      savingsBadgeLabel({ status: "measured", correctness_preserved: true, cost_delta: 0 }),
+    ).toBe("No savings");
+    expect(
+      savingsBadgeLabel({ status: "measured", correctness_preserved: true, cost_delta: null }),
+    ).toBe("Measured savings");
+  });
 });
 
 describe("savingsBadgeKind", () => {
@@ -107,5 +131,50 @@ describe("latestComparison", () => {
     const newer = comparisonFixture({ id: "cmp-new", comparison_status: "verified" });
 
     expect(latestComparison([newer, older])).toBe(newer);
+  });
+});
+
+function runFixture(overrides: Partial<BenchmarkRunOut>): BenchmarkRunOut {
+  return {
+    id: "run-1",
+    benchmark_id: "bench-1",
+    variant_name: "baseline",
+    model_id: "fake-large",
+    config: {},
+    run_status: "completed",
+    outcome: "passed",
+    total_cost: 0.3,
+    currency: "USD",
+    unknown_cost_events: 0,
+    total_tokens: 100,
+    request_count: 4,
+    retry_count: 0,
+    duration_ms: 1000,
+    test_exit_code: 0,
+    test_results: null,
+    patch_path: null,
+    worktree_path: null,
+    started_at: null,
+    completed_at: null,
+    repeat_index: 0,
+    error: null,
+    eligible: true,
+    ...overrides,
+  };
+}
+
+describe("eligibleRuns", () => {
+  it("keeps completed scored runs and drops active, cancelled, and inconclusive ones", () => {
+    const runs = [
+      runFixture({ id: "a", outcome: "passed" }),
+      runFixture({ id: "b", outcome: "failed" }),
+      runFixture({ id: "c", outcome: "timed_out" }),
+      runFixture({ id: "d", outcome: "cancelled" }),
+      runFixture({ id: "e", outcome: "inconclusive" }),
+      runFixture({ id: "f", run_status: "running", outcome: null }),
+      runFixture({ id: "g", run_status: "queued", outcome: null }),
+    ];
+
+    expect(eligibleRuns(runs).map((run) => run.id)).toEqual(["a", "b", "c"]);
   });
 });

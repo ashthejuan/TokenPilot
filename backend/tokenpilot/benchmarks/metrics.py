@@ -50,16 +50,31 @@ def cost_per_success(runs: Sequence[BenchmarkRunOut]) -> Decimal | None:
 
 
 def retry_amplification(runs: Sequence[BenchmarkRunOut]) -> Decimal | None:
-    """Total model requests per first attempt, across eligible runs.
+    """Share of eligible-run cost attributable to retry requests (PRD §11.3).
 
-    1.0 means no retries; None when no first attempts exist.
+    The ledger records cost per event, not per request, so each run's retry
+    cost is attributed proportionally: `total_cost * retry_count /
+    request_count`. This is approximate: it assumes every request in a run
+    costs the same. Runs with unknown cost are skipped (same convention as
+    `stdev_cost`); None when no eligible run has a known cost, when eligible
+    costs sum to zero, or when eligible requests total zero.
     """
-    eligible = _eligible(runs)
-    first_attempts = sum(run.request_count - run.retry_count for run in eligible)
-    if first_attempts <= 0:
+    known = [run for run in _eligible(runs) if run.total_cost is not None]
+    if not known:
         return None
-    total_requests = sum(run.request_count for run in eligible)
-    return Decimal(total_requests) / Decimal(first_attempts)
+    if sum(run.request_count for run in known) <= 0:
+        return None
+    total_cost = Decimal(0)
+    retry_cost = Decimal(0)
+    for run in known:
+        cost = run.total_cost
+        assert cost is not None
+        total_cost += cost
+        if run.request_count > 0:
+            retry_cost += cost * run.retry_count / run.request_count
+    if total_cost == 0:
+        return None
+    return retry_cost / total_cost
 
 
 def latency_stats(runs: Sequence[BenchmarkRunOut]) -> dict[str, float] | None:

@@ -363,7 +363,7 @@ def get_run_patch(run_id: str, db: Annotated[Database, Depends(get_db)]) -> Plai
     if not run.patch_path:
         raise HTTPException(status_code=404, detail="benchmark run has no patch")
     try:
-        text = Path(run.patch_path).read_text(encoding="utf-8")
+        text = Path(run.patch_path).read_bytes().decode("utf-8", errors="replace")
     except OSError:
         raise HTTPException(status_code=404, detail="patch file not found") from None
     return PlainTextResponse(text)

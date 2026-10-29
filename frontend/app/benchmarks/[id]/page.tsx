@@ -12,6 +12,7 @@ import { Card, CardContent, CardDescription, CardHeader, CardTitle } from "@/com
 import { ApiError, apiGet, apiSend } from "@/lib/api";
 import {
   isRunActive,
+  latestComparison,
   methodologyStrings,
   variablesChangedLabel,
   type BenchmarkDetail,
@@ -85,13 +86,19 @@ export default function BenchmarkDetailPage() {
     [benchmarkId],
   );
 
+  const fetchComparisons = useCallback(
+    () => apiGet<ComparisonOut[]>(`api/v1/benchmarks/${benchmarkId}/comparisons`),
+    [benchmarkId],
+  );
+
   useEffect(() => {
     let cancelled = false;
     setLoading(true);
-    fetchDetail()
-      .then((next) => {
+    Promise.all([fetchDetail(), fetchComparisons()])
+      .then(([next, comparisons]) => {
         if (cancelled) return;
         setDetail(next);
+        setComparison(latestComparison(comparisons));
         setError(null);
       })
       .catch((err: unknown) => {
@@ -103,7 +110,7 @@ export default function BenchmarkDetailPage() {
     return () => {
       cancelled = true;
     };
-  }, [fetchDetail]);
+  }, [fetchDetail, fetchComparisons]);
 
   const hasActive = useMemo(
     () => (detail?.runs ?? []).some(isRunActive),
@@ -149,13 +156,13 @@ export default function BenchmarkDetailPage() {
     setComparing(true);
     setCompareError(null);
     try {
-      const result = await apiSend<ComparisonOut>(
+      await apiSend<ComparisonOut>(
         "POST",
         `api/v1/benchmarks/${benchmarkId}/compare`,
         { baseline_variant: baselineVariant, alternative_variant: alternativeVariant },
       );
-      setComparison(result);
       setDetail(await fetchDetail());
+      setComparison(latestComparison(await fetchComparisons()));
     } catch (err: unknown) {
       setCompareError(errorText(err));
     } finally {

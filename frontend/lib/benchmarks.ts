@@ -33,6 +33,8 @@ export function savingsBadgeLabel(input: SavingsInput): string {
       return "Verified savings";
     case "measured":
     case "correctness_preserving":
+      // A correct result that costs as much or more measured no savings.
+      if (input.cost_delta !== null && input.cost_delta <= 0) return "No savings";
       return input.correctness_preserved === false ? "Not an optimization" : "Measured savings";
     case "inconclusive":
       return "Inconclusive";
@@ -60,6 +62,19 @@ export function savingsBadgeKind(input: SavingsInput): SavingsKind {
 
 export function isRunActive(run: Pick<BenchmarkRunOut, "run_status">): boolean {
   return run.run_status === "queued" || run.run_status === "running";
+}
+
+/**
+ * Runs that entered the comparison means: completed with a scored outcome.
+ * Mirrors the backend eligibility rule (`metrics._eligible`), so view totals
+ * reconcile with the eligible-means delta.
+ */
+export function eligibleRuns(runs: BenchmarkRunOut[]): BenchmarkRunOut[] {
+  return runs.filter(
+    (run) =>
+      run.run_status === "completed" &&
+      (run.outcome === "passed" || run.outcome === "failed" || run.outcome === "timed_out"),
+  );
 }
 
 export type BenchmarkStatus = "empty" | "running" | "done";

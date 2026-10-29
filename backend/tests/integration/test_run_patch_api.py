@@ -105,3 +105,25 @@ def test_run_patch_serves_text_and_404s_without_patch(
 
     unknown = client.get("/api/v1/benchmark-runs/does-not-exist/patch", headers=auth_headers)
     assert unknown.status_code == 404
+
+
+def test_run_patch_serves_non_utf8_bytes_with_replacement_chars(
+    client: TestClient,
+    auth_headers: dict[str, str],
+    settings: Settings,
+    tmp_path: Path,
+) -> None:
+    run_id = _seed_run_id(settings)
+    patch_file = tmp_path / "run.patch"
+    patch_file.write_bytes(b"diff --git a/x b/x\n+\xff\xfe not utf-8\n")
+    conn = connect(settings.db_path)
+    try:
+        BenchmarkStore(conn).update_run(run_id, patch_path=str(patch_file))
+        conn.commit()
+    finally:
+        conn.close()
+
+    response = client.get(f"/api/v1/benchmark-runs/{run_id}/patch", headers=auth_headers)
+
+    assert response.status_code == 200, response.text
+    assert response.text == "diff --git a/x b/x\n+\ufffd\ufffd not utf-8\n"

@@ -17,6 +17,9 @@ from tokenpilot.schemas.usage import UsageEvent
 
 InsightStatus = Literal["new", "reviewed", "dismissed", "tested"]
 JobStatus = Literal["queued", "running", "succeeded", "failed"]
+InvestigationMode = Literal["metadata_only", "with_excerpts"]
+InvestigationStatus = Literal["completed", "insufficient_evidence", "failed"]
+FeedbackVerdict = Literal["useful", "not_useful", "not_applicable"]
 # Keep in sync with `detectors.base.RULE_IDS` (mypy rejects `Literal[*RULE_IDS]`).
 RuleId = Literal[
     "repeated_request",
@@ -101,6 +104,32 @@ class JobOut(BaseModel):
     created_at: str
     started_at: str | None
     finished_at: str | None
+
+
+class InvestigationOut(BaseModel):
+    """One finished investigation run persisted for an insight."""
+
+    id: str
+    insight_id: str
+    model: str | None
+    prompt_version: str | None
+    mode: InvestigationMode
+    status: InvestigationStatus
+    result: dict[str, Any] | None
+    validation_errors: list[str] | None
+    request_disclosure: dict[str, Any] | None
+    created_at: str
+
+
+class FeedbackOut(BaseModel):
+    """One recommendation-feedback row from a user."""
+
+    id: str
+    insight_id: str
+    verdict: FeedbackVerdict
+    implemented: bool | None
+    note: str | None
+    created_at: str
 
 
 class ThresholdsResponse(BaseModel):

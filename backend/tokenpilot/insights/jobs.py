@@ -22,7 +22,7 @@ from tokenpilot.timeutil import utc_now_z
 
 __all__ = ["INTERRUPTED_ERROR", "JobKind", "JobRepository", "run_analysis_job"]
 
-JobKind = Literal["analyze"]
+JobKind = Literal["analyze", "investigate"]
 INTERRUPTED_ERROR = "interrupted by restart"
 
 _JOB_COLUMNS = (

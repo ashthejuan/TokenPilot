@@ -92,6 +92,15 @@ class FakeUpstream:
     def enqueue(self, behavior: Behavior) -> None:
         self._behaviors.append(behavior)
 
+    def enqueue_investigation(
+        self, content: dict[str, Any], *, usage: dict[str, Any] | None = None
+    ) -> None:
+        """Queue a chat completion whose message content is the investigation JSON.
+
+        Used when the request asks for ``response_format.json_schema.name == "investigation"``.
+        """
+        self._behaviors.append(Behavior(kind="investigation", body=content, usage=usage))
+
     def transport(self) -> httpx.MockTransport:
         return httpx.MockTransport(self._handle)
 
@@ -130,6 +139,15 @@ class FakeUpstream:
                 200,
                 content=self._reset_body(request, chunks),
                 headers={"content-type": "text/event-stream"},
+            )
+        if behavior.kind == "investigation":
+            body = behavior.body if isinstance(behavior.body, dict) else {}
+            return _investigation_response(
+                _requested_model(request),
+                self._next_id(),
+                body,
+                behavior.usage,
+                status=behavior.status,
             )
         return _chat_response(
             _requested_model(request), self._next_id(), behavior.usage, status=behavior.status
@@ -176,6 +194,37 @@ def _chat_response(
             {
                 "index": 0,
                 "message": {"role": "assistant", "content": "ok"},
+                "finish_reason": "stop",
+            }
+        ],
+    }
+    if usage is not None:
+        body["usage"] = usage
+    return httpx.Response(
+        status,
+        content=json.dumps(body).encode(),
+        headers={"content-type": "application/json"},
+    )
+
+
+def _investigation_response(
+    model: str,
+    source_id: str,
+    content: dict[str, Any],
+    usage: dict[str, Any] | None,
+    status: int = 200,
+) -> httpx.Response:
+    body: dict[str, Any] = {
+        "id": source_id,
+        "object": "chat.completion",
+        "model": model,
+        "choices": [
+            {
+                "index": 0,
+                "message": {
+                    "role": "assistant",
+                    "content": json.dumps(content),
+                },
                 "finish_reason": "stop",
             }
         ],

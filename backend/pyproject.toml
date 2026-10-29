@@ -38,7 +38,7 @@ target-version = "py312"
 select = ["E", "F", "I", "UP", "B", "SIM", "RUF"]
 
 [tool.setuptools.package-data]
-tokenpilot = ["pricing/catalog.yaml"]
+tokenpilot = ["pricing/catalog.yaml", "investigator/prompts/*.md"]
 
 [tool.mypy]
 python_version = "3.12"

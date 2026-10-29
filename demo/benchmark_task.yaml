@@ -1,0 +1,29 @@
+name: fix-discount-before-tax
+description: Fix the discount-before-tax bug in the invoicing fixture so the full test suite passes.
+task_prompt: >-
+  The invoicing fixture in this repository has one bug: apply_discount in
+  invoicing/discounts.py applies a percentage discount after tax instead of
+  before. Fix the calculation so the discount is taken before tax (percentage
+  tax on the discounted subtotal, flat levy added in full afterwards), making
+  the full test suite pass. Do not change any tests.
+initial_ref: main
+acceptance:
+  command: ["python", "-m", "pytest", "-q"]
+  required_pass: ["tests/test_discounts.py::test_discount_applied_before_tax"]
+  min_success_rate: 1.0
+timeout_s: 300
+repeat_count: 3
+baseline:
+  model_id: "muse-spark-1.3"
+  context_strategy: "full_repo"
+  max_steps: 12
+  retry_policy:
+    max_retries: 2
+alternatives:
+  - name: "targeted-context"
+    changes:
+      context_strategy: "targeted"
+    context_files:
+      - "invoicing/discounts.py"
+      - "invoicing/tax.py"
+      - "tests/test_discounts.py"

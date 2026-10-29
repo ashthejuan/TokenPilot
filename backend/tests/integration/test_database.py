@@ -28,7 +28,7 @@ def test_health_uses_shared_database(
     response = client.get("/api/v1/health", headers=auth_headers)
 
     assert response.status_code == 200
-    assert response.json()["schema_version"] == 2
+    assert response.json()["schema_version"] == 3
 
 
 def test_shared_database_concurrent_reads(

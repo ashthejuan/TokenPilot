@@ -1,0 +1,146 @@
+{
+  "now": "2026-10-28T13:00:00.000Z",
+  "events": [
+    {
+      "provider": "fake",
+      "model_id": "fake-small",
+      "started_at": "2026-10-28T12:00:00.000Z",
+      "completed_at": "2026-10-28T12:00:01.000Z",
+      "input_tokens": 1500,
+      "output_tokens": 300,
+      "latency_ms": 1000,
+      "http_status": 200,
+      "usage_source": "provider",
+      "status": "success",
+      "source_event_id": "lr-1",
+      "project_id": "demo",
+      "external_session_id": "sess-legit-repeats",
+      "task_id": "task-alpha",
+      "request_fingerprint": "fp-shared-template"
+    },
+    {
+      "provider": "fake",
+      "model_id": "fake-small",
+      "started_at": "2026-10-28T12:00:20.000Z",
+      "completed_at": "2026-10-28T12:00:21.000Z",
+      "input_tokens": 1500,
+      "output_tokens": 300,
+      "latency_ms": 1000,
+      "http_status": 200,
+      "usage_source": "provider",
+      "status": "success",
+      "source_event_id": "lr-2",
+      "project_id": "demo",
+      "external_session_id": "sess-legit-repeats",
+      "task_id": "task-beta",
+      "request_fingerprint": "fp-shared-template"
+    },
+    {
+      "provider": "fake",
+      "model_id": "fake-small",
+      "started_at": "2026-10-28T12:00:40.000Z",
+      "completed_at": "2026-10-28T12:00:41.000Z",
+      "input_tokens": 1500,
+      "output_tokens": 300,
+      "latency_ms": 1000,
+      "http_status": 200,
+      "usage_source": "provider",
+      "status": "success",
+      "source_event_id": "lr-3",
+      "project_id": "demo",
+      "external_session_id": "sess-legit-repeats",
+      "task_id": "task-gamma",
+      "request_fingerprint": "fp-shared-template"
+    },
+    {
+      "provider": "fake",
+      "model_id": "fake-small",
+      "started_at": "2026-10-28T12:01:00.000Z",
+      "completed_at": "2026-10-28T12:01:01.000Z",
+      "input_tokens": 1200,
+      "output_tokens": 250,
+      "latency_ms": 1000,
+      "http_status": 200,
+      "usage_source": "provider",
+      "status": "success",
+      "source_event_id": "lr-4",
+      "project_id": "demo",
+      "external_session_id": "sess-legit-repeats",
+      "task_id": "task-alpha",
+      "request_fingerprint": "fp-intentional-poll",
+      "metadata": {
+        "intentional_repeat": true
+      }
+    },
+    {
+      "provider": "fake",
+      "model_id": "fake-small",
+      "started_at": "2026-10-28T12:01:30.000Z",
+      "completed_at": "2026-10-28T12:01:31.000Z",
+      "input_tokens": 1200,
+      "output_tokens": 250,
+      "latency_ms": 1000,
+      "http_status": 200,
+      "usage_source": "provider",
+      "status": "success",
+      "source_event_id": "lr-5",
+      "project_id": "demo",
+      "external_session_id": "sess-legit-repeats",
+      "task_id": "task-alpha",
+      "request_fingerprint": "fp-intentional-poll",
+      "metadata": {
+        "intentional_repeat": true
+      }
+    },
+    {
+      "provider": "fake",
+      "model_id": "fake-small",
+      "started_at": "2026-10-28T12:15:00.000Z",
+      "completed_at": "2026-10-28T12:15:01.000Z",
+      "input_tokens": 1500,
+      "output_tokens": 300,
+      "latency_ms": 1000,
+      "http_status": 200,
+      "usage_source": "provider",
+      "status": "success",
+      "source_event_id": "lr-6",
+      "project_id": "demo",
+      "external_session_id": "sess-legit-repeats",
+      "task_id": "task-alpha",
+      "request_fingerprint": "fp-shared-template"
+    }
+  ],
+  "sessions": [
+    {
+      "source": "api",
+      "external_session_id": "sess-legit-repeats",
+      "outcome": "success"
+    }
+  ],
+  "tasks": [
+    {
+      "project_id": "demo",
+      "external_task_id": "task-alpha",
+      "outcome": "succeeded"
+    },
+    {
+      "project_id": "demo",
+      "external_task_id": "task-beta",
+      "outcome": "succeeded"
+    },
+    {
+      "project_id": "demo",
+      "external_task_id": "task-gamma",
+      "outcome": "succeeded"
+    }
+  ],
+  "expected": [],
+  "must_not_fire": [
+    "repeated_request",
+    "retry_amplification",
+    "repeated_context",
+    "unsuccessful_task",
+    "context_ratio",
+    "runaway_session"
+  ]
+}

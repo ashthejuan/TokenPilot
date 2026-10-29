@@ -1,6 +1,73 @@
 {
   "components": {
     "schemas": {
+      "AnalyzeAccepted": {
+        "description": "202 body: the job id to poll.",
+        "properties": {
+          "job_id": {
+            "title": "Job Id",
+            "type": "string"
+          }
+        },
+        "required": [
+          "job_id"
+        ],
+        "title": "AnalyzeAccepted",
+        "type": "object"
+      },
+      "AnalyzeRequest": {
+        "additionalProperties": false,
+        "description": "Scope and optional rule filter for one analysis job.",
+        "properties": {
+          "project_id": {
+            "anyOf": [
+              {
+                "type": "string"
+              },
+              {
+                "type": "null"
+              }
+            ],
+            "title": "Project Id"
+          },
+          "rule_ids": {
+            "anyOf": [
+              {
+                "items": {
+                  "enum": [
+                    "repeated_request",
+                    "retry_amplification",
+                    "repeated_context",
+                    "unsuccessful_task",
+                    "context_ratio",
+                    "runaway_session",
+                    "model_inefficiency"
+                  ],
+                  "type": "string"
+                },
+                "type": "array"
+              },
+              {
+                "type": "null"
+              }
+            ],
+            "title": "Rule Ids"
+          },
+          "session_id": {
+            "anyOf": [
+              {
+                "type": "string"
+              },
+              {
+                "type": "null"
+              }
+            ],
+            "title": "Session Id"
+          }
+        },
+        "title": "AnalyzeRequest",
+        "type": "object"
+      },
       "AttributionUpdate": {
         "additionalProperties": false,
         "description": "A correction. A field left out is unchanged; an explicit `null` unattributes it.",
@@ -221,6 +288,38 @@
         "title": "Coverage",
         "type": "object"
       },
+      "EvidenceRefOut": {
+        "description": "The wire form of `EvidenceRef`: what an insight points at, and why.",
+        "properties": {
+          "id": {
+            "title": "Id",
+            "type": "string"
+          },
+          "kind": {
+            "enum": [
+              "usage_event",
+              "session",
+              "task",
+              "benchmark_run",
+              "aggregate"
+            ],
+            "title": "Kind",
+            "type": "string"
+          },
+          "measurement": {
+            "additionalProperties": true,
+            "title": "Measurement",
+            "type": "object"
+          }
+        },
+        "required": [
+          "kind",
+          "id",
+          "measurement"
+        ],
+        "title": "EvidenceRefOut",
+        "type": "object"
+      },
       "HTTPValidationError": {
         "properties": {
           "detail": {
@@ -266,6 +365,370 @@
           "results"
         ],
         "title": "IngestResponse",
+        "type": "object"
+      },
+      "InsightDetail": {
+        "description": "An insight with every evidence ref resolved (or marked unresolved).",
+        "properties": {
+          "evidence_rows": {
+            "items": {
+              "$ref": "#/components/schemas/ResolvedEvidence"
+            },
+            "title": "Evidence Rows",
+            "type": "array"
+          },
+          "insight": {
+            "$ref": "#/components/schemas/InsightOut"
+          }
+        },
+        "required": [
+          "insight",
+          "evidence_rows"
+        ],
+        "title": "InsightDetail",
+        "type": "object"
+      },
+      "InsightOut": {
+        "description": "One stored insight. `rule_guidance` is filled by the API, not storage.",
+        "properties": {
+          "confidence": {
+            "anyOf": [
+              {
+                "type": "number"
+              },
+              {
+                "type": "null"
+              }
+            ],
+            "title": "Confidence"
+          },
+          "created_at": {
+            "title": "Created At",
+            "type": "string"
+          },
+          "detector_type": {
+            "title": "Detector Type",
+            "type": "string"
+          },
+          "estimated_impact": {
+            "anyOf": [
+              {
+                "type": "number"
+              },
+              {
+                "type": "null"
+              }
+            ],
+            "title": "Estimated Impact"
+          },
+          "evidence": {
+            "items": {
+              "$ref": "#/components/schemas/EvidenceRefOut"
+            },
+            "title": "Evidence",
+            "type": "array"
+          },
+          "evidence_truncated": {
+            "title": "Evidence Truncated",
+            "type": "integer"
+          },
+          "id": {
+            "title": "Id",
+            "type": "string"
+          },
+          "impact_currency": {
+            "anyOf": [
+              {
+                "type": "string"
+              },
+              {
+                "type": "null"
+              }
+            ],
+            "title": "Impact Currency"
+          },
+          "impact_label": {
+            "const": "potential",
+            "default": "potential",
+            "title": "Impact Label",
+            "type": "string"
+          },
+          "investigator_model": {
+            "anyOf": [
+              {
+                "type": "string"
+              },
+              {
+                "type": "null"
+              }
+            ],
+            "title": "Investigator Model"
+          },
+          "last_detected_at": {
+            "anyOf": [
+              {
+                "type": "string"
+              },
+              {
+                "type": "null"
+              }
+            ],
+            "title": "Last Detected At"
+          },
+          "measurements": {
+            "additionalProperties": true,
+            "title": "Measurements",
+            "type": "object"
+          },
+          "project_id": {
+            "anyOf": [
+              {
+                "type": "string"
+              },
+              {
+                "type": "null"
+              }
+            ],
+            "title": "Project Id"
+          },
+          "recommendation": {
+            "anyOf": [
+              {
+                "additionalProperties": true,
+                "type": "object"
+              },
+              {
+                "type": "null"
+              }
+            ],
+            "title": "Recommendation"
+          },
+          "root_cause_hypothesis": {
+            "anyOf": [
+              {
+                "type": "string"
+              },
+              {
+                "type": "null"
+              }
+            ],
+            "title": "Root Cause Hypothesis"
+          },
+          "rule_guidance": {
+            "anyOf": [
+              {
+                "type": "string"
+              },
+              {
+                "type": "null"
+              }
+            ],
+            "title": "Rule Guidance"
+          },
+          "rule_id": {
+            "title": "Rule Id",
+            "type": "string"
+          },
+          "rule_version": {
+            "title": "Rule Version",
+            "type": "integer"
+          },
+          "session_id": {
+            "anyOf": [
+              {
+                "type": "string"
+              },
+              {
+                "type": "null"
+              }
+            ],
+            "title": "Session Id"
+          },
+          "severity": {
+            "enum": [
+              "informational",
+              "low",
+              "medium",
+              "high"
+            ],
+            "title": "Severity",
+            "type": "string"
+          },
+          "status": {
+            "enum": [
+              "new",
+              "reviewed",
+              "dismissed",
+              "tested"
+            ],
+            "title": "Status",
+            "type": "string"
+          },
+          "summary": {
+            "title": "Summary",
+            "type": "string"
+          },
+          "task_id": {
+            "anyOf": [
+              {
+                "type": "string"
+              },
+              {
+                "type": "null"
+              }
+            ],
+            "title": "Task Id"
+          },
+          "title": {
+            "title": "Title",
+            "type": "string"
+          },
+          "updated_at": {
+            "anyOf": [
+              {
+                "type": "string"
+              },
+              {
+                "type": "null"
+              }
+            ],
+            "title": "Updated At"
+          }
+        },
+        "required": [
+          "id",
+          "rule_id",
+          "rule_version",
+          "detector_type",
+          "severity",
+          "status",
+          "title",
+          "summary",
+          "estimated_impact",
+          "impact_currency",
+          "project_id",
+          "session_id",
+          "task_id",
+          "evidence",
+          "evidence_truncated",
+          "measurements",
+          "root_cause_hypothesis",
+          "recommendation",
+          "investigator_model",
+          "created_at"
+        ],
+        "title": "InsightOut",
+        "type": "object"
+      },
+      "InsightStatusUpdate": {
+        "additionalProperties": false,
+        "description": "PATCH body. `tested` is accepted by the schema then rejected with status_not_settable.",
+        "properties": {
+          "status": {
+            "enum": [
+              "new",
+              "reviewed",
+              "dismissed",
+              "tested"
+            ],
+            "title": "Status",
+            "type": "string"
+          }
+        },
+        "required": [
+          "status"
+        ],
+        "title": "InsightStatusUpdate",
+        "type": "object"
+      },
+      "JobOut": {
+        "description": "One analysis job. `result` is NULL until the job succeeds.",
+        "properties": {
+          "created_at": {
+            "title": "Created At",
+            "type": "string"
+          },
+          "error": {
+            "anyOf": [
+              {
+                "type": "string"
+              },
+              {
+                "type": "null"
+              }
+            ],
+            "title": "Error"
+          },
+          "finished_at": {
+            "anyOf": [
+              {
+                "type": "string"
+              },
+              {
+                "type": "null"
+              }
+            ],
+            "title": "Finished At"
+          },
+          "id": {
+            "title": "Id",
+            "type": "string"
+          },
+          "kind": {
+            "title": "Kind",
+            "type": "string"
+          },
+          "params": {
+            "additionalProperties": true,
+            "title": "Params",
+            "type": "object"
+          },
+          "result": {
+            "anyOf": [
+              {
+                "additionalProperties": true,
+                "type": "object"
+              },
+              {
+                "type": "null"
+              }
+            ],
+            "title": "Result"
+          },
+          "started_at": {
+            "anyOf": [
+              {
+                "type": "string"
+              },
+              {
+                "type": "null"
+              }
+            ],
+            "title": "Started At"
+          },
+          "status": {
+            "enum": [
+              "queued",
+              "running",
+              "succeeded",
+              "failed"
+            ],
+            "title": "Status",
+            "type": "string"
+          }
+        },
+        "required": [
+          "id",
+          "kind",
+          "status",
+          "params",
+          "result",
+          "error",
+          "created_at",
+          "started_at",
+          "finished_at"
+        ],
+        "title": "JobOut",
         "type": "object"
       },
       "LatencyStats": {
@@ -435,6 +898,33 @@
           "events_with_unknown_tokens"
         ],
         "title": "ModelCost",
+        "type": "object"
+      },
+      "Paged_InsightOut_": {
+        "properties": {
+          "items": {
+            "items": {
+              "$ref": "#/components/schemas/InsightOut"
+            },
+            "title": "Items",
+            "type": "array"
+          },
+          "next_cursor": {
+            "anyOf": [
+              {
+                "type": "string"
+              },
+              {
+                "type": "null"
+              }
+            ],
+            "title": "Next Cursor"
+          }
+        },
+        "required": [
+          "items"
+        ],
+        "title": "Paged[InsightOut]",
         "type": "object"
       },
       "Paged_SessionSummary_": {
@@ -918,6 +1408,54 @@
         "title": "RepriceResponse",
         "type": "object"
       },
+      "ResolvedEvidence": {
+        "description": "One evidence ref plus the ledger row it names, when that row still exists.",
+        "properties": {
+          "event": {
+            "anyOf": [
+              {
+                "$ref": "#/components/schemas/UsageEvent"
+              },
+              {
+                "type": "null"
+              }
+            ]
+          },
+          "ref": {
+            "$ref": "#/components/schemas/EvidenceRefOut"
+          },
+          "resolved": {
+            "title": "Resolved",
+            "type": "boolean"
+          },
+          "session": {
+            "anyOf": [
+              {
+                "$ref": "#/components/schemas/SessionSummary"
+              },
+              {
+                "type": "null"
+              }
+            ]
+          },
+          "task": {
+            "anyOf": [
+              {
+                "$ref": "#/components/schemas/TaskRef"
+              },
+              {
+                "type": "null"
+              }
+            ]
+          }
+        },
+        "required": [
+          "ref",
+          "resolved"
+        ],
+        "title": "ResolvedEvidence",
+        "type": "object"
+      },
       "SessionCost": {
         "properties": {
           "currency": {
@@ -1161,6 +1699,292 @@
           "outcome"
         ],
         "title": "SessionUpdate",
+        "type": "object"
+      },
+      "TaskRef": {
+        "description": "A resolved task row pointed at by evidence.",
+        "properties": {
+          "external_task_id": {
+            "anyOf": [
+              {
+                "type": "string"
+              },
+              {
+                "type": "null"
+              }
+            ],
+            "title": "External Task Id"
+          },
+          "id": {
+            "title": "Id",
+            "type": "string"
+          },
+          "outcome": {
+            "title": "Outcome",
+            "type": "string"
+          },
+          "project_id": {
+            "title": "Project Id",
+            "type": "string"
+          }
+        },
+        "required": [
+          "id",
+          "project_id",
+          "external_task_id",
+          "outcome"
+        ],
+        "title": "TaskRef",
+        "type": "object"
+      },
+      "Thresholds-Input": {
+        "additionalProperties": false,
+        "description": "Every knob a detector reads. A PUT replaces the whole object.",
+        "properties": {
+          "context_medium_repeated_tokens": {
+            "default": 50000,
+            "exclusiveMinimum": 0.0,
+            "title": "Context Medium Repeated Tokens",
+            "type": "integer"
+          },
+          "context_min_chars": {
+            "default": 2000,
+            "exclusiveMinimum": 0.0,
+            "title": "Context Min Chars",
+            "type": "integer"
+          },
+          "context_repeat_min_occurrences": {
+            "default": 3,
+            "exclusiveMinimum": 0.0,
+            "title": "Context Repeat Min Occurrences",
+            "type": "integer"
+          },
+          "open_session_grace_min": {
+            "default": 15,
+            "exclusiveMinimum": 0.0,
+            "title": "Open Session Grace Min",
+            "type": "integer"
+          },
+          "ratio_low_min_events": {
+            "default": 5,
+            "exclusiveMinimum": 0.0,
+            "title": "Ratio Low Min Events",
+            "type": "integer"
+          },
+          "ratio_min_input_tokens": {
+            "default": 20000,
+            "exclusiveMinimum": 0.0,
+            "title": "Ratio Min Input Tokens",
+            "type": "integer"
+          },
+          "ratio_threshold": {
+            "default": 50.0,
+            "exclusiveMinimum": 0.0,
+            "title": "Ratio Threshold",
+            "type": "number"
+          },
+          "repeat_window_s": {
+            "default": 300,
+            "exclusiveMinimum": 0.0,
+            "title": "Repeat Window S",
+            "type": "integer"
+          },
+          "retry_min_attempts": {
+            "default": 2,
+            "exclusiveMinimum": 0.0,
+            "title": "Retry Min Attempts",
+            "type": "integer"
+          },
+          "runaway_max_cost": {
+            "anyOf": [
+              {
+                "exclusiveMinimum": 0.0,
+                "type": "number"
+              },
+              {
+                "type": "string"
+              }
+            ],
+            "default": "2.00",
+            "title": "Runaway Max Cost"
+          },
+          "runaway_max_duration_min": {
+            "default": 60,
+            "exclusiveMinimum": 0.0,
+            "title": "Runaway Max Duration Min",
+            "type": "integer"
+          },
+          "runaway_max_requests": {
+            "default": 40,
+            "exclusiveMinimum": 0.0,
+            "title": "Runaway Max Requests",
+            "type": "integer"
+          },
+          "runaway_max_retries": {
+            "default": 5,
+            "exclusiveMinimum": 0.0,
+            "title": "Runaway Max Retries",
+            "type": "integer"
+          },
+          "severity_high_cost": {
+            "anyOf": [
+              {
+                "exclusiveMinimum": 0.0,
+                "type": "number"
+              },
+              {
+                "type": "string"
+              }
+            ],
+            "default": "1.00",
+            "title": "Severity High Cost"
+          },
+          "severity_medium_cost": {
+            "anyOf": [
+              {
+                "exclusiveMinimum": 0.0,
+                "type": "number"
+              },
+              {
+                "type": "string"
+              }
+            ],
+            "default": "0.10",
+            "title": "Severity Medium Cost"
+          },
+          "unsuccessful_min_cost": {
+            "anyOf": [
+              {
+                "exclusiveMinimum": 0.0,
+                "type": "number"
+              },
+              {
+                "type": "string"
+              }
+            ],
+            "default": "0.50",
+            "title": "Unsuccessful Min Cost"
+          }
+        },
+        "title": "Thresholds",
+        "type": "object"
+      },
+      "Thresholds-Output": {
+        "additionalProperties": false,
+        "description": "Every knob a detector reads. A PUT replaces the whole object.",
+        "properties": {
+          "context_medium_repeated_tokens": {
+            "default": 50000,
+            "exclusiveMinimum": 0.0,
+            "title": "Context Medium Repeated Tokens",
+            "type": "integer"
+          },
+          "context_min_chars": {
+            "default": 2000,
+            "exclusiveMinimum": 0.0,
+            "title": "Context Min Chars",
+            "type": "integer"
+          },
+          "context_repeat_min_occurrences": {
+            "default": 3,
+            "exclusiveMinimum": 0.0,
+            "title": "Context Repeat Min Occurrences",
+            "type": "integer"
+          },
+          "open_session_grace_min": {
+            "default": 15,
+            "exclusiveMinimum": 0.0,
+            "title": "Open Session Grace Min",
+            "type": "integer"
+          },
+          "ratio_low_min_events": {
+            "default": 5,
+            "exclusiveMinimum": 0.0,
+            "title": "Ratio Low Min Events",
+            "type": "integer"
+          },
+          "ratio_min_input_tokens": {
+            "default": 20000,
+            "exclusiveMinimum": 0.0,
+            "title": "Ratio Min Input Tokens",
+            "type": "integer"
+          },
+          "ratio_threshold": {
+            "default": 50.0,
+            "exclusiveMinimum": 0.0,
+            "title": "Ratio Threshold",
+            "type": "number"
+          },
+          "repeat_window_s": {
+            "default": 300,
+            "exclusiveMinimum": 0.0,
+            "title": "Repeat Window S",
+            "type": "integer"
+          },
+          "retry_min_attempts": {
+            "default": 2,
+            "exclusiveMinimum": 0.0,
+            "title": "Retry Min Attempts",
+            "type": "integer"
+          },
+          "runaway_max_cost": {
+            "default": 2.0,
+            "title": "Runaway Max Cost",
+            "type": "number"
+          },
+          "runaway_max_duration_min": {
+            "default": 60,
+            "exclusiveMinimum": 0.0,
+            "title": "Runaway Max Duration Min",
+            "type": "integer"
+          },
+          "runaway_max_requests": {
+            "default": 40,
+            "exclusiveMinimum": 0.0,
+            "title": "Runaway Max Requests",
+            "type": "integer"
+          },
+          "runaway_max_retries": {
+            "default": 5,
+            "exclusiveMinimum": 0.0,
+            "title": "Runaway Max Retries",
+            "type": "integer"
+          },
+          "severity_high_cost": {
+            "default": 1.0,
+            "title": "Severity High Cost",
+            "type": "number"
+          },
+          "severity_medium_cost": {
+            "default": 0.1,
+            "title": "Severity Medium Cost",
+            "type": "number"
+          },
+          "unsuccessful_min_cost": {
+            "default": 0.5,
+            "title": "Unsuccessful Min Cost",
+            "type": "number"
+          }
+        },
+        "title": "Thresholds",
+        "type": "object"
+      },
+      "ThresholdsResponse": {
+        "description": "A saved thresholds object; stored detectors do not re-run on their own.",
+        "properties": {
+          "reanalysis_required": {
+            "title": "Reanalysis Required",
+            "type": "boolean"
+          },
+          "thresholds": {
+            "$ref": "#/components/schemas/Thresholds-Output"
+          }
+        },
+        "required": [
+          "thresholds",
+          "reanalysis_required"
+        ],
+        "title": "ThresholdsResponse",
         "type": "object"
       },
       "TimeseriesPoint": {
@@ -1732,6 +2556,334 @@
         ]
       }
     },
+    "/api/v1/insights": {
+      "get": {
+        "operationId": "list_insights_api_v1_insights_get",
+        "parameters": [
+          {
+            "in": "query",
+            "name": "status",
+            "required": false,
+            "schema": {
+              "anyOf": [
+                {
+                  "enum": [
+                    "new",
+                    "reviewed",
+                    "dismissed",
+                    "tested"
+                  ],
+                  "type": "string"
+                },
+                {
+                  "type": "null"
+                }
+              ],
+              "title": "Status"
+            }
+          },
+          {
+            "in": "query",
+            "name": "severity",
+            "required": false,
+            "schema": {
+              "anyOf": [
+                {
+                  "enum": [
+                    "informational",
+                    "low",
+                    "medium",
+                    "high"
+                  ],
+                  "type": "string"
+                },
+                {
+                  "type": "null"
+                }
+              ],
+              "title": "Severity"
+            }
+          },
+          {
+            "in": "query",
+            "name": "rule_id",
+            "required": false,
+            "schema": {
+              "anyOf": [
+                {
+                  "type": "string"
+                },
+                {
+                  "type": "null"
+                }
+              ],
+              "title": "Rule Id"
+            }
+          },
+          {
+            "in": "query",
+            "name": "project_id",
+            "required": false,
+            "schema": {
+              "anyOf": [
+                {
+                  "type": "string"
+                },
+                {
+                  "type": "null"
+                }
+              ],
+              "title": "Project Id"
+            }
+          },
+          {
+            "in": "query",
+            "name": "session_id",
+            "required": false,
+            "schema": {
+              "anyOf": [
+                {
+                  "type": "string"
+                },
+                {
+                  "type": "null"
+                }
+              ],
+              "title": "Session Id"
+            }
+          },
+          {
+            "in": "query",
+            "name": "cursor",
+            "required": false,
+            "schema": {
+              "anyOf": [
+                {
+                  "type": "string"
+                },
+                {
+                  "type": "null"
+                }
+              ],
+              "title": "Cursor"
+            }
+          },
+          {
+            "in": "query",
+            "name": "limit",
+            "required": false,
+            "schema": {
+              "default": 50,
+              "maximum": 200,
+              "minimum": 1,
+              "title": "Limit",
+              "type": "integer"
+            }
+          }
+        ],
+        "responses": {
+          "200": {
+            "content": {
+              "application/json": {
+                "schema": {
+                  "$ref": "#/components/schemas/Paged_InsightOut_"
+                }
+              }
+            },
+            "description": "Successful Response"
+          },
+          "422": {
+            "content": {
+              "application/json": {
+                "schema": {
+                  "$ref": "#/components/schemas/HTTPValidationError"
+                }
+              }
+            },
+            "description": "Validation Error"
+          }
+        },
+        "summary": "List Insights",
+        "tags": [
+          "insights"
+        ]
+      }
+    },
+    "/api/v1/insights/analyze": {
+      "post": {
+        "operationId": "analyze_api_v1_insights_analyze_post",
+        "requestBody": {
+          "content": {
+            "application/json": {
+              "schema": {
+                "$ref": "#/components/schemas/AnalyzeRequest"
+              }
+            }
+          },
+          "required": true
+        },
+        "responses": {
+          "202": {
+            "content": {
+              "application/json": {
+                "schema": {
+                  "$ref": "#/components/schemas/AnalyzeAccepted"
+                }
+              }
+            },
+            "description": "Successful Response"
+          },
+          "422": {
+            "content": {
+              "application/json": {
+                "schema": {
+                  "$ref": "#/components/schemas/HTTPValidationError"
+                }
+              }
+            },
+            "description": "Validation Error"
+          }
+        },
+        "summary": "Analyze",
+        "tags": [
+          "insights"
+        ]
+      }
+    },
+    "/api/v1/insights/{insight_id}": {
+      "get": {
+        "operationId": "get_insight_api_v1_insights__insight_id__get",
+        "parameters": [
+          {
+            "in": "path",
+            "name": "insight_id",
+            "required": true,
+            "schema": {
+              "title": "Insight Id",
+              "type": "string"
+            }
+          }
+        ],
+        "responses": {
+          "200": {
+            "content": {
+              "application/json": {
+                "schema": {
+                  "$ref": "#/components/schemas/InsightDetail"
+                }
+              }
+            },
+            "description": "Successful Response"
+          },
+          "422": {
+            "content": {
+              "application/json": {
+                "schema": {
+                  "$ref": "#/components/schemas/HTTPValidationError"
+                }
+              }
+            },
+            "description": "Validation Error"
+          }
+        },
+        "summary": "Get Insight",
+        "tags": [
+          "insights"
+        ]
+      },
+      "patch": {
+        "operationId": "patch_insight_api_v1_insights__insight_id__patch",
+        "parameters": [
+          {
+            "in": "path",
+            "name": "insight_id",
+            "required": true,
+            "schema": {
+              "title": "Insight Id",
+              "type": "string"
+            }
+          }
+        ],
+        "requestBody": {
+          "content": {
+            "application/json": {
+              "schema": {
+                "$ref": "#/components/schemas/InsightStatusUpdate"
+              }
+            }
+          },
+          "required": true
+        },
+        "responses": {
+          "200": {
+            "content": {
+              "application/json": {
+                "schema": {
+                  "$ref": "#/components/schemas/InsightOut"
+                }
+              }
+            },
+            "description": "Successful Response"
+          },
+          "422": {
+            "content": {
+              "application/json": {
+                "schema": {
+                  "$ref": "#/components/schemas/HTTPValidationError"
+                }
+              }
+            },
+            "description": "Validation Error"
+          }
+        },
+        "summary": "Patch Insight",
+        "tags": [
+          "insights"
+        ]
+      }
+    },
+    "/api/v1/jobs/{job_id}": {
+      "get": {
+        "operationId": "get_job_api_v1_jobs__job_id__get",
+        "parameters": [
+          {
+            "in": "path",
+            "name": "job_id",
+            "required": true,
+            "schema": {
+              "title": "Job Id",
+              "type": "string"
+            }
+          }
+        ],
+        "responses": {
+          "200": {
+            "content": {
+              "application/json": {
+                "schema": {
+                  "$ref": "#/components/schemas/JobOut"
+                }
+              }
+            },
+            "description": "Successful Response"
+          },
+          "422": {
+            "content": {
+              "application/json": {
+                "schema": {
+                  "$ref": "#/components/schemas/HTTPValidationError"
+                }
+              }
+            },
+            "description": "Validation Error"
+          }
+        },
+        "summary": "Get Job",
+        "tags": [
+          "insights"
+        ]
+      }
+    },
     "/api/v1/projects": {
       "get": {
         "operationId": "list_projects_api_v1_projects_get",
@@ -2138,6 +3290,68 @@
           }
         },
         "summary": "Upsert Pricing",
+        "tags": [
+          "settings"
+        ]
+      }
+    },
+    "/api/v1/settings/thresholds": {
+      "get": {
+        "description": "The saved thresholds, or the code defaults when nothing was saved yet.",
+        "operationId": "get_thresholds_api_v1_settings_thresholds_get",
+        "responses": {
+          "200": {
+            "content": {
+              "application/json": {
+                "schema": {
+                  "$ref": "#/components/schemas/Thresholds-Output"
+                }
+              }
+            },
+            "description": "Successful Response"
+          }
+        },
+        "summary": "Get Thresholds",
+        "tags": [
+          "settings"
+        ]
+      },
+      "put": {
+        "description": "Replace the whole thresholds object. Stored insights are not re-run.",
+        "operationId": "put_thresholds_api_v1_settings_thresholds_put",
+        "requestBody": {
+          "content": {
+            "application/json": {
+              "schema": {
+                "$ref": "#/components/schemas/Thresholds-Input"
+              }
+            }
+          },
+          "required": true
+        },
+        "responses": {
+          "200": {
+            "content": {
+              "application/json": {
+                "schema": {
+                  "$ref": "#/components/schemas/ThresholdsResponse"
+                }
+              }
+            },
+            "description": "Successful Response"
+          },
+          "422": {
+            "content": {
+              "application/json": {
+                "schema": {
+                  "$ref": "#/components/schemas/HTTPValidationError"
+                }
+              }
+            },
+            "description": "Validation Error"
+          }
+        },
+        "summary": "Put Thresholds",
         "tags": [
           "settings"
         ]

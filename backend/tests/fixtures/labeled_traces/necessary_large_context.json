@@ -1,0 +1,164 @@
+{
+  "now": "2026-10-28T13:00:00.000Z",
+  "events": [
+    {
+      "provider": "fake",
+      "model_id": "fake-large",
+      "started_at": "2026-10-28T12:00:00.000Z",
+      "completed_at": "2026-10-28T12:00:04.000Z",
+      "input_tokens": 40000,
+      "output_tokens": 500,
+      "latency_ms": 4000,
+      "http_status": 200,
+      "usage_source": "provider",
+      "status": "success",
+      "source_event_id": "nlc-1",
+      "project_id": "demo",
+      "external_session_id": "sess-large-ctx",
+      "task_id": "task-large-ctx",
+      "request_fingerprint": "fp-nlc-1",
+      "metadata": {
+        "context_blocks": [
+          {
+            "hash": "blk-doc-1",
+            "chars": 160000,
+            "approx_tokens": 40000
+          }
+        ]
+      }
+    },
+    {
+      "provider": "fake",
+      "model_id": "fake-small",
+      "started_at": "2026-10-28T12:01:00.000Z",
+      "completed_at": "2026-10-28T12:01:02.000Z",
+      "input_tokens": 4000,
+      "output_tokens": 400,
+      "latency_ms": 2000,
+      "http_status": 200,
+      "usage_source": "provider",
+      "status": "success",
+      "source_event_id": "nlc-2",
+      "project_id": "demo",
+      "external_session_id": "sess-large-ctx",
+      "task_id": "task-large-ctx",
+      "request_fingerprint": "fp-nlc-2",
+      "metadata": {
+        "context_blocks": [
+          {
+            "hash": "blk-doc-2",
+            "chars": 16000,
+            "approx_tokens": 4000
+          }
+        ]
+      }
+    },
+    {
+      "provider": "fake",
+      "model_id": "fake-small",
+      "started_at": "2026-10-28T12:02:00.000Z",
+      "completed_at": "2026-10-28T12:02:02.000Z",
+      "input_tokens": 4000,
+      "output_tokens": 400,
+      "latency_ms": 2000,
+      "http_status": 200,
+      "usage_source": "provider",
+      "status": "success",
+      "source_event_id": "nlc-3",
+      "project_id": "demo",
+      "external_session_id": "sess-large-ctx",
+      "task_id": "task-large-ctx",
+      "request_fingerprint": "fp-nlc-3",
+      "metadata": {
+        "context_blocks": [
+          {
+            "hash": "blk-doc-3",
+            "chars": 16000,
+            "approx_tokens": 4000
+          }
+        ]
+      }
+    },
+    {
+      "provider": "fake",
+      "model_id": "fake-small",
+      "started_at": "2026-10-28T12:03:00.000Z",
+      "completed_at": "2026-10-28T12:03:02.000Z",
+      "input_tokens": 4000,
+      "output_tokens": 400,
+      "latency_ms": 2000,
+      "http_status": 200,
+      "usage_source": "provider",
+      "status": "success",
+      "source_event_id": "nlc-4",
+      "project_id": "demo",
+      "external_session_id": "sess-large-ctx",
+      "task_id": "task-large-ctx",
+      "request_fingerprint": "fp-nlc-4",
+      "metadata": {
+        "context_blocks": [
+          {
+            "hash": "blk-doc-4",
+            "chars": 16000,
+            "approx_tokens": 4000
+          }
+        ]
+      }
+    },
+    {
+      "provider": "fake",
+      "model_id": "fake-small",
+      "started_at": "2026-10-28T12:04:00.000Z",
+      "completed_at": "2026-10-28T12:04:02.000Z",
+      "input_tokens": 4000,
+      "output_tokens": 400,
+      "latency_ms": 2000,
+      "http_status": 200,
+      "usage_source": "provider",
+      "status": "success",
+      "source_event_id": "nlc-5",
+      "project_id": "demo",
+      "external_session_id": "sess-large-ctx",
+      "task_id": "task-large-ctx",
+      "request_fingerprint": "fp-nlc-5",
+      "metadata": {
+        "context_blocks": [
+          {
+            "hash": "blk-doc-5",
+            "chars": 16000,
+            "approx_tokens": 4000
+          }
+        ]
+      }
+    }
+  ],
+  "sessions": [
+    {
+      "source": "api",
+      "external_session_id": "sess-large-ctx",
+      "outcome": "success"
+    }
+  ],
+  "tasks": [
+    {
+      "project_id": "demo",
+      "external_task_id": "task-large-ctx",
+      "outcome": "succeeded"
+    }
+  ],
+  "expected": [
+    {
+      "rule_id": "context_ratio",
+      "session": "sess-large-ctx",
+      "task": null,
+      "max_severity": "informational"
+    }
+  ],
+  "must_not_fire": [
+    "repeated_context",
+    "unsuccessful_task",
+    "runaway_session",
+    "repeated_request",
+    "retry_amplification"
+  ]
+}

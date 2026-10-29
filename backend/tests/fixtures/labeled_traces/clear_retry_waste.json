@@ -1,0 +1,139 @@
+{
+  "now": "2026-10-28T13:00:00.000Z",
+  "events": [
+    {
+      "provider": "fake",
+      "model_id": "fake-large",
+      "started_at": "2026-10-28T12:00:00.000Z",
+      "completed_at": "2026-10-28T12:00:02.000Z",
+      "input_tokens": 2000,
+      "output_tokens": 400,
+      "latency_ms": 2000,
+      "http_status": 200,
+      "usage_source": "provider",
+      "status": "success",
+      "source_event_id": "rw-1",
+      "project_id": "demo",
+      "external_session_id": "sess-retry-waste",
+      "task_id": "task-retry-1",
+      "request_fingerprint": "fp-rw-setup"
+    },
+    {
+      "provider": "fake",
+      "model_id": "fake-large",
+      "started_at": "2026-10-28T12:01:00.000Z",
+      "completed_at": "2026-10-28T12:01:01.000Z",
+      "input_tokens": 10000,
+      "output_tokens": 0,
+      "latency_ms": 1000,
+      "http_status": 429,
+      "error_category": "rate_limited",
+      "usage_source": "provider",
+      "status": "error",
+      "source_event_id": "rw-2",
+      "project_id": "demo",
+      "external_session_id": "sess-retry-waste",
+      "task_id": "task-retry-1",
+      "request_fingerprint": "fp-rw-call"
+    },
+    {
+      "provider": "fake",
+      "model_id": "fake-large",
+      "started_at": "2026-10-28T12:01:05.000Z",
+      "completed_at": "2026-10-28T12:01:06.000Z",
+      "input_tokens": 10000,
+      "output_tokens": 0,
+      "latency_ms": 1000,
+      "http_status": 429,
+      "error_category": "rate_limited",
+      "usage_source": "provider",
+      "status": "error",
+      "source_event_id": "rw-3",
+      "retry_of": "rw-2",
+      "project_id": "demo",
+      "external_session_id": "sess-retry-waste",
+      "task_id": "task-retry-1",
+      "request_fingerprint": "fp-rw-call"
+    },
+    {
+      "provider": "fake",
+      "model_id": "fake-large",
+      "started_at": "2026-10-28T12:01:15.000Z",
+      "completed_at": "2026-10-28T12:01:18.000Z",
+      "input_tokens": 10000,
+      "output_tokens": 1000,
+      "latency_ms": 3000,
+      "http_status": 200,
+      "usage_source": "provider",
+      "status": "success",
+      "source_event_id": "rw-4",
+      "retry_of": "rw-3",
+      "project_id": "demo",
+      "external_session_id": "sess-retry-waste",
+      "task_id": "task-retry-1",
+      "request_fingerprint": "fp-rw-call"
+    },
+    {
+      "provider": "fake",
+      "model_id": "fake-large",
+      "started_at": "2026-10-28T12:02:00.000Z",
+      "completed_at": "2026-10-28T12:02:02.000Z",
+      "input_tokens": 3000,
+      "output_tokens": 500,
+      "latency_ms": 2000,
+      "http_status": 200,
+      "usage_source": "provider",
+      "status": "success",
+      "source_event_id": "rw-5",
+      "project_id": "demo",
+      "external_session_id": "sess-retry-waste",
+      "task_id": "task-retry-1",
+      "request_fingerprint": "fp-rw-followup"
+    },
+    {
+      "provider": "fake",
+      "model_id": "fake-large",
+      "started_at": "2026-10-28T12:03:00.000Z",
+      "completed_at": "2026-10-28T12:03:02.000Z",
+      "input_tokens": 2500,
+      "output_tokens": 500,
+      "latency_ms": 2000,
+      "http_status": 200,
+      "usage_source": "provider",
+      "status": "success",
+      "source_event_id": "rw-6",
+      "project_id": "demo",
+      "external_session_id": "sess-retry-waste",
+      "task_id": "task-retry-1",
+      "request_fingerprint": "fp-rw-summary"
+    }
+  ],
+  "sessions": [
+    {
+      "source": "api",
+      "external_session_id": "sess-retry-waste",
+      "outcome": "success"
+    }
+  ],
+  "tasks": [
+    {
+      "project_id": "demo",
+      "external_task_id": "task-retry-1",
+      "outcome": "succeeded"
+    }
+  ],
+  "expected": [
+    {
+      "rule_id": "retry_amplification",
+      "session": "sess-retry-waste",
+      "task": "task-retry-1"
+    }
+  ],
+  "must_not_fire": [
+    "repeated_request",
+    "repeated_context",
+    "unsuccessful_task",
+    "context_ratio",
+    "runaway_session"
+  ]
+}

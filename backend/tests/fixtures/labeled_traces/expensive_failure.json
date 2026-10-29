@@ -1,0 +1,108 @@
+{
+  "now": "2026-10-28T13:00:00.000Z",
+  "events": [
+    {
+      "provider": "fake",
+      "model_id": "fake-large",
+      "started_at": "2026-10-28T12:00:00.000Z",
+      "completed_at": "2026-10-28T12:00:03.000Z",
+      "input_tokens": 50000,
+      "output_tokens": 6000,
+      "latency_ms": 3000,
+      "http_status": 200,
+      "usage_source": "provider",
+      "status": "success",
+      "source_event_id": "ef-1",
+      "project_id": "demo",
+      "external_session_id": "sess-expensive-fail",
+      "request_fingerprint": "fp-ef-1"
+    },
+    {
+      "provider": "fake",
+      "model_id": "fake-large",
+      "started_at": "2026-10-28T12:01:00.000Z",
+      "completed_at": "2026-10-28T12:01:03.000Z",
+      "input_tokens": 50000,
+      "output_tokens": 6000,
+      "latency_ms": 3000,
+      "http_status": 200,
+      "usage_source": "provider",
+      "status": "success",
+      "source_event_id": "ef-2",
+      "project_id": "demo",
+      "external_session_id": "sess-expensive-fail",
+      "request_fingerprint": "fp-ef-2"
+    },
+    {
+      "provider": "fake",
+      "model_id": "fake-large",
+      "started_at": "2026-10-28T12:02:00.000Z",
+      "completed_at": "2026-10-28T12:02:03.000Z",
+      "input_tokens": 50000,
+      "output_tokens": 6000,
+      "latency_ms": 3000,
+      "http_status": 200,
+      "usage_source": "provider",
+      "status": "success",
+      "source_event_id": "ef-3",
+      "project_id": "demo",
+      "external_session_id": "sess-expensive-fail",
+      "request_fingerprint": "fp-ef-3"
+    },
+    {
+      "provider": "fake",
+      "model_id": "fake-large",
+      "started_at": "2026-10-28T12:03:00.000Z",
+      "completed_at": "2026-10-28T12:03:03.000Z",
+      "input_tokens": 50000,
+      "output_tokens": 6000,
+      "latency_ms": 3000,
+      "http_status": 200,
+      "usage_source": "provider",
+      "status": "success",
+      "source_event_id": "ef-4",
+      "project_id": "demo",
+      "external_session_id": "sess-expensive-fail",
+      "request_fingerprint": "fp-ef-4"
+    },
+    {
+      "provider": "fake",
+      "model_id": "fake-large",
+      "started_at": "2026-10-28T12:04:00.000Z",
+      "completed_at": "2026-10-28T12:04:03.000Z",
+      "input_tokens": 50000,
+      "output_tokens": 6000,
+      "latency_ms": 3000,
+      "http_status": 500,
+      "error_category": "upstream_error",
+      "usage_source": "provider",
+      "status": "error",
+      "source_event_id": "ef-5",
+      "project_id": "demo",
+      "external_session_id": "sess-expensive-fail",
+      "request_fingerprint": "fp-ef-5"
+    }
+  ],
+  "sessions": [
+    {
+      "source": "api",
+      "external_session_id": "sess-expensive-fail",
+      "outcome": "failure"
+    }
+  ],
+  "tasks": [],
+  "expected": [
+    {
+      "rule_id": "unsuccessful_task",
+      "session": "sess-expensive-fail",
+      "task": null
+    }
+  ],
+  "must_not_fire": [
+    "repeated_request",
+    "retry_amplification",
+    "repeated_context",
+    "context_ratio",
+    "runaway_session"
+  ]
+}

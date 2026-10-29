@@ -131,6 +131,8 @@ def create_app(
         timeout = httpx.Timeout(connect=10.0, read=300.0, write=30.0, pool=10.0)
         upstream = httpx.AsyncClient(timeout=timeout, transport=upstream_transport)
         app.state.upstream = upstream
+        # Sync MetaClient (investigator) reuses the same MockTransport in tests.
+        app.state.upstream_transport = upstream_transport
         try:
             yield
         finally:
@@ -139,6 +141,7 @@ def create_app(
 
     app = FastAPI(title="TokenPilot API", version="0.1.0", lifespan=lifespan)
     app.state.settings = resolved
+    app.state.upstream_transport = upstream_transport
 
     app.add_exception_handler(StarletteHTTPException, _handle_http_exception)
     app.add_exception_handler(RequestValidationError, _handle_validation_error)

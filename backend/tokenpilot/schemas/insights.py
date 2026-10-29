@@ -155,6 +155,27 @@ class AnalyzeAccepted(BaseModel):
     job_id: str
 
 
+InvestigateAccepted = AnalyzeAccepted
+
+
+class InvestigateRequest(BaseModel):
+    """POST body for starting an investigation job."""
+
+    model_config = ConfigDict(extra="forbid")
+
+    mode: InvestigationMode = "metadata_only"
+
+
+class FeedbackRequest(BaseModel):
+    """POST body for recommendation feedback."""
+
+    model_config = ConfigDict(extra="forbid")
+
+    verdict: FeedbackVerdict
+    implemented: bool | None = None
+    note: str | None = None
+
+
 class TaskRef(BaseModel):
     """A resolved task row pointed at by evidence."""
 

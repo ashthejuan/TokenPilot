@@ -86,3 +86,31 @@ def test_ordinals_and_years_exempt() -> None:
     out = _output(summary="3 retries in 2026")
     issues = validate_output(out, _bundle(allowed_ids=["e1"], allowed_numbers=[]))
     assert issues == []
+
+
+def test_percent_rejected_for_bare_event_count() -> None:
+    """Counts like event_count must not authorize percent prose (RF3 / Q10)."""
+    out = _output(summary="failure rose to 50%")
+    issues = validate_output(
+        out,
+        _bundle(
+            allowed_ids=["e1"],
+            allowed_numbers=[],
+            aggregates={"event_count": 50, "known_cost_sum": 1.2},
+        ),
+    )
+    assert any(issue.code == "unsupported_number" for issue in issues)
+    assert any("50%" in issue.message for issue in issues)
+
+
+def test_percent_allowed_from_rate_aggregate() -> None:
+    out = _output(summary="success_rate held at 50%")
+    issues = validate_output(
+        out,
+        _bundle(
+            allowed_ids=["e1"],
+            allowed_numbers=[],
+            aggregates={"success_rate": 0.5},
+        ),
+    )
+    assert issues == []

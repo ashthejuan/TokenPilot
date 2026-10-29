@@ -89,11 +89,16 @@ def investigation_json_schema() -> dict[str, Any]:
     return _strictify(raw)
 
 
+_STRIP_KEYS = frozenset({"title", "default", "description"})
+
+
 def _strictify(schema: dict[str, Any]) -> dict[str, Any]:
-    """Ensure every object has additionalProperties:false and required == all properties."""
+    """Strict-mode JSON schema: required==properties, no extras, strip pydantic noise."""
 
     def walk(node: Any) -> None:
         if isinstance(node, dict):
+            for noise in _STRIP_KEYS:
+                node.pop(noise, None)
             if "properties" in node and isinstance(node["properties"], dict):
                 node["type"] = "object"
                 node["additionalProperties"] = False
@@ -121,5 +126,4 @@ def _strictify(schema: dict[str, Any]) -> dict[str, Any]:
         schema["type"] = "object"
         schema["additionalProperties"] = False
         schema["required"] = list(schema["properties"].keys())
-    schema.pop("title", None)
     return schema

@@ -118,16 +118,36 @@ def _within_rel_tol(a: float, b: float) -> bool:
     return abs(a - b) / scale <= _REL_TOL
 
 
+_RATE_KEY_EXACT = frozenset({"rate", "ratio", "pct", "percent", "share"})
+_RATE_KEY_SUFFIXES = ("_rate", "_ratio", "_pct", "_percent", "_share")
+
+
+def _is_rate_or_share_key(key: str) -> bool:
+    lowered = key.lower()
+    if lowered in _RATE_KEY_EXACT:
+        return True
+    return any(lowered.endswith(suffix) for suffix in _RATE_KEY_SUFFIXES)
+
+
 def _matches_aggregate_percentage(percent: float, aggregates: dict[str, Any]) -> bool:
-    """Allow percent tokens that equal 100 * a numeric aggregate rate/share."""
-    for value in aggregates.values():
-        if isinstance(value, bool):
+    """Allow percent tokens only from aggregate keys that look like rates/shares.
+
+    Bare counts (e.g. ``event_count``) must not authorize ``"50%"`` in prose.
+    For rate keys: allow ``percent ~= 100 * value`` when value looks like a 0-1
+    rate, and/or ``percent ~= value`` when value looks like an already-scaled percent.
+    """
+    for key, value in aggregates.items():
+        if not _is_rate_or_share_key(key):
             continue
-        if isinstance(value, (int, float)):
-            derived = float(value) * 100.0
-            if _within_rel_tol(percent, derived):
-                return True
-            # Also allow the aggregate itself being the percent (e.g. 12.5).
-            if _within_rel_tol(percent, float(value)):
-                return True
+        if isinstance(value, bool) or not isinstance(value, (int, float)):
+            continue
+        numeric = float(value)
+        # 0-1 (or tiny overshoot) rate -> scale to percent.
+        if 0.0 <= numeric <= 1.0 + _REL_TOL and _within_rel_tol(
+            percent, numeric * 100.0
+        ):
+            return True
+        # Already-scaled percent (e.g. success_pct: 50).
+        if _within_rel_tol(percent, numeric):
+            return True
     return False

@@ -92,6 +92,31 @@ def test_schema_is_strict_compatible() -> None:
     for name in defs:
         dfs(name)
 
+    banned = _schema_keyword_noise(schema, {"title", "default"})
+    assert banned == set(), f"strict schema must not retain {banned}"
+
+
+def _schema_keyword_noise(
+    node: Any, names: set[str], *, under_properties: bool = False
+) -> set[str]:
+    """Find banned JSON Schema keywords, ignoring keys that are property *names*."""
+    found: set[str] = set()
+    if isinstance(node, dict):
+        for key, child in node.items():
+            if under_properties:
+                # Keys under "properties" are field names (e.g. output.title), not keywords.
+                found |= _schema_keyword_noise(child, names, under_properties=False)
+            else:
+                if key in names:
+                    found.add(key)
+                found |= _schema_keyword_noise(
+                    child, names, under_properties=(key == "properties")
+                )
+    elif isinstance(node, list):
+        for child in node:
+            found |= _schema_keyword_noise(child, names, under_properties=False)
+    return found
+
 
 def test_prompt_version_and_load() -> None:
     assert PROMPT_VERSION == "investigate_v1"

@@ -3,6 +3,7 @@
 from typing import Annotated
 
 from fastapi import APIRouter, BackgroundTasks, Depends, HTTPException, Query, Request
+from fastapi.responses import JSONResponse
 
 from tokenpilot.db.database import Database, get_db
 from tokenpilot.detectors.base import EvidenceRef, Severity
@@ -10,6 +11,11 @@ from tokenpilot.detectors.runner import REGISTRY
 from tokenpilot.insights.evidence import resolve_evidence
 from tokenpilot.insights.jobs import JobRepository, run_analysis_job
 from tokenpilot.insights.repository import InsightRepository
+from tokenpilot.investigator.evidence import (
+    build_bundle,
+    disclosure_lines,
+    is_contributor_model,
+)
 from tokenpilot.schemas.common import (
     DEFAULT_PAGE_LIMIT,
     MAX_PAGE_LIMIT,
@@ -25,6 +31,8 @@ from tokenpilot.schemas.insights import (
     InsightOut,
     InsightStatus,
     InsightStatusUpdate,
+    InvestigationMode,
+    InvestigationPreviewOut,
     JobOut,
     StatusNotSettableError,
 )
@@ -124,3 +132,45 @@ def patch_insight(
     if insight is None:
         raise HTTPException(status_code=404, detail="insight not found")
     return _with_guidance(insight)
+
+
+@router.get("/insights/{insight_id}/investigation-preview", response_model=None)
+def investigation_preview(
+    insight_id: str,
+    request: Request,
+    db: Annotated[Database, Depends(get_db)],
+    mode: InvestigationMode = "metadata_only",
+) -> InvestigationPreviewOut | JSONResponse:
+    settings = request.app.state.settings
+    try:
+        with db.read() as conn:
+            bundle = build_bundle(conn, insight_id, mode, settings=settings)
+    except LookupError as exc:
+        raise HTTPException(status_code=404, detail="insight not found") from exc
+    except PermissionError:
+        return JSONResponse(
+            status_code=403,
+            content={
+                "error": {
+                    "code": "content_transmission_disabled",
+                    "message": "content transmission or storage is disabled",
+                    "details": None,
+                }
+            },
+        )
+
+    contains_content = mode == "with_excerpts"
+    contributor_training = is_contributor_model(settings.investigator_model)
+    return InvestigationPreviewOut(
+        bundle=bundle.to_dict(),
+        destination=settings.upstream_base_url,
+        model=settings.investigator_model,
+        contains_content=contains_content,
+        contributor_training=contributor_training,
+        disclosure_lines=disclosure_lines(
+            destination=settings.upstream_base_url,
+            model=settings.investigator_model,
+            contains_content=contains_content,
+            contributor_training=contributor_training,
+        ),
+    )

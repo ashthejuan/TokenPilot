@@ -187,3 +187,14 @@ class InsightStatusUpdate(BaseModel):
     model_config = ConfigDict(extra="forbid")
 
     status: InsightStatus
+
+
+class InvestigationPreviewOut(BaseModel):
+    """Disclosure preview: the exact bundle that would be sent, plus Q8 copy."""
+
+    bundle: dict[str, Any]
+    destination: str
+    model: str
+    contains_content: bool
+    contributor_training: bool
+    disclosure_lines: list[str]

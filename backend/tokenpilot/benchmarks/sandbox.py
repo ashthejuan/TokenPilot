@@ -6,7 +6,9 @@ import signal
 import subprocess
 import sys
 import tempfile
+import threading
 import time
+from contextlib import suppress
 from dataclasses import dataclass
 from pathlib import Path
 
@@ -16,6 +18,7 @@ SANDBOX_EXEC = Path("/usr/bin/sandbox-exec")
 TAIL_BYTES = 64 * 1024
 FSIZE_LIMIT_BYTES = 50 * 1024 * 1024
 NOFILE_LIMIT = 256
+POLL_INTERVAL_S = 0.05
 
 
 @dataclass(frozen=True)
@@ -26,6 +29,7 @@ class SandboxResult:
     stderr_tail: str
     duration_ms: int
     isolation_level: str
+    cancelled: bool = False
 
 
 def _sandbox_profile(cwd: Path, home: Path) -> str:
@@ -67,13 +71,27 @@ def _tail(data: bytes) -> str:
     return redact_text(data[-TAIL_BYTES:].decode("utf-8", errors="replace"))
 
 
+def _kill_group(pid: int) -> None:
+    """SIGKILL the process group; a just-exited group is not an error."""
+    with suppress(ProcessLookupError):
+        os.killpg(pid, signal.SIGKILL)
+
+
 def run_sandboxed(
-    cmd: list[str], cwd: Path, timeout_s: int, network: bool = False
+    cmd: list[str],
+    cwd: Path,
+    timeout_s: int,
+    network: bool = False,
+    cancel: threading.Event | None = None,
 ) -> SandboxResult:
     """Run `cmd` in `cwd` with a scrubbed env and resource limits.
 
     The child sees exactly `PATH`, `HOME` (a fresh temp dir), `LANG`, and
     `PYTHONDONTWRITEBYTECODE`. On timeout the whole process group is SIGKILLed.
+
+    When `cancel` is set, the wait ends promptly: the group is SIGKILLed and
+    the result carries `cancelled=True` (with `timed_out=False` and
+    `exit_code=None`). Unset preserves the previous behavior exactly.
 
     Isolation notes (deliberate relaxations, see Phase 4 notes):
     file writes are allowed under `cwd`, the temp HOME, and the system temp
@@ -111,14 +129,24 @@ def run_sandboxed(
         preexec_fn=lambda: _limit_resources(timeout_s),
     )
     timed_out = False
+    cancelled = False
     try:
-        try:
-            stdout, stderr = proc.communicate(timeout=timeout_s)
-        except subprocess.TimeoutExpired:
-            timed_out = True
-            os.killpg(proc.pid, signal.SIGKILL)
-            stdout, stderr = proc.communicate()
-        exit_code: int | None = None if timed_out else proc.returncode
+        while True:
+            try:
+                stdout, stderr = proc.communicate(timeout=POLL_INTERVAL_S)
+                break
+            except subprocess.TimeoutExpired:
+                if cancel is not None and cancel.is_set():
+                    cancelled = True
+                    _kill_group(proc.pid)
+                    stdout, stderr = proc.communicate()
+                    break
+                if time.monotonic() - started >= timeout_s:
+                    timed_out = True
+                    _kill_group(proc.pid)
+                    stdout, stderr = proc.communicate()
+                    break
+        exit_code: int | None = None if (timed_out or cancelled) else proc.returncode
     finally:
         duration_ms = int((time.monotonic() - started) * 1000)
         shutil.rmtree(home, ignore_errors=True)
@@ -129,4 +157,5 @@ def run_sandboxed(
         stderr_tail=_tail(stderr),
         duration_ms=duration_ms,
         isolation_level=isolation_level,
+        cancelled=cancelled,
     )

@@ -19,6 +19,7 @@ from tokenpilot.benchmarks.runner import (
     BenchmarkStore,
     execute_run,
 )
+from tokenpilot.benchmarks.sandbox import run_sandboxed
 from tokenpilot.config import Settings
 from tokenpilot.db.connection import connect
 from tokenpilot.main import create_app
@@ -327,6 +328,39 @@ def test_required_test_missing_is_failed(settings: Settings, tmp_path: Path) -> 
     assert finished.test_results["required"] == {"tests/test_calc.py::test_add": "missing"}
 
 
+def test_required_test_skipped_is_failed(settings: Settings, tmp_path: Path) -> None:
+    repo = _make_repo(tmp_path / "repo")
+    skipped_tests = (
+        "import pytest\n"
+        "from calc import add\n"
+        "\n\n"
+        "@pytest.mark.skip(reason='agent was lazy')\n"
+        "def test_add():\n"
+        "    assert add(1, 2) == 3\n"
+    )
+    scripted = ScriptedModel(
+        [
+            ScriptedModel.tools(
+                ScriptedModel.call("write_file", path="calc.py", content=FIXED),
+                ScriptedModel.call(
+                    "write_file", path="tests/test_calc.py", content=skipped_tests
+                ),
+            ),
+            ScriptedModel.tools(ScriptedModel.call("done", summary="skipped it")),
+        ]
+    )
+    with _running(settings, scripted) as (app, client):
+        app.state.benchmark_worker.stop()
+        _, run_id = _seed_benchmark(app, client, repo)
+        finished = _execute(settings, app, run_id)
+    assert finished.outcome == "failed"
+    assert finished.test_exit_code == 0
+    assert finished.test_results is not None
+    assert finished.test_results["required"] == {
+        "tests/test_calc.py::test_add": "skipped"
+    }
+
+
 def test_unknown_cost_event_makes_total_cost_null(
     settings: Settings, tmp_path: Path
 ) -> None:
@@ -348,6 +382,55 @@ def test_unknown_cost_event_makes_total_cost_null(
     assert finished.total_cost is None
     assert finished.currency is None
     assert finished.unknown_cost_events == finished.request_count == 2
+
+
+def _commit(repo: Path, message: str) -> None:
+    _git(repo, "add", "-A")
+    _git(
+        repo, "-c", "user.name=t", "-c", "user.email=t@t.t", "commit", "-m", message
+    )
+
+
+def test_collect_only_failure_with_exit_zero_is_inconclusive(
+    settings: Settings, tmp_path: Path
+) -> None:
+    repo = _make_repo(tmp_path / "repo", FIXED)
+    (repo / "conftest.py").write_text(
+        "def pytest_configure(config):\n"
+        "    if config.option.collectonly:\n"
+        "        raise RuntimeError('sabotaged collect-only')\n"
+    )
+    _commit(repo, "sabotage collect-only")
+    scripted = ScriptedModel(
+        [ScriptedModel.tools(ScriptedModel.call("done", summary="nothing to do"))]
+    )
+    with _running(settings, scripted) as (app, client):
+        app.state.benchmark_worker.stop()
+        _, run_id = _seed_benchmark(app, client, repo)
+        finished = _execute(settings, app, run_id)
+    assert finished.test_exit_code == 0
+    assert finished.outcome == "inconclusive"
+    assert finished.run_status == "failed"
+    assert finished.error is not None and "unverifiable" in finished.error
+
+
+def test_non_pytest_command_with_exit_zero_is_inconclusive(
+    settings: Settings, tmp_path: Path
+) -> None:
+    repo = _make_repo(tmp_path / "repo", FIXED)
+    scripted = ScriptedModel(
+        [ScriptedModel.tools(ScriptedModel.call("done", summary="nothing to do"))]
+    )
+    with _running(settings, scripted) as (app, client):
+        app.state.benchmark_worker.stop()
+        _, run_id = _seed_benchmark(
+            app, client, repo, command=["python", "-c", "pass"]
+        )
+        finished = _execute(settings, app, run_id)
+    assert finished.test_exit_code == 0
+    assert finished.outcome == "inconclusive"
+    assert finished.run_status == "failed"
+    assert finished.error is not None and "unverifiable" in finished.error
 
 
 def test_interrupted_run_marked_inconclusive_on_restart(
@@ -410,6 +493,66 @@ def test_cancel_stops_run_and_marks_cancelled(
     assert finished.outcome == "cancelled"
     assert finished.run_status == "completed"
     assert len(scripted.requests) < 100
+
+
+def test_run_sandboxed_cancel_kills_group_and_returns_promptly(
+    tmp_path: Path,
+) -> None:
+    cancel = threading.Event()
+    timer = threading.Timer(0.3, cancel.set)
+    timer.start()
+    try:
+        started = time.monotonic()
+        result = run_sandboxed(
+            ["sleep", "10"], cwd=tmp_path, timeout_s=10, cancel=cancel
+        )
+        elapsed = time.monotonic() - started
+    finally:
+        timer.cancel()
+    assert result.cancelled is True
+    assert result.timed_out is False
+    assert result.exit_code is None
+    assert elapsed < 5
+
+
+def test_cancel_during_acceptance_preempts_sandbox(
+    settings: Settings, tmp_path: Path
+) -> None:
+    repo = _make_repo(tmp_path / "repo", FIXED)
+    scripted = ScriptedModel(
+        [ScriptedModel.tools(ScriptedModel.call("done", summary="nothing to do"))]
+    )
+    command = [
+        "python",
+        "-c",
+        "import time; open('ACCEPTANCE_STARTED', 'w').close(); time.sleep(20)",
+    ]
+    with _running(settings, scripted) as (app, client):
+        app.state.benchmark_worker.stop()
+        _, run_id = _seed_benchmark(app, client, repo, timeout_s=20, command=command)
+        marker = settings.data_dir / "worktrees" / run_id / "ACCEPTANCE_STARTED"
+        cancel = threading.Event()
+        outcome: dict[str, Any] = {}
+
+        def target() -> None:
+            outcome["run"] = _execute(settings, app, run_id, cancel=cancel)
+
+        thread = threading.Thread(target=target)
+        thread.start()
+        try:
+            deadline = time.monotonic() + 30
+            while not marker.exists() and time.monotonic() < deadline:
+                time.sleep(0.05)
+            assert marker.exists(), "acceptance command never started"
+            cancel.set()
+            thread.join(timeout=8)
+            assert not thread.is_alive(), "acceptance run was not preempted"
+        finally:
+            cancel.set()
+            thread.join(timeout=60)
+    finished: BenchmarkRunOut = outcome["run"]
+    assert finished.outcome == "cancelled"
+    assert finished.run_status == "completed"
 
 
 def test_gateway_down_marks_inconclusive(settings: Settings, tmp_path: Path) -> None:

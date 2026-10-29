@@ -5,9 +5,8 @@ its own SQLite connection, so long runs never block API requests. On startup
 the worker fails runs a previous process left behind (PRD §14 Reliability).
 
 Cancel sets a per-run flag that the runner checks between agent steps and
-around the acceptance command. A run cancelled while the sandbox is busy is
-still marked `cancelled` when the command returns; the sandbox's own timeout
-always kills its process group.
+that the sandbox wait polls: cancelling a run inside the acceptance command
+SIGKILLs the sandbox process group at once and the run is marked `cancelled`.
 """
 
 import logging

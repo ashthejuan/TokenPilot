@@ -23,7 +23,11 @@ from tokenpilot.benchmarks.metrics import (
     success_rate,
     summarize,
 )
-from tokenpilot.benchmarks.runner import BenchmarkStore, execute_run
+from tokenpilot.benchmarks.runner import (
+    BenchmarkStore,
+    execute_run,
+    parse_pytest_verbose,
+)
 from tokenpilot.config import Settings
 from tokenpilot.db.connection import connect
 from tokenpilot.main import create_app
@@ -341,6 +345,21 @@ def _run_out(
         error=None,
         eligible=True,
     )
+
+
+def test_parse_pytest_verbose_maps_outcomes_and_ignores_summary() -> None:
+    text = (
+        "tests/test_calc.py::test_add SKIPPED (agent was lazy) [100%]\n"
+        "tests/test_calc.py::test_sub PASSED [100%]\n"
+        "tests/test_calc.py::test_mul FAILED [100%]\n"
+        "FAILED tests/test_calc.py::test_mul - assert False\n"
+        "1 failed, 1 passed, 1 skipped in 0.50s\n"
+    )
+    assert parse_pytest_verbose(text) == {
+        "tests/test_calc.py::test_add": "skipped",
+        "tests/test_calc.py::test_sub": "passed",
+        "tests/test_calc.py::test_mul": "failed",
+    }
 
 
 def test_metrics_success_rate_and_cost_per_success() -> None:

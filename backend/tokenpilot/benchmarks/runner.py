@@ -18,7 +18,6 @@ import subprocess
 import sys
 import threading
 import uuid
-from collections.abc import Collection
 from dataclasses import dataclass
 from decimal import Decimal
 from pathlib import Path
@@ -149,37 +148,93 @@ def _count(pattern: str, text: str) -> int:
     return sum(int(match) for match in re.findall(pattern, text))
 
 
-def parse_pytest_results(
-    stdout: str,
-    stderr: str,
-    exit_code: int,
-    required_pass: list[str],
-    collected: Collection[str] | None,
-) -> dict[str, Any]:
-    """Score required nodeids from `-q` output plus a `--collect-only` listing.
-
-    `-q` never names passing tests, so presence comes from the collect-only run:
-    a required nodeid that is absent there is `missing`, never silently passed.
-    """
+def _count_summary(stdout: str, stderr: str) -> dict[str, int]:
+    """Aggregate pass/fail/error counts from pytest `-q` output."""
     text = f"{stdout}\n{stderr}"
-    failed_nodes = set(re.findall(r"^FAILED (\S+)", text, re.MULTILINE))
-    failed_nodes.update(re.findall(r"^ERROR (\S+)", text, re.MULTILINE))
-    required: dict[str, str] = {}
-    for nodeid in required_pass:
-        if nodeid in failed_nodes:
-            required[nodeid] = "failed"
-        elif collected is not None and nodeid not in collected:
-            required[nodeid] = "missing"
-        elif exit_code == 0:
-            required[nodeid] = "passed"
-        else:
-            required[nodeid] = "failed"
     return {
         "passed": _count(r"(\d+) passed", text),
         "failed": _count(r"(\d+) failed", text),
         "errors": _count(r"(\d+) errors?", text),
-        "required": required,
     }
+
+
+_VERBOSE_LINE = re.compile(
+    r"^(.+?)\s+(PASSED|FAILED|ERROR|SKIPPED|XFAIL|XPASS)\b.*\[.*%\]\s*$"
+)
+_VERBOSE_STATUS = {"PASSED": "passed", "SKIPPED": "skipped"}
+
+
+def parse_pytest_verbose(text: str) -> dict[str, str]:
+    """Per-test outcomes from `pytest -v` output: nodeid -> passed|failed|skipped.
+
+    Only `-v` status lines match; short-summary lines (`FAILED ... - assert`)
+    and the final count line do not. Anything that did not pass (failure,
+    error, xfail, xpass) maps to `failed`: only an explicit `passed` can
+    satisfy `required_pass`, so a skip marker never scores as a pass.
+    """
+    outcomes: dict[str, str] = {}
+    for line in text.splitlines():
+        match = _VERBOSE_LINE.match(line.strip())
+        if match is None:
+            continue
+        outcomes[match.group(1)] = _VERBOSE_STATUS.get(match.group(2), "failed")
+    return outcomes
+
+
+def _pytest_base(command: list[str]) -> list[str] | None:
+    """The pytest argv prefix for supplementary runs, or None when the acceptance
+    command is not pytest — in which case `required_pass` cannot be verified."""
+    if len(command) >= 3 and command[1:3] == ["-m", "pytest"]:
+        return command[:3]
+    if Path(command[0]).name in ("pytest", "py.test"):
+        return command[:1]
+    return None
+
+
+_VERIFY_TIMEOUT_S = 120
+
+
+def _verify_required_tests(
+    worktree_path: Path,
+    pytest_base: list[str],
+    required_pass: list[str],
+    timeout_s: int,
+    cancel: threading.Event | None,
+) -> dict[str, str] | None:
+    """Verify each required nodeid individually: presence via `--collect-only`,
+    outcome via a targeted `-v` run over just the required nodeids. Returns None
+    when the required set cannot be verified (collect or verify failed), which
+    the caller scores as inconclusive — never as passed. A cancelled
+    supplementary run raises :class:`AgentCancelled` like any other cancel."""
+    collected = run_sandboxed(
+        [*pytest_base, "--collect-only", "-q"],
+        cwd=worktree_path,
+        timeout_s=min(timeout_s, _VERIFY_TIMEOUT_S),
+        cancel=cancel,
+    )
+    if collected.cancelled:
+        raise AgentCancelled("cancelled during test verification")
+    if collected.timed_out or collected.exit_code not in (0, 5):
+        return None
+    present = parse_collect_only(collected.stdout_tail)
+    statuses = {nodeid: "missing" for nodeid in required_pass if nodeid not in present}
+    targets = [nodeid for nodeid in required_pass if nodeid in present]
+    if not targets:
+        return statuses
+    verified = run_sandboxed(
+        [*pytest_base, "-v", "--tb=no", *targets],
+        cwd=worktree_path,
+        timeout_s=min(timeout_s, _VERIFY_TIMEOUT_S),
+        cancel=cancel,
+    )
+    if verified.cancelled:
+        raise AgentCancelled("cancelled during test verification")
+    if verified.timed_out or verified.exit_code not in (0, 1, 5):
+        return None
+    outcomes = parse_pytest_verbose(f"{verified.stdout_tail}\n{verified.stderr_tail}")
+    for nodeid in targets:
+        statuses[nodeid] = outcomes.get(nodeid, "missing")
+    return statuses
 
 
 def parse_collect_only(output: str) -> set[str]:
@@ -501,12 +556,11 @@ def _execute_phases(
     if _cancelled_between_steps(cancel):
         return _PhaseOutcome("completed", "cancelled", "cancelled")
 
+    command = resolve_acceptance_command(benchmark.acceptance.command)
     test_result = run_sandboxed(
-        resolve_acceptance_command(benchmark.acceptance.command),
-        cwd=worktree.path,
-        timeout_s=timeout_s,
+        command, cwd=worktree.path, timeout_s=timeout_s, cancel=cancel
     )
-    if _cancelled_between_steps(cancel):
+    if test_result.cancelled or _cancelled_between_steps(cancel):
         return _PhaseOutcome("completed", "cancelled", "cancelled")
     if test_result.timed_out:
         return _PhaseOutcome(
@@ -514,16 +568,33 @@ def _execute_phases(
             "timed_out",
             f"acceptance command timed out after {timeout_s}s",
         )
-    collected = _collect_nodeids(worktree.path, benchmark, timeout_s)
-    results = parse_pytest_results(
-        test_result.stdout_tail,
-        test_result.stderr_tail,
-        test_result.exit_code or 0,
-        benchmark.acceptance.required_pass,
-        collected,
-    )
-    required_ok = all(status == "passed" for status in results["required"].values())
-    if test_result.exit_code == 0 and required_ok:
+    counts = _count_summary(test_result.stdout_tail, test_result.stderr_tail)
+    required_pass = benchmark.acceptance.required_pass
+    if not required_pass:
+        required: dict[str, str] | None = {}
+        unverifiable_reason = ""
+    elif (pytest_base := _pytest_base(command)) is None:
+        required = None
+        unverifiable_reason = "acceptance command is not pytest"
+    else:
+        required = _verify_required_tests(
+            worktree.path, pytest_base, required_pass, timeout_s, cancel
+        )
+        unverifiable_reason = "supplementary verification failed"
+    exit_code = test_result.exit_code or 0
+    if exit_code == 0 and required_pass and required is None:
+        return _PhaseOutcome(
+            "failed",
+            "inconclusive",
+            f"unverifiable required tests: {unverifiable_reason}",
+            test_exit_code=test_result.exit_code,
+            test_results={**counts, "required": {}},
+        )
+    if required is None:
+        # Nonzero exit: the run failed regardless; required statuses are unknown.
+        required = {nodeid: "failed" for nodeid in required_pass}
+    results: dict[str, Any] = {**counts, "required": required}
+    if exit_code == 0 and all(status == "passed" for status in required.values()):
         return _PhaseOutcome(
             "completed", "passed", None,
             test_exit_code=test_result.exit_code, test_results=results,
@@ -569,43 +640,16 @@ def _create_checked_worktree(
     return worktree
 
 
-def _collect_nodeids(
-    worktree_path: Path, benchmark: BenchmarkOut, timeout_s: int
-) -> set[str] | None:
-    """Best-effort `--collect-only` listing so missing required tests are caught."""
-    if not benchmark.acceptance.required_pass:
-        return set()
-    command = resolve_acceptance_command(benchmark.acceptance.command)
-    python, rest = command[0], command[1:]
-    if rest[:2] != ["-m", "pytest"]:
-        return None
-    try:
-        collected = run_sandboxed(
-            [python, "-m", "pytest", "--collect-only", "-q"],
-            cwd=worktree_path,
-            timeout_s=min(timeout_s, 120),
-        )
-    except Exception as exc:  # supplementary evidence only
-        logger.warning("collect-only run failed: %s", _redacted_error(exc))
-        return None
-    if collected.timed_out or collected.exit_code not in (0, 5):
-        return None
-    # Exit 5 ("no tests collected") still yields a valid, possibly empty, listing.
-    return parse_collect_only(collected.stdout_tail)
-
-
 def _failure_reason(result: SandboxResult, results: dict[str, Any]) -> str:
-    missing = sorted(
-        nodeid
-        for nodeid, status in results["required"].items()
-        if status == "missing"
-    )
+    required = results["required"]
+    missing = sorted(nodeid for nodeid, status in required.items() if status == "missing")
     if missing:
         return f"required tests missing: {', '.join(missing)}"
+    skipped = sorted(nodeid for nodeid, status in required.items() if status == "skipped")
+    if skipped:
+        return f"required tests skipped: {', '.join(skipped)}"
     failing = sorted(
-        nodeid
-        for nodeid, status in results["required"].items()
-        if status != "passed"
+        nodeid for nodeid, status in required.items() if status != "passed"
     )
     if failing:
         return f"required tests not passed: {', '.join(failing)}"

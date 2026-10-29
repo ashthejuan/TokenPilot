@@ -1,6 +1,6 @@
 import { describe, expect, it } from "vitest";
 
-import { addMoney, formatMoney, moneyOrZero } from "@/lib/format";
+import { addMoney, formatMoney, formatTimestamp, moneyOrZero } from "@/lib/format";
 
 describe("formatMoney", () => {
   it("shows Unknown for a missing amount, never zero", () => {
@@ -58,5 +58,15 @@ describe("moneyOrZero", () => {
 
   it("stays unknown when currency is unknown", () => {
     expect(moneyOrZero(null, null, 0)).toBeNull();
+  });
+});
+
+describe("formatTimestamp", () => {
+  it("renders wall-clock UTC with an explicit UTC label", () => {
+    expect(formatTimestamp("2026-10-27T00:30:00Z")).toBe("Oct 27, 12:30 AM UTC");
+  });
+
+  it("does not shift the instant into the viewer's zone", () => {
+    expect(formatTimestamp("2026-06-01T23:45:00+02:00")).toBe("Jun 1, 09:45 PM UTC");
   });
 });

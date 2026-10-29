@@ -54,11 +54,17 @@ export function formatPct(value: number | null): string {
   return value === null ? "Unknown" : `${value.toFixed(1)}%`;
 }
 
+/**
+ * Every timestamp in the app is UTC on the wire; render wall-clock UTC with an
+ * explicit label so a viewer never mistakes it for their local time.
+ */
 export function formatTimestamp(iso: string): string {
   return new Date(iso).toLocaleString(LOCALE, {
     month: "short",
     day: "numeric",
     hour: "2-digit",
     minute: "2-digit",
+    timeZone: "UTC",
+    timeZoneName: "short",
   });
 }

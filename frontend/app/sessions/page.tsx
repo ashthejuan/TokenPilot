@@ -1,7 +1,7 @@
 "use client";
 
 import Link from "next/link";
-import { useCallback, useEffect, useState } from "react";
+import { useCallback, useEffect, useRef, useState } from "react";
 
 import { CostValue } from "@/components/CostValue";
 import { Badge } from "@/components/ui/badge";
@@ -18,7 +18,7 @@ import {
 import { ApiError, apiGet } from "@/lib/api";
 import type { components } from "@/lib/api-types";
 import { formatCount, formatTimestamp } from "@/lib/format";
-import { shouldCommitFetch } from "@/lib/sessions";
+import { shouldCommitFetch, shouldCommitLoadMore } from "@/lib/sessions";
 
 type SessionSummary = components["schemas"]["SessionSummary"];
 type PagedSessions = components["schemas"]["Paged_SessionSummary_"];
@@ -64,6 +64,9 @@ export default function SessionsPage() {
   const [loading, setLoading] = useState(true);
   const [loadingMore, setLoadingMore] = useState(false);
   const [error, setError] = useState<string | null>(null);
+  const filterGenerationRef = useRef(0);
+  const outcomeRef = useRef(outcome);
+  outcomeRef.current = outcome;
 
   const fetchPage = useCallback(async (cursor: string | null, outcomeFilter: Outcome) => {
     const params: Record<string, string> = {};
@@ -74,12 +77,22 @@ export default function SessionsPage() {
 
   useEffect(() => {
     let cancelled = false;
+    const generation = ++filterGenerationRef.current;
     setLoading(true);
+    setLoadingMore(false);
     setItems([]);
     setNextCursor(null);
     fetchPage(null, outcome)
       .then((page) => {
         if (!shouldCommitFetch(cancelled)) return;
+        if (
+          !shouldCommitLoadMore(
+            { generation, outcome },
+            { generation: filterGenerationRef.current, outcome: outcomeRef.current },
+          )
+        ) {
+          return;
+        }
         setItems(page.items);
         setNextCursor(page.next_cursor ?? null);
         setError(null);
@@ -97,16 +110,36 @@ export default function SessionsPage() {
 
   async function loadMore() {
     if (!nextCursor || loadingMore) return;
+    const requestCursor = nextCursor;
+    const requestOutcome = outcome;
+    const requestGeneration = filterGenerationRef.current;
     setLoadingMore(true);
     try {
-      const page = await fetchPage(nextCursor, outcome);
+      const page = await fetchPage(requestCursor, requestOutcome);
+      if (
+        !shouldCommitLoadMore(
+          { generation: requestGeneration, outcome: requestOutcome },
+          { generation: filterGenerationRef.current, outcome: outcomeRef.current },
+        )
+      ) {
+        return;
+      }
       setItems((current) => [...current, ...page.items]);
       setNextCursor(page.next_cursor ?? null);
       setError(null);
     } catch (err: unknown) {
-      setError(errorText(err));
+      if (
+        shouldCommitLoadMore(
+          { generation: requestGeneration, outcome: requestOutcome },
+          { generation: filterGenerationRef.current, outcome: outcomeRef.current },
+        )
+      ) {
+        setError(errorText(err));
+      }
     } finally {
-      setLoadingMore(false);
+      if (requestGeneration === filterGenerationRef.current) {
+        setLoadingMore(false);
+      }
     }
   }
 

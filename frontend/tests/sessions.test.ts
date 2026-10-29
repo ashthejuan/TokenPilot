@@ -9,6 +9,7 @@ import {
   reconcilePendingOutcome,
   retryChipLabel,
   shouldCommitFetch,
+  shouldCommitLoadMore,
 } from "@/lib/sessions";
 
 type InsightOut = components["schemas"]["InsightOut"];
@@ -91,6 +92,29 @@ describe("shouldCommitFetch", () => {
   it("skips applying results after cancel", () => {
     expect(shouldCommitFetch(true)).toBe(false);
     expect(shouldCommitFetch(false)).toBe(true);
+  });
+});
+
+describe("shouldCommitLoadMore", () => {
+  it("rejects stale load-more after filter generation advances", () => {
+    expect(
+      shouldCommitLoadMore(
+        { generation: 1, outcome: "failure" },
+        { generation: 1, outcome: "failure" },
+      ),
+    ).toBe(true);
+    expect(
+      shouldCommitLoadMore(
+        { generation: 1, outcome: "failure" },
+        { generation: 2, outcome: "success" },
+      ),
+    ).toBe(false);
+    expect(
+      shouldCommitLoadMore(
+        { generation: 2, outcome: "failure" },
+        { generation: 2, outcome: "success" },
+      ),
+    ).toBe(false);
   });
 });
 

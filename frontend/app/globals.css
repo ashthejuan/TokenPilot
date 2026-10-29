@@ -128,3 +128,43 @@
     @apply font-sans;
   }
 }
+
+/* Benchmarks runs table: first-load stagger only. Poll refreshes update text
+   instantly with no transition. Per-row delay is set inline (50ms steps). */
+@keyframes benchmark-row-in {
+  from {
+    opacity: 0;
+    transform: translateY(4px);
+  }
+  to {
+    opacity: 1;
+    transform: translateY(0);
+  }
+}
+
+.benchmark-row-enter {
+  animation: benchmark-row-in 220ms cubic-bezier(0.16, 1, 0.3, 1) backwards;
+}
+
+/* Pressable feedback: exact properties, never `transition: all`. */
+.pressable {
+  transition-property: transform, background-color, border-color, color, box-shadow;
+  transition-duration: 150ms;
+  transition-timing-function: cubic-bezier(0.16, 1, 0.3, 1);
+}
+
+.pressable:active {
+  transform: scale(0.97);
+}
+
+@media (prefers-reduced-motion: reduce) {
+  .benchmark-row-enter {
+    animation: none;
+  }
+  .pressable {
+    transition-property: background-color, border-color, color, box-shadow;
+  }
+  .pressable:active {
+    transform: none;
+  }
+}

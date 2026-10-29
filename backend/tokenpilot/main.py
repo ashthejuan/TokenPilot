@@ -15,6 +15,7 @@ from fastapi.responses import JSONResponse
 from pydantic import SecretStr
 from starlette.exceptions import HTTPException as StarletteHTTPException
 
+from tokenpilot.api.benchmarks import router as benchmarks_router
 from tokenpilot.api.data import router as data_router
 from tokenpilot.api.gateway import router as gateway_router
 from tokenpilot.api.health import router as health_router
@@ -23,6 +24,7 @@ from tokenpilot.api.projects import router as projects_router
 from tokenpilot.api.sessions import router as sessions_router
 from tokenpilot.api.settings import router as settings_router
 from tokenpilot.api.usage import router as usage_router
+from tokenpilot.benchmarks.worker import BenchmarkWorker
 from tokenpilot.config import Settings
 from tokenpilot.db.connection import connect
 from tokenpilot.db.database import Database
@@ -132,12 +134,33 @@ def create_app(
         timeout = httpx.Timeout(connect=10.0, read=300.0, write=30.0, pool=10.0)
         upstream = httpx.AsyncClient(timeout=timeout, transport=upstream_transport)
         app.state.upstream = upstream
+        # Worker-driven benchmark traffic runs on a different event loop than
+        # the server, and a pooled connection is bound to its loop: sharing
+        # one client breaks concurrent gateway traffic with
+        # "Event loop is closed". The gateway routes benchmark-header
+        # requests to this dedicated client instead.
+        benchmark_upstream = httpx.AsyncClient(timeout=timeout, transport=upstream_transport)
+        app.state.benchmark_upstream = benchmark_upstream
         # Sync MetaClient (investigator) reuses the same MockTransport in tests.
         app.state.upstream_transport = upstream_transport
+        # The benchmark worker drives the agent through this same app over ASGI,
+        # so agent usage is captured by the gateway like any other client.
+        app.state.benchmark_idempotency = {}
+        worker = BenchmarkWorker(
+            resolved.db_path,
+            gateway_url="http://benchmark-worker/gateway/v1",
+            local_token=resolved.local_token.get_secret_value(),
+            data_dir=resolved.data_dir,
+            transport=httpx.ASGITransport(app=app),
+        )
+        app.state.benchmark_worker = worker
+        worker.start()
         try:
             yield
         finally:
+            worker.stop()
             await upstream.aclose()
+            await benchmark_upstream.aclose()
             db.close()
 
     app = FastAPI(title="TokenPilot API", version="0.1.0", lifespan=lifespan)
@@ -160,6 +183,7 @@ def create_app(
         data_router,
         insights_router,
         gateway_router,
+        benchmarks_router,
     ):
         app.include_router(router, dependencies=[Depends(require_local_token)])
     return app

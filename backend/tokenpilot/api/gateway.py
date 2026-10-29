@@ -19,6 +19,7 @@ from tokenpilot.gateway.proxy import (
     PreparedBody,
     build_upstream_headers,
     finish_buffered,
+    is_benchmark_request,
     prepare_body,
     read_attribution,
     relay_response_headers,
@@ -48,6 +49,9 @@ def _settings(request: Request) -> Settings:
 
 
 def _upstream_client(request: Request) -> httpx.AsyncClient:
+    if is_benchmark_request(request.headers):
+        dedicated: httpx.AsyncClient = request.app.state.benchmark_upstream
+        return dedicated
     client: httpx.AsyncClient = request.app.state.upstream
     return client
 

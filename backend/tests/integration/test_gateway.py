@@ -3,6 +3,7 @@
 import asyncio
 import json
 from typing import Any
+from unittest.mock import patch
 
 import httpx
 import pytest
@@ -336,6 +337,30 @@ def test_missing_upstream_key_returns_503(
         assert response.json()["error"]["code"] == "upstream_not_configured"
         assert list_events(client, auth_headers) == []
     assert fake.requests == []
+
+
+def test_benchmark_traffic_uses_dedicated_upstream_client(
+    gateway_client: TestClient, gateway_app: FastAPI, auth_headers: dict[str, str]
+) -> None:
+    # Worker-driven benchmark traffic must never share the server loop's
+    # upstream client (loop-affine pool: "Event loop is closed" on reuse).
+    shared = gateway_app.state.upstream
+    dedicated = gateway_app.state.benchmark_upstream
+    assert shared is not dedicated
+    with (
+        patch.object(shared, "post", wraps=shared.post) as shared_post,
+        patch.object(dedicated, "post", wraps=dedicated.post) as dedicated_post,
+    ):
+        normal = gateway_client.post(CHAT, json=chat_body(), headers=auth_headers)
+        benchmarked = gateway_client.post(
+            CHAT,
+            json=chat_body(),
+            headers={**auth_headers, "X-TokenPilot-Benchmark-Run": "run-1"},
+        )
+    assert normal.status_code == 200
+    assert benchmarked.status_code == 200
+    assert shared_post.call_count == 1
+    assert dedicated_post.call_count == 1
 
 
 def test_models_relayed_without_event(

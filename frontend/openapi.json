@@ -1,6 +1,67 @@
 {
   "components": {
     "schemas": {
+      "AcceptanceConfig": {
+        "additionalProperties": false,
+        "properties": {
+          "command": {
+            "items": {
+              "type": "string"
+            },
+            "minItems": 1,
+            "title": "Command",
+            "type": "array"
+          },
+          "min_success_rate": {
+            "default": 1.0,
+            "maximum": 1.0,
+            "minimum": 0.0,
+            "title": "Min Success Rate",
+            "type": "number"
+          },
+          "required_pass": {
+            "items": {
+              "type": "string"
+            },
+            "title": "Required Pass",
+            "type": "array"
+          }
+        },
+        "required": [
+          "command"
+        ],
+        "title": "AcceptanceConfig",
+        "type": "object"
+      },
+      "AlternativeSpec": {
+        "additionalProperties": false,
+        "description": "One alternative variant: a name, baseline changes, and targeted files.",
+        "properties": {
+          "changes": {
+            "additionalProperties": true,
+            "title": "Changes",
+            "type": "object"
+          },
+          "context_files": {
+            "items": {
+              "type": "string"
+            },
+            "title": "Context Files",
+            "type": "array"
+          },
+          "name": {
+            "maxLength": 128,
+            "minLength": 1,
+            "title": "Name",
+            "type": "string"
+          }
+        },
+        "required": [
+          "name"
+        ],
+        "title": "AlternativeSpec",
+        "type": "object"
+      },
       "AnalyzeAccepted": {
         "description": "202 body: the job id to poll.",
         "properties": {
@@ -110,6 +171,709 @@
           }
         },
         "title": "AttributionUpdate",
+        "type": "object"
+      },
+      "BenchmarkCreate": {
+        "additionalProperties": false,
+        "description": "`POST /api/v1/benchmarks` body: the `benchmark_task.yaml` shape plus project.",
+        "properties": {
+          "acceptance": {
+            "$ref": "#/components/schemas/AcceptanceConfig"
+          },
+          "alternatives": {
+            "items": {
+              "$ref": "#/components/schemas/AlternativeSpec"
+            },
+            "title": "Alternatives",
+            "type": "array"
+          },
+          "baseline": {
+            "$ref": "#/components/schemas/RunConfig"
+          },
+          "description": {
+            "anyOf": [
+              {
+                "type": "string"
+              },
+              {
+                "type": "null"
+              }
+            ],
+            "title": "Description"
+          },
+          "initial_ref": {
+            "default": "main",
+            "maxLength": 256,
+            "minLength": 1,
+            "title": "Initial Ref",
+            "type": "string"
+          },
+          "name": {
+            "maxLength": 200,
+            "minLength": 1,
+            "title": "Name",
+            "type": "string"
+          },
+          "project_id": {
+            "minLength": 1,
+            "title": "Project Id",
+            "type": "string"
+          },
+          "repeat_count": {
+            "default": 1,
+            "maximum": 20.0,
+            "minimum": 1.0,
+            "title": "Repeat Count",
+            "type": "integer"
+          },
+          "repository_path": {
+            "minLength": 1,
+            "title": "Repository Path",
+            "type": "string"
+          },
+          "task_prompt": {
+            "minLength": 1,
+            "title": "Task Prompt",
+            "type": "string"
+          },
+          "timeout_s": {
+            "default": 300,
+            "exclusiveMinimum": 0.0,
+            "maximum": 3600.0,
+            "title": "Timeout S",
+            "type": "integer"
+          }
+        },
+        "required": [
+          "project_id",
+          "repository_path",
+          "name",
+          "task_prompt",
+          "acceptance",
+          "baseline"
+        ],
+        "title": "BenchmarkCreate",
+        "type": "object"
+      },
+      "BenchmarkDetail": {
+        "properties": {
+          "acceptance": {
+            "$ref": "#/components/schemas/AcceptanceConfig"
+          },
+          "alternatives": {
+            "items": {
+              "$ref": "#/components/schemas/AlternativeSpec"
+            },
+            "title": "Alternatives",
+            "type": "array"
+          },
+          "baseline": {
+            "$ref": "#/components/schemas/RunConfig"
+          },
+          "created_at": {
+            "title": "Created At",
+            "type": "string"
+          },
+          "description": {
+            "anyOf": [
+              {
+                "type": "string"
+              },
+              {
+                "type": "null"
+              }
+            ],
+            "title": "Description"
+          },
+          "id": {
+            "title": "Id",
+            "type": "string"
+          },
+          "initial_git_sha": {
+            "anyOf": [
+              {
+                "type": "string"
+              },
+              {
+                "type": "null"
+              }
+            ],
+            "title": "Initial Git Sha"
+          },
+          "initial_ref": {
+            "title": "Initial Ref",
+            "type": "string"
+          },
+          "name": {
+            "title": "Name",
+            "type": "string"
+          },
+          "project_id": {
+            "title": "Project Id",
+            "type": "string"
+          },
+          "repeat_count": {
+            "anyOf": [
+              {
+                "type": "integer"
+              },
+              {
+                "type": "null"
+              }
+            ],
+            "title": "Repeat Count"
+          },
+          "runs": {
+            "items": {
+              "$ref": "#/components/schemas/BenchmarkRunOut"
+            },
+            "title": "Runs",
+            "type": "array"
+          },
+          "task_id": {
+            "anyOf": [
+              {
+                "type": "string"
+              },
+              {
+                "type": "null"
+              }
+            ],
+            "title": "Task Id"
+          },
+          "task_prompt": {
+            "title": "Task Prompt",
+            "type": "string"
+          },
+          "timeout_s": {
+            "anyOf": [
+              {
+                "type": "integer"
+              },
+              {
+                "type": "null"
+              }
+            ],
+            "title": "Timeout S"
+          }
+        },
+        "required": [
+          "id",
+          "project_id",
+          "task_id",
+          "name",
+          "description",
+          "initial_git_sha",
+          "acceptance",
+          "baseline",
+          "alternatives",
+          "task_prompt",
+          "initial_ref",
+          "repeat_count",
+          "timeout_s",
+          "created_at"
+        ],
+        "title": "BenchmarkDetail",
+        "type": "object"
+      },
+      "BenchmarkOut": {
+        "properties": {
+          "acceptance": {
+            "$ref": "#/components/schemas/AcceptanceConfig"
+          },
+          "alternatives": {
+            "items": {
+              "$ref": "#/components/schemas/AlternativeSpec"
+            },
+            "title": "Alternatives",
+            "type": "array"
+          },
+          "baseline": {
+            "$ref": "#/components/schemas/RunConfig"
+          },
+          "created_at": {
+            "title": "Created At",
+            "type": "string"
+          },
+          "description": {
+            "anyOf": [
+              {
+                "type": "string"
+              },
+              {
+                "type": "null"
+              }
+            ],
+            "title": "Description"
+          },
+          "id": {
+            "title": "Id",
+            "type": "string"
+          },
+          "initial_git_sha": {
+            "anyOf": [
+              {
+                "type": "string"
+              },
+              {
+                "type": "null"
+              }
+            ],
+            "title": "Initial Git Sha"
+          },
+          "initial_ref": {
+            "title": "Initial Ref",
+            "type": "string"
+          },
+          "name": {
+            "title": "Name",
+            "type": "string"
+          },
+          "project_id": {
+            "title": "Project Id",
+            "type": "string"
+          },
+          "repeat_count": {
+            "anyOf": [
+              {
+                "type": "integer"
+              },
+              {
+                "type": "null"
+              }
+            ],
+            "title": "Repeat Count"
+          },
+          "task_id": {
+            "anyOf": [
+              {
+                "type": "string"
+              },
+              {
+                "type": "null"
+              }
+            ],
+            "title": "Task Id"
+          },
+          "task_prompt": {
+            "title": "Task Prompt",
+            "type": "string"
+          },
+          "timeout_s": {
+            "anyOf": [
+              {
+                "type": "integer"
+              },
+              {
+                "type": "null"
+              }
+            ],
+            "title": "Timeout S"
+          }
+        },
+        "required": [
+          "id",
+          "project_id",
+          "task_id",
+          "name",
+          "description",
+          "initial_git_sha",
+          "acceptance",
+          "baseline",
+          "alternatives",
+          "task_prompt",
+          "initial_ref",
+          "repeat_count",
+          "timeout_s",
+          "created_at"
+        ],
+        "title": "BenchmarkOut",
+        "type": "object"
+      },
+      "BenchmarkRunOut": {
+        "properties": {
+          "benchmark_id": {
+            "title": "Benchmark Id",
+            "type": "string"
+          },
+          "completed_at": {
+            "anyOf": [
+              {
+                "type": "string"
+              },
+              {
+                "type": "null"
+              }
+            ],
+            "title": "Completed At"
+          },
+          "config": {
+            "additionalProperties": true,
+            "title": "Config",
+            "type": "object"
+          },
+          "currency": {
+            "anyOf": [
+              {
+                "type": "string"
+              },
+              {
+                "type": "null"
+              }
+            ],
+            "title": "Currency"
+          },
+          "duration_ms": {
+            "anyOf": [
+              {
+                "type": "integer"
+              },
+              {
+                "type": "null"
+              }
+            ],
+            "title": "Duration Ms"
+          },
+          "eligible": {
+            "anyOf": [
+              {
+                "type": "boolean"
+              },
+              {
+                "type": "null"
+              }
+            ],
+            "title": "Eligible"
+          },
+          "error": {
+            "anyOf": [
+              {
+                "type": "string"
+              },
+              {
+                "type": "null"
+              }
+            ],
+            "title": "Error"
+          },
+          "id": {
+            "title": "Id",
+            "type": "string"
+          },
+          "model_id": {
+            "anyOf": [
+              {
+                "type": "string"
+              },
+              {
+                "type": "null"
+              }
+            ],
+            "title": "Model Id"
+          },
+          "outcome": {
+            "anyOf": [
+              {
+                "enum": [
+                  "passed",
+                  "failed",
+                  "timed_out",
+                  "cancelled",
+                  "inconclusive"
+                ],
+                "type": "string"
+              },
+              {
+                "type": "null"
+              }
+            ],
+            "title": "Outcome"
+          },
+          "patch_path": {
+            "anyOf": [
+              {
+                "type": "string"
+              },
+              {
+                "type": "null"
+              }
+            ],
+            "title": "Patch Path"
+          },
+          "repeat_index": {
+            "anyOf": [
+              {
+                "type": "integer"
+              },
+              {
+                "type": "null"
+              }
+            ],
+            "title": "Repeat Index"
+          },
+          "request_count": {
+            "title": "Request Count",
+            "type": "integer"
+          },
+          "retry_count": {
+            "title": "Retry Count",
+            "type": "integer"
+          },
+          "run_status": {
+            "enum": [
+              "queued",
+              "running",
+              "completed",
+              "failed"
+            ],
+            "title": "Run Status",
+            "type": "string"
+          },
+          "started_at": {
+            "anyOf": [
+              {
+                "type": "string"
+              },
+              {
+                "type": "null"
+              }
+            ],
+            "title": "Started At"
+          },
+          "test_exit_code": {
+            "anyOf": [
+              {
+                "type": "integer"
+              },
+              {
+                "type": "null"
+              }
+            ],
+            "title": "Test Exit Code"
+          },
+          "test_results": {
+            "anyOf": [
+              {
+                "additionalProperties": true,
+                "type": "object"
+              },
+              {
+                "type": "null"
+              }
+            ],
+            "title": "Test Results"
+          },
+          "total_cost": {
+            "anyOf": [
+              {
+                "type": "number"
+              },
+              {
+                "type": "null"
+              }
+            ],
+            "title": "Total Cost"
+          },
+          "total_tokens": {
+            "anyOf": [
+              {
+                "type": "integer"
+              },
+              {
+                "type": "null"
+              }
+            ],
+            "title": "Total Tokens"
+          },
+          "unknown_cost_events": {
+            "title": "Unknown Cost Events",
+            "type": "integer"
+          },
+          "variant_name": {
+            "title": "Variant Name",
+            "type": "string"
+          },
+          "worktree_path": {
+            "anyOf": [
+              {
+                "type": "string"
+              },
+              {
+                "type": "null"
+              }
+            ],
+            "title": "Worktree Path"
+          }
+        },
+        "required": [
+          "id",
+          "benchmark_id",
+          "variant_name",
+          "model_id",
+          "config",
+          "run_status",
+          "outcome",
+          "total_cost",
+          "currency",
+          "unknown_cost_events",
+          "total_tokens",
+          "request_count",
+          "retry_count",
+          "duration_ms",
+          "test_exit_code",
+          "test_results",
+          "patch_path",
+          "worktree_path",
+          "started_at",
+          "completed_at",
+          "repeat_index",
+          "error",
+          "eligible"
+        ],
+        "title": "BenchmarkRunOut",
+        "type": "object"
+      },
+      "CancelRunsResponse": {
+        "properties": {
+          "cancelled_run_ids": {
+            "items": {
+              "type": "string"
+            },
+            "title": "Cancelled Run Ids",
+            "type": "array"
+          }
+        },
+        "required": [
+          "cancelled_run_ids"
+        ],
+        "title": "CancelRunsResponse",
+        "type": "object"
+      },
+      "CompareRequest": {
+        "additionalProperties": false,
+        "description": "`POST /api/v1/benchmarks/{id}/compare` body: the two variants to pair.",
+        "properties": {
+          "alternative_variant": {
+            "minLength": 1,
+            "title": "Alternative Variant",
+            "type": "string"
+          },
+          "baseline_variant": {
+            "minLength": 1,
+            "title": "Baseline Variant",
+            "type": "string"
+          }
+        },
+        "required": [
+          "baseline_variant",
+          "alternative_variant"
+        ],
+        "title": "CompareRequest",
+        "type": "object"
+      },
+      "ComparisonOut": {
+        "description": "One persisted `benchmark_comparisons` row, with its methodology.",
+        "properties": {
+          "alternative_run_id": {
+            "title": "Alternative Run Id",
+            "type": "string"
+          },
+          "alternative_variant": {
+            "title": "Alternative Variant",
+            "type": "string"
+          },
+          "baseline_run_id": {
+            "title": "Baseline Run Id",
+            "type": "string"
+          },
+          "baseline_variant": {
+            "title": "Baseline Variant",
+            "type": "string"
+          },
+          "benchmark_id": {
+            "title": "Benchmark Id",
+            "type": "string"
+          },
+          "comparison_status": {
+            "enum": [
+              "incomparable",
+              "measured",
+              "correctness_preserving",
+              "verified",
+              "inconclusive"
+            ],
+            "title": "Comparison Status",
+            "type": "string"
+          },
+          "correctness_preserved": {
+            "anyOf": [
+              {
+                "type": "boolean"
+              },
+              {
+                "type": "null"
+              }
+            ],
+            "title": "Correctness Preserved"
+          },
+          "cost_delta": {
+            "anyOf": [
+              {
+                "type": "number"
+              },
+              {
+                "type": "null"
+              }
+            ],
+            "title": "Cost Delta"
+          },
+          "cost_delta_pct": {
+            "anyOf": [
+              {
+                "type": "string"
+              },
+              {
+                "type": "null"
+              }
+            ],
+            "title": "Cost Delta Pct"
+          },
+          "created_at": {
+            "title": "Created At",
+            "type": "string"
+          },
+          "id": {
+            "title": "Id",
+            "type": "string"
+          },
+          "methodology": {
+            "additionalProperties": true,
+            "title": "Methodology",
+            "type": "object"
+          },
+          "reasons": {
+            "items": {
+              "type": "string"
+            },
+            "title": "Reasons",
+            "type": "array"
+          }
+        },
+        "required": [
+          "id",
+          "benchmark_id",
+          "baseline_variant",
+          "alternative_variant",
+          "baseline_run_id",
+          "alternative_run_id",
+          "cost_delta",
+          "cost_delta_pct",
+          "correctness_preserved",
+          "comparison_status",
+          "methodology",
+          "created_at"
+        ],
+        "title": "ComparisonOut",
         "type": "object"
       },
       "CostByOutcome": {
@@ -286,6 +1050,37 @@
           "mixed_currency"
         ],
         "title": "Coverage",
+        "type": "object"
+      },
+      "CreateRunsRequest": {
+        "additionalProperties": false,
+        "properties": {
+          "repeat_count": {
+            "anyOf": [
+              {
+                "maximum": 20.0,
+                "minimum": 1.0,
+                "type": "integer"
+              },
+              {
+                "type": "null"
+              }
+            ],
+            "title": "Repeat Count"
+          },
+          "variants": {
+            "items": {
+              "type": "string"
+            },
+            "minItems": 1,
+            "title": "Variants",
+            "type": "array"
+          }
+        },
+        "required": [
+          "variants"
+        ],
+        "title": "CreateRunsRequest",
         "type": "object"
       },
       "DataDeleteResponse": {
@@ -1787,6 +2582,82 @@
         "title": "ResolvedEvidence",
         "type": "object"
       },
+      "RetryPolicy": {
+        "additionalProperties": false,
+        "properties": {
+          "max_retries": {
+            "default": 0,
+            "maximum": 10.0,
+            "minimum": 0.0,
+            "title": "Max Retries",
+            "type": "integer"
+          }
+        },
+        "title": "RetryPolicy",
+        "type": "object"
+      },
+      "RunConfig": {
+        "additionalProperties": false,
+        "description": "One variant's agent configuration, as stored in `benchmark_runs.config_json`.",
+        "properties": {
+          "context_files": {
+            "items": {
+              "type": "string"
+            },
+            "title": "Context Files",
+            "type": "array"
+          },
+          "context_strategy": {
+            "default": "full_repo",
+            "enum": [
+              "full_repo",
+              "targeted"
+            ],
+            "title": "Context Strategy",
+            "type": "string"
+          },
+          "max_steps": {
+            "maximum": 100.0,
+            "minimum": 1.0,
+            "title": "Max Steps",
+            "type": "integer"
+          },
+          "model_id": {
+            "maxLength": 256,
+            "minLength": 1,
+            "title": "Model Id",
+            "type": "string"
+          },
+          "prompt_template": {
+            "default": "fix_v1",
+            "maxLength": 64,
+            "title": "Prompt Template",
+            "type": "string"
+          },
+          "retry_policy": {
+            "$ref": "#/components/schemas/RetryPolicy"
+          },
+          "temperature": {
+            "anyOf": [
+              {
+                "maximum": 2.0,
+                "minimum": 0.0,
+                "type": "number"
+              },
+              {
+                "type": "null"
+              }
+            ],
+            "title": "Temperature"
+          }
+        },
+        "required": [
+          "model_id",
+          "max_steps"
+        ],
+        "title": "RunConfig",
+        "type": "object"
+      },
       "SessionCost": {
         "properties": {
           "currency": {
@@ -2864,6 +3735,408 @@
   },
   "openapi": "3.1.0",
   "paths": {
+    "/api/v1/benchmark-runs/{run_id}": {
+      "get": {
+        "operationId": "get_run_api_v1_benchmark_runs__run_id__get",
+        "parameters": [
+          {
+            "in": "path",
+            "name": "run_id",
+            "required": true,
+            "schema": {
+              "title": "Run Id",
+              "type": "string"
+            }
+          }
+        ],
+        "responses": {
+          "200": {
+            "content": {
+              "application/json": {
+                "schema": {
+                  "$ref": "#/components/schemas/BenchmarkRunOut"
+                }
+              }
+            },
+            "description": "Successful Response"
+          },
+          "422": {
+            "content": {
+              "application/json": {
+                "schema": {
+                  "$ref": "#/components/schemas/HTTPValidationError"
+                }
+              }
+            },
+            "description": "Validation Error"
+          }
+        },
+        "summary": "Get Run",
+        "tags": [
+          "benchmarks"
+        ]
+      }
+    },
+    "/api/v1/benchmark-runs/{run_id}/patch": {
+      "get": {
+        "operationId": "get_run_patch_api_v1_benchmark_runs__run_id__patch_get",
+        "parameters": [
+          {
+            "in": "path",
+            "name": "run_id",
+            "required": true,
+            "schema": {
+              "title": "Run Id",
+              "type": "string"
+            }
+          }
+        ],
+        "responses": {
+          "200": {
+            "content": {
+              "text/plain": {
+                "schema": {
+                  "type": "string"
+                }
+              }
+            },
+            "description": "Successful Response"
+          },
+          "422": {
+            "content": {
+              "application/json": {
+                "schema": {
+                  "$ref": "#/components/schemas/HTTPValidationError"
+                }
+              }
+            },
+            "description": "Validation Error"
+          }
+        },
+        "summary": "Get Run Patch",
+        "tags": [
+          "benchmarks"
+        ]
+      }
+    },
+    "/api/v1/benchmarks": {
+      "get": {
+        "operationId": "list_benchmarks_api_v1_benchmarks_get",
+        "responses": {
+          "200": {
+            "content": {
+              "application/json": {
+                "schema": {
+                  "items": {
+                    "$ref": "#/components/schemas/BenchmarkOut"
+                  },
+                  "title": "Response List Benchmarks Api V1 Benchmarks Get",
+                  "type": "array"
+                }
+              }
+            },
+            "description": "Successful Response"
+          }
+        },
+        "summary": "List Benchmarks",
+        "tags": [
+          "benchmarks"
+        ]
+      },
+      "post": {
+        "operationId": "create_benchmark_api_v1_benchmarks_post",
+        "parameters": [
+          {
+            "in": "header",
+            "name": "Idempotency-Key",
+            "required": false,
+            "schema": {
+              "anyOf": [
+                {
+                  "type": "string"
+                },
+                {
+                  "type": "null"
+                }
+              ],
+              "title": "Idempotency-Key"
+            }
+          }
+        ],
+        "requestBody": {
+          "content": {
+            "application/json": {
+              "schema": {
+                "$ref": "#/components/schemas/BenchmarkCreate"
+              }
+            }
+          },
+          "required": true
+        },
+        "responses": {
+          "201": {
+            "content": {
+              "application/json": {
+                "schema": {}
+              }
+            },
+            "description": "Successful Response"
+          },
+          "422": {
+            "content": {
+              "application/json": {
+                "schema": {
+                  "$ref": "#/components/schemas/HTTPValidationError"
+                }
+              }
+            },
+            "description": "Validation Error"
+          }
+        },
+        "summary": "Create Benchmark",
+        "tags": [
+          "benchmarks"
+        ]
+      }
+    },
+    "/api/v1/benchmarks/{benchmark_id}": {
+      "get": {
+        "operationId": "get_benchmark_api_v1_benchmarks__benchmark_id__get",
+        "parameters": [
+          {
+            "in": "path",
+            "name": "benchmark_id",
+            "required": true,
+            "schema": {
+              "title": "Benchmark Id",
+              "type": "string"
+            }
+          }
+        ],
+        "responses": {
+          "200": {
+            "content": {
+              "application/json": {
+                "schema": {
+                  "$ref": "#/components/schemas/BenchmarkDetail"
+                }
+              }
+            },
+            "description": "Successful Response"
+          },
+          "422": {
+            "content": {
+              "application/json": {
+                "schema": {
+                  "$ref": "#/components/schemas/HTTPValidationError"
+                }
+              }
+            },
+            "description": "Validation Error"
+          }
+        },
+        "summary": "Get Benchmark",
+        "tags": [
+          "benchmarks"
+        ]
+      }
+    },
+    "/api/v1/benchmarks/{benchmark_id}/cancel": {
+      "post": {
+        "operationId": "cancel_benchmark_api_v1_benchmarks__benchmark_id__cancel_post",
+        "parameters": [
+          {
+            "in": "path",
+            "name": "benchmark_id",
+            "required": true,
+            "schema": {
+              "title": "Benchmark Id",
+              "type": "string"
+            }
+          }
+        ],
+        "responses": {
+          "200": {
+            "content": {
+              "application/json": {
+                "schema": {
+                  "$ref": "#/components/schemas/CancelRunsResponse"
+                }
+              }
+            },
+            "description": "Successful Response"
+          },
+          "422": {
+            "content": {
+              "application/json": {
+                "schema": {
+                  "$ref": "#/components/schemas/HTTPValidationError"
+                }
+              }
+            },
+            "description": "Validation Error"
+          }
+        },
+        "summary": "Cancel Benchmark",
+        "tags": [
+          "benchmarks"
+        ]
+      }
+    },
+    "/api/v1/benchmarks/{benchmark_id}/compare": {
+      "post": {
+        "operationId": "compare_variants_api_v1_benchmarks__benchmark_id__compare_post",
+        "parameters": [
+          {
+            "in": "path",
+            "name": "benchmark_id",
+            "required": true,
+            "schema": {
+              "title": "Benchmark Id",
+              "type": "string"
+            }
+          }
+        ],
+        "requestBody": {
+          "content": {
+            "application/json": {
+              "schema": {
+                "$ref": "#/components/schemas/CompareRequest"
+              }
+            }
+          },
+          "required": true
+        },
+        "responses": {
+          "201": {
+            "content": {
+              "application/json": {
+                "schema": {
+                  "$ref": "#/components/schemas/ComparisonOut"
+                }
+              }
+            },
+            "description": "Successful Response"
+          },
+          "422": {
+            "content": {
+              "application/json": {
+                "schema": {
+                  "$ref": "#/components/schemas/HTTPValidationError"
+                }
+              }
+            },
+            "description": "Validation Error"
+          }
+        },
+        "summary": "Compare Variants",
+        "tags": [
+          "benchmarks"
+        ]
+      }
+    },
+    "/api/v1/benchmarks/{benchmark_id}/comparisons": {
+      "get": {
+        "operationId": "list_comparisons_api_v1_benchmarks__benchmark_id__comparisons_get",
+        "parameters": [
+          {
+            "in": "path",
+            "name": "benchmark_id",
+            "required": true,
+            "schema": {
+              "title": "Benchmark Id",
+              "type": "string"
+            }
+          }
+        ],
+        "responses": {
+          "200": {
+            "content": {
+              "application/json": {
+                "schema": {
+                  "items": {
+                    "$ref": "#/components/schemas/ComparisonOut"
+                  },
+                  "title": "Response List Comparisons Api V1 Benchmarks  Benchmark Id  Comparisons Get",
+                  "type": "array"
+                }
+              }
+            },
+            "description": "Successful Response"
+          },
+          "422": {
+            "content": {
+              "application/json": {
+                "schema": {
+                  "$ref": "#/components/schemas/HTTPValidationError"
+                }
+              }
+            },
+            "description": "Validation Error"
+          }
+        },
+        "summary": "List Comparisons",
+        "tags": [
+          "benchmarks"
+        ]
+      }
+    },
+    "/api/v1/benchmarks/{benchmark_id}/runs": {
+      "post": {
+        "operationId": "start_runs_api_v1_benchmarks__benchmark_id__runs_post",
+        "parameters": [
+          {
+            "in": "path",
+            "name": "benchmark_id",
+            "required": true,
+            "schema": {
+              "title": "Benchmark Id",
+              "type": "string"
+            }
+          }
+        ],
+        "requestBody": {
+          "content": {
+            "application/json": {
+              "schema": {
+                "$ref": "#/components/schemas/CreateRunsRequest"
+              }
+            }
+          },
+          "required": true
+        },
+        "responses": {
+          "202": {
+            "content": {
+              "application/json": {
+                "schema": {
+                  "items": {
+                    "$ref": "#/components/schemas/BenchmarkRunOut"
+                  },
+                  "title": "Response Start Runs Api V1 Benchmarks  Benchmark Id  Runs Post",
+                  "type": "array"
+                }
+              }
+            },
+            "description": "Successful Response"
+          },
+          "422": {
+            "content": {
+              "application/json": {
+                "schema": {
+                  "$ref": "#/components/schemas/HTTPValidationError"
+                }
+              }
+            },
+            "description": "Validation Error"
+          }
+        },
+        "summary": "Start Runs",
+        "tags": [
+          "benchmarks"
+        ]
+      }
+    },
     "/api/v1/data": {
       "delete": {
         "operationId": "delete_data_api_v1_data_delete",

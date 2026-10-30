@@ -280,6 +280,9 @@ class FakeUpstream:
     def _next_id(self) -> str:
         return f"chatcmpl-fake-{next(self._ids):04d}"
 
+    def _next_responses_id(self) -> str:
+        return f"resp-fake-{next(self._ids):04d}"
+
     def _handle(self, request: httpx.Request) -> httpx.Response:
         self.requests.append(request)
         behavior = self._behaviors.pop(0) if self._behaviors else None
@@ -319,6 +322,13 @@ class FakeUpstream:
                 _requested_model(request),
                 self._next_id(),
                 body,
+                behavior.usage,
+                status=behavior.status,
+            )
+        if request.url.path.endswith("/responses"):
+            return _responses_response(
+                _requested_model(request),
+                self._next_responses_id(),
                 behavior.usage,
                 status=behavior.status,
             )
@@ -642,6 +652,43 @@ def _chat_response(
     }
     if usage is not None:
         body["usage"] = usage
+    return httpx.Response(
+        status,
+        content=json.dumps(body).encode(),
+        headers={"content-type": "application/json"},
+    )
+
+
+def _responses_usage(usage: dict[str, Any] | None) -> dict[str, Any] | None:
+    """Map enqueued usage to Responses keys (accept chat or Responses shapes)."""
+    if usage is None:
+        return None
+    input_tokens = usage.get("input_tokens", usage.get("prompt_tokens"))
+    output_tokens = usage.get("output_tokens", usage.get("completion_tokens"))
+    mapped: dict[str, Any] = {}
+    if input_tokens is not None:
+        mapped["input_tokens"] = input_tokens
+    if output_tokens is not None:
+        mapped["output_tokens"] = output_tokens
+    # Preserve any other keys (e.g. details) without remapping.
+    for key, value in usage.items():
+        if key in ("input_tokens", "output_tokens", "prompt_tokens", "completion_tokens"):
+            continue
+        mapped[key] = value
+    return mapped
+
+
+def _responses_response(
+    model: str, source_id: str, usage: dict[str, Any] | None, status: int = 200
+) -> httpx.Response:
+    body: dict[str, Any] = {
+        "id": source_id,
+        "object": "response",
+        "model": model,
+    }
+    mapped = _responses_usage(usage)
+    if mapped is not None:
+        body["usage"] = mapped
     return httpx.Response(
         status,
         content=json.dumps(body).encode(),

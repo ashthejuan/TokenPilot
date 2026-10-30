@@ -4,11 +4,12 @@ import Link from "next/link";
 import { useRouter } from "next/navigation";
 import { useEffect, useState } from "react";
 
+import { Chapter } from "@/components/Chapter";
 import { NewBenchmarkForm } from "@/components/NewBenchmarkForm";
+import { PageHeader } from "@/components/PageHeader";
 import { SavingsBadge } from "@/components/SavingsBadge";
 import { Badge } from "@/components/ui/badge";
 import { Button } from "@/components/ui/button";
-import { Card, CardContent, CardHeader, CardTitle } from "@/components/ui/card";
 import {
   Table,
   TableBody,
@@ -27,6 +28,7 @@ import {
   type ComparisonOut,
 } from "@/lib/benchmarks";
 import { formatTimestamp } from "@/lib/format";
+import { PAGE_SHELL } from "@/lib/layout";
 import { cn } from "@/lib/utils";
 
 const STATUS_BADGE: Record<BenchmarkStatus, { label: string; className: string }> = {
@@ -100,18 +102,20 @@ export default function BenchmarksPage() {
   }, []);
 
   return (
-    <div className="mx-auto max-w-6xl space-y-6">
-      <div className="flex flex-wrap items-end justify-between gap-4">
-        <h1 className="text-2xl font-semibold">Benchmarks</h1>
-        <Button
-          className="pressable"
-          size="sm"
-          variant={showForm ? "secondary" : "default"}
-          onClick={() => setShowForm((open) => !open)}
-        >
-          {showForm ? "Close" : "New benchmark"}
-        </Button>
-      </div>
+    <div className={PAGE_SHELL}>
+      <PageHeader
+        title="Benchmarks"
+        actions={
+          <Button
+            className="pressable"
+            size="sm"
+            variant={showForm ? "secondary" : "default"}
+            onClick={() => setShowForm((open) => !open)}
+          >
+            {showForm ? "Close" : "New benchmark"}
+          </Button>
+        }
+      />
 
       {error ? (
         <div
@@ -123,82 +127,72 @@ export default function BenchmarksPage() {
       ) : null}
 
       {showForm ? (
-        <Card>
-          <CardHeader>
-            <CardTitle>New benchmark</CardTitle>
-          </CardHeader>
-          <CardContent>
-            <NewBenchmarkForm onCreated={(id) => router.push(`/benchmarks/${id}`)} />
-          </CardContent>
-        </Card>
+        <Chapter title="New benchmark">
+          <NewBenchmarkForm onCreated={(id) => router.push(`/benchmarks/${id}`)} />
+        </Chapter>
       ) : null}
 
-      <Card>
-        <CardHeader>
-          <CardTitle>Benchmarks</CardTitle>
-        </CardHeader>
-        <CardContent>
-          {loading ? (
-            <p className="text-sm text-muted-foreground">Loading benchmarks…</p>
-          ) : rows.length === 0 ? (
-            <p className="text-sm text-muted-foreground">No benchmarks yet.</p>
-          ) : (
-            <Table>
-              <TableHeader>
-                <TableRow>
-                  <TableHead>Name</TableHead>
-                  <TableHead>Runs</TableHead>
-                  <TableHead>Status</TableHead>
-                  <TableHead>Savings</TableHead>
-                  <TableHead>Created</TableHead>
-                </TableRow>
-              </TableHeader>
-              <TableBody>
-                {rows.map(({ benchmark, runs, status, latest }) => {
-                  const badge = STATUS_BADGE[status];
-                  return (
-                    <TableRow key={benchmark.id}>
-                      <TableCell className="font-medium">
-                        <Link
-                          href={`/benchmarks/${benchmark.id}`}
-                          className="underline-offset-4 hover:underline"
-                        >
-                          {benchmark.name}
-                        </Link>
-                      </TableCell>
-                      <TableCell className="tabular-nums">{runs}</TableCell>
-                      <TableCell>
-                        <Badge variant="outline" className={cn(badge.className)}>
-                          {badge.label}
-                        </Badge>
-                      </TableCell>
-                      <TableCell>
-                        {latest !== null ? (
-                          <SavingsBadge
-                            status={latest.comparison_status}
-                            correctness_preserved={latest.correctness_preserved}
-                            cost_delta={latest.cost_delta}
-                            reasons={latest.reasons ?? []}
-                          />
-                        ) : (
-                          <SavingsBadge
-                            status="potential"
-                            correctness_preserved={null}
-                            cost_delta={null}
-                          />
-                        )}
-                      </TableCell>
-                      <TableCell className="tabular-nums text-muted-foreground">
-                        {formatTimestamp(benchmark.created_at)}
-                      </TableCell>
-                    </TableRow>
-                  );
-                })}
-              </TableBody>
-            </Table>
-          )}
-        </CardContent>
-      </Card>
+      <Chapter title="Benchmarks">
+        {loading ? (
+          <p className="text-sm text-muted-foreground">Loading benchmarks…</p>
+        ) : rows.length === 0 ? (
+          <p className="text-sm text-muted-foreground">No benchmarks yet.</p>
+        ) : (
+          <Table>
+            <TableHeader>
+              <TableRow>
+                <TableHead>Name</TableHead>
+                <TableHead>Runs</TableHead>
+                <TableHead>Status</TableHead>
+                <TableHead>Savings</TableHead>
+                <TableHead>Created</TableHead>
+              </TableRow>
+            </TableHeader>
+            <TableBody>
+              {rows.map(({ benchmark, runs, status, latest }) => {
+                const badge = STATUS_BADGE[status];
+                return (
+                  <TableRow key={benchmark.id}>
+                    <TableCell className="font-medium">
+                      <Link
+                        href={`/benchmarks/${benchmark.id}`}
+                        className="underline-offset-4 hover:underline"
+                      >
+                        {benchmark.name}
+                      </Link>
+                    </TableCell>
+                    <TableCell className="tabular-nums">{runs}</TableCell>
+                    <TableCell>
+                      <Badge variant="outline" className={cn(badge.className)}>
+                        {badge.label}
+                      </Badge>
+                    </TableCell>
+                    <TableCell>
+                      {latest !== null ? (
+                        <SavingsBadge
+                          status={latest.comparison_status}
+                          correctness_preserved={latest.correctness_preserved}
+                          cost_delta={latest.cost_delta}
+                          reasons={latest.reasons ?? []}
+                        />
+                      ) : (
+                        <SavingsBadge
+                          status="potential"
+                          correctness_preserved={null}
+                          cost_delta={null}
+                        />
+                      )}
+                    </TableCell>
+                    <TableCell className="tabular-nums text-muted-foreground">
+                      {formatTimestamp(benchmark.created_at)}
+                    </TableCell>
+                  </TableRow>
+                );
+              })}
+            </TableBody>
+          </Table>
+        )}
+      </Chapter>
     </div>
   );
 }

@@ -3,11 +3,12 @@
 import { useEffect, useState, type ReactNode } from "react";
 
 import { BasisBadge } from "@/components/BasisBadge";
+import { Chapter } from "@/components/Chapter";
 import { CostValue } from "@/components/CostValue";
 import { CoverageBanner } from "@/components/CoverageBanner";
+import { PageHeader } from "@/components/PageHeader";
 import { SavingsBadge } from "@/components/SavingsBadge";
 import { Button } from "@/components/ui/button";
-import { Card, CardContent, CardDescription, CardHeader, CardTitle } from "@/components/ui/card";
 import { Input } from "@/components/ui/input";
 import {
   Table,
@@ -20,6 +21,7 @@ import {
 import { ApiError, apiGet, apiGetText } from "@/lib/api";
 import type { components } from "@/lib/api-types";
 import { formatCount, formatMoney } from "@/lib/format";
+import { PAGE_SHELL } from "@/lib/layout";
 import { formatReportPeriod, type ProjectReport, type SavingsReport } from "@/lib/reports";
 
 type Project = components["schemas"]["Project"];
@@ -151,15 +153,11 @@ export default function ReportsPage() {
   const savingsStrip = savings ?? report?.savings ?? null;
 
   return (
-    <div className="mx-auto max-w-6xl space-y-6">
-      <div className="flex flex-wrap items-end justify-between gap-4">
-        <div className="space-y-1">
-          <h1 className="text-2xl font-semibold">Reports</h1>
-          <p className="text-sm text-muted-foreground">
-            Project spend, waste, recommendations, and savings kinds — never summed.
-          </p>
-        </div>
-      </div>
+    <div className={PAGE_SHELL}>
+      <PageHeader
+        title="Reports"
+        description="Project spend, waste, recommendations, and savings kinds — never summed."
+      />
 
       {projectsError ? (
         <div
@@ -170,12 +168,11 @@ export default function ReportsPage() {
         </div>
       ) : null}
 
-      <Card>
-        <CardHeader>
-          <CardTitle>Report filters</CardTitle>
-          <CardDescription>Optional from/to are inclusive start and exclusive end (UTC).</CardDescription>
-        </CardHeader>
-        <CardContent className="space-y-4">
+      <Chapter
+        title="Report filters"
+        description="Optional from/to are inclusive start and exclusive end (UTC)."
+      >
+        <div className="space-y-4">
           <div className="grid grid-cols-1 gap-4 sm:grid-cols-3">
             <label className={LABEL_CLASS}>
               Project
@@ -229,8 +226,8 @@ export default function ReportsPage() {
               {downloading ? "Downloading…" : "Download Markdown"}
             </Button>
           </div>
-        </CardContent>
-      </Card>
+        </div>
+      </Chapter>
 
       {error ? (
         <div
@@ -246,13 +243,9 @@ export default function ReportsPage() {
       ) : null}
 
       {report ? (
-        <div className="space-y-6">
-          <Card>
-            <CardHeader>
-              <CardTitle>{report.project_name}</CardTitle>
-              <CardDescription>Period: {formatReportPeriod(report.period)}</CardDescription>
-            </CardHeader>
-            <CardContent className="space-y-4">
+        <>
+          <Chapter title={report.project_name} description={`Period: ${formatReportPeriod(report.period)}`}>
+            <div className="space-y-4">
               <div className="flex flex-wrap items-center gap-3">
                 <CostValue
                   value={report.spend_total}
@@ -271,193 +264,158 @@ export default function ReportsPage() {
                   {formatMoney(report.unattributed.estimated_cost, currency)}
                 </p>
               ) : null}
-            </CardContent>
-          </Card>
+            </div>
+          </Chapter>
 
           {savingsStrip ? (
-            <Card>
-              <CardHeader>
-                <CardTitle>Savings kinds</CardTitle>
-                <CardDescription>
-                  Potential, benchmark, verified, and realized are shown separately and never added.
-                </CardDescription>
-              </CardHeader>
-              <CardContent>
-                <div className="grid grid-cols-2 gap-4 sm:grid-cols-4">
-                  <Stat label="Potential">
-                    <CostValue value={savingsStrip.potential} currency={currency} />
-                  </Stat>
-                  <Stat label="Benchmark">
-                    <CostValue value={savingsStrip.benchmark} currency={currency} />
-                  </Stat>
-                  <Stat label="Verified">
-                    <CostValue value={savingsStrip.verified} currency={currency} />
-                  </Stat>
-                  <Stat label="Realized">
-                    <CostValue value={savingsStrip.realized ?? null} currency={currency} />
-                  </Stat>
-                </div>
-              </CardContent>
-            </Card>
+            <Chapter
+              title="Savings kinds"
+              description="Potential, benchmark, verified, and realized are shown separately and never added."
+            >
+              <div className="grid grid-cols-2 gap-4 sm:grid-cols-4">
+                <Stat label="Potential">
+                  <CostValue value={savingsStrip.potential} currency={currency} />
+                </Stat>
+                <Stat label="Benchmark">
+                  <CostValue value={savingsStrip.benchmark} currency={currency} />
+                </Stat>
+                <Stat label="Verified">
+                  <CostValue value={savingsStrip.verified} currency={currency} />
+                </Stat>
+                <Stat label="Realized">
+                  <CostValue value={savingsStrip.realized ?? null} currency={currency} />
+                </Stat>
+              </div>
+            </Chapter>
           ) : null}
 
           <div className="grid gap-6 lg:grid-cols-2">
-            <Card>
-              <CardHeader>
-                <CardTitle>Cost by outcome</CardTitle>
-              </CardHeader>
-              <CardContent>
-                <div className="grid grid-cols-2 gap-4 sm:grid-cols-3">
-                  <Stat label="Passed">
-                    <CostValue value={report.cost_by_outcome.passed} currency={currency} />
-                  </Stat>
-                  <Stat label="Failed">
-                    <CostValue value={report.cost_by_outcome.failed} currency={currency} />
-                  </Stat>
-                  <Stat label="Unknown">
-                    <CostValue value={report.cost_by_outcome.unknown} currency={currency} />
-                  </Stat>
-                </div>
-              </CardContent>
-            </Card>
-            <Card>
-              <CardHeader>
-                <CardTitle>Waste by rule</CardTitle>
-              </CardHeader>
-              <CardContent>
-                {report.waste_by_rule.length === 0 ? (
-                  <p className="text-sm text-muted-foreground">No non-dismissed waste in this period.</p>
-                ) : (
-                  <ul className="space-y-2">
-                    {report.waste_by_rule.map((row) => (
-                      <li key={row.rule_id} className="flex items-baseline justify-between gap-3 text-sm">
-                        <span className="font-mono text-xs">{row.rule_id}</span>
-                        <span className="tabular-nums text-muted-foreground">
-                          {formatCount(row.count)} · {formatMoney(row.estimated_impact, currency)}
-                        </span>
-                      </li>
-                    ))}
-                  </ul>
-                )}
-              </CardContent>
-            </Card>
+            <Chapter title="Cost by outcome">
+              <div className="grid grid-cols-2 gap-4 sm:grid-cols-3">
+                <Stat label="Passed">
+                  <CostValue value={report.cost_by_outcome.passed} currency={currency} />
+                </Stat>
+                <Stat label="Failed">
+                  <CostValue value={report.cost_by_outcome.failed} currency={currency} />
+                </Stat>
+                <Stat label="Unknown">
+                  <CostValue value={report.cost_by_outcome.unknown} currency={currency} />
+                </Stat>
+              </div>
+            </Chapter>
+            <Chapter title="Waste by rule">
+              {report.waste_by_rule.length === 0 ? (
+                <p className="text-sm text-muted-foreground">No non-dismissed waste in this period.</p>
+              ) : (
+                <ul className="space-y-2">
+                  {report.waste_by_rule.map((row) => (
+                    <li key={row.rule_id} className="flex items-baseline justify-between gap-3 text-sm">
+                      <span className="font-mono text-xs">{row.rule_id}</span>
+                      <span className="tabular-nums text-muted-foreground">
+                        {formatCount(row.count)} · {formatMoney(row.estimated_impact, currency)}
+                      </span>
+                    </li>
+                  ))}
+                </ul>
+              )}
+            </Chapter>
           </div>
 
-          <Card>
-            <CardHeader>
-              <CardTitle>Top sessions</CardTitle>
-            </CardHeader>
-            <CardContent>
-              {report.top_sessions.length === 0 ? (
-                <p className="text-sm text-muted-foreground">No sessions in this period.</p>
-              ) : (
-                <Table>
-                  <TableHeader>
-                    <TableRow>
-                      <TableHead>Session</TableHead>
-                      <TableHead>Outcome</TableHead>
-                      <TableHead>Requests</TableHead>
-                      <TableHead>Cost</TableHead>
+          <Chapter title="Top sessions">
+            {report.top_sessions.length === 0 ? (
+              <p className="text-sm text-muted-foreground">No sessions in this period.</p>
+            ) : (
+              <Table>
+                <TableHeader>
+                  <TableRow>
+                    <TableHead>Session</TableHead>
+                    <TableHead>Outcome</TableHead>
+                    <TableHead>Requests</TableHead>
+                    <TableHead>Cost</TableHead>
+                  </TableRow>
+                </TableHeader>
+                <TableBody>
+                  {report.top_sessions.map((session) => (
+                    <TableRow key={session.session_id}>
+                      <TableCell className="font-mono text-xs">
+                        {session.session_id.slice(0, 8)}
+                      </TableCell>
+                      <TableCell>{session.outcome}</TableCell>
+                      <TableCell className="tabular-nums">{formatCount(session.request_count)}</TableCell>
+                      <TableCell className="tabular-nums">
+                        {formatMoney(session.estimated_cost, session.currency)}
+                      </TableCell>
                     </TableRow>
-                  </TableHeader>
-                  <TableBody>
-                    {report.top_sessions.map((session) => (
-                      <TableRow key={session.session_id}>
-                        <TableCell className="font-mono text-xs">
-                          {session.session_id.slice(0, 8)}
-                        </TableCell>
-                        <TableCell>{session.outcome}</TableCell>
-                        <TableCell className="tabular-nums">{formatCount(session.request_count)}</TableCell>
-                        <TableCell className="tabular-nums">
-                          {formatMoney(session.estimated_cost, session.currency)}
-                        </TableCell>
-                      </TableRow>
-                    ))}
-                  </TableBody>
-                </Table>
-              )}
-            </CardContent>
-          </Card>
-
-          <Card>
-            <CardHeader>
-              <CardTitle>Recommendations</CardTitle>
-            </CardHeader>
-            <CardContent>
-              {report.top_recommendations.length === 0 ? (
-                <p className="text-sm text-muted-foreground">No investigated recommendations yet.</p>
-              ) : (
-                <ul className="space-y-3">
-                  {report.top_recommendations.map((rec) => (
-                    <li key={rec.insight_id} className="space-y-1">
-                      <p className="text-sm font-medium">{rec.title}</p>
-                      <p className="text-xs text-muted-foreground">
-                        <span className="font-mono">{rec.rule_id}</span>
-                        {" · "}
-                        {formatMoney(rec.estimated_impact, rec.impact_currency)}
-                      </p>
-                    </li>
                   ))}
-                </ul>
-              )}
-            </CardContent>
-          </Card>
+                </TableBody>
+              </Table>
+            )}
+          </Chapter>
 
-          <Card>
-            <CardHeader>
-              <CardTitle>Benchmarks</CardTitle>
-            </CardHeader>
-            <CardContent>
-              {report.benchmarks.length === 0 ? (
-                <p className="text-sm text-muted-foreground">No comparisons for this project yet.</p>
-              ) : (
-                <ul className="space-y-3">
-                  {report.benchmarks.map((bench, index) => (
-                    <li key={`${bench.name}-${index}`} className="space-y-2">
-                      <div className="flex flex-wrap items-center gap-2">
-                        <span className="text-sm font-medium">{bench.name}</span>
-                        <SavingsBadge
-                          status={bench.comparison_status}
-                          correctness_preserved={null}
-                          cost_delta={bench.cost_delta}
-                        />
-                        <span className="text-xs text-muted-foreground tabular-nums">
-                          Δ {formatMoney(bench.cost_delta, currency)}
-                          {bench.cost_delta_pct != null ? ` (${bench.cost_delta_pct}%)` : null}
-                        </span>
-                      </div>
-                      <details className="text-xs">
-                        <summary className="cursor-pointer text-muted-foreground">
-                          Methodology
-                        </summary>
-                        <pre className="mt-2 max-h-48 overflow-auto rounded-md bg-muted p-2 font-mono">
-                          {JSON.stringify(bench.methodology, null, 2)}
-                        </pre>
-                      </details>
-                    </li>
-                  ))}
-                </ul>
-              )}
-            </CardContent>
-          </Card>
+          <Chapter title="Recommendations">
+            {report.top_recommendations.length === 0 ? (
+              <p className="text-sm text-muted-foreground">No investigated recommendations yet.</p>
+            ) : (
+              <ul className="space-y-3">
+                {report.top_recommendations.map((rec) => (
+                  <li key={rec.insight_id} className="space-y-1">
+                    <p className="text-sm font-medium">{rec.title}</p>
+                    <p className="text-xs text-muted-foreground">
+                      <span className="font-mono">{rec.rule_id}</span>
+                      {" · "}
+                      {formatMoney(rec.estimated_impact, rec.impact_currency)}
+                    </p>
+                  </li>
+                ))}
+              </ul>
+            )}
+          </Chapter>
 
-          <Card>
-            <CardHeader>
-              <CardTitle>Limitations</CardTitle>
-            </CardHeader>
-            <CardContent>
-              {report.limitations.length === 0 ? (
-                <p className="text-sm text-muted-foreground">No limitations listed.</p>
-              ) : (
-                <ul className="list-disc space-y-1 pl-5 text-sm text-muted-foreground">
-                  {report.limitations.map((line) => (
-                    <li key={line}>{line}</li>
-                  ))}
-                </ul>
-              )}
-            </CardContent>
-          </Card>
-        </div>
+          <Chapter title="Benchmarks">
+            {report.benchmarks.length === 0 ? (
+              <p className="text-sm text-muted-foreground">No comparisons for this project yet.</p>
+            ) : (
+              <ul className="space-y-3">
+                {report.benchmarks.map((bench, index) => (
+                  <li key={`${bench.name}-${index}`} className="space-y-2">
+                    <div className="flex flex-wrap items-center gap-2">
+                      <span className="text-sm font-medium">{bench.name}</span>
+                      <SavingsBadge
+                        status={bench.comparison_status}
+                        correctness_preserved={null}
+                        cost_delta={bench.cost_delta}
+                      />
+                      <span className="text-xs text-muted-foreground tabular-nums">
+                        Δ {formatMoney(bench.cost_delta, currency)}
+                        {bench.cost_delta_pct != null ? ` (${bench.cost_delta_pct}%)` : null}
+                      </span>
+                    </div>
+                    <details className="text-xs">
+                      <summary className="cursor-pointer text-muted-foreground">
+                        Methodology
+                      </summary>
+                      <pre className="mt-2 max-h-48 overflow-auto rounded-md bg-muted p-2 font-mono">
+                        {JSON.stringify(bench.methodology, null, 2)}
+                      </pre>
+                    </details>
+                  </li>
+                ))}
+              </ul>
+            )}
+          </Chapter>
+
+          <Chapter title="Limitations">
+            {report.limitations.length === 0 ? (
+              <p className="text-sm text-muted-foreground">No limitations listed.</p>
+            ) : (
+              <ul className="list-disc space-y-1 pl-5 text-sm text-muted-foreground">
+                {report.limitations.map((line) => (
+                  <li key={line}>{line}</li>
+                ))}
+              </ul>
+            )}
+          </Chapter>
+        </>
       ) : null}
     </div>
   );

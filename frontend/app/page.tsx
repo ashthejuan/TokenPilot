@@ -4,21 +4,24 @@ import Link from "next/link";
 import { useEffect, useMemo, useState, type ReactNode } from "react";
 
 import { BasisBadge } from "@/components/BasisBadge";
+import { Chapter } from "@/components/Chapter";
 import { CostValue } from "@/components/CostValue";
 import { CoverageBanner } from "@/components/CoverageBanner";
 import { Filters } from "@/components/Filters";
+import { PageHeader } from "@/components/PageHeader";
 import { RankingTable, type RankingRow } from "@/components/RankingTable";
 import { SavingsBadge } from "@/components/SavingsBadge";
 import { SeverityBadge } from "@/components/SeverityBadge";
 import { SpendChart } from "@/components/SpendChart";
 import { Button } from "@/components/ui/button";
-import { Card, CardContent, CardDescription, CardHeader, CardTitle } from "@/components/ui/card";
 import { ApiError, apiGet } from "@/lib/api";
 import type { components } from "@/lib/api-types";
 import { latestComparison, type BenchmarkOut, type ComparisonOut } from "@/lib/benchmarks";
 import { DEFAULT_FILTERS, summaryParams } from "@/lib/filters";
 import { addMoney, formatCount, moneyOrZero } from "@/lib/format";
 import { impactLabel, ruleLabel } from "@/lib/insights";
+import { PAGE_SHELL } from "@/lib/layout";
+import { cn } from "@/lib/utils";
 
 type UsageSummary = components["schemas"]["UsageSummary"];
 type Project = components["schemas"]["Project"];
@@ -53,26 +56,6 @@ function errorText(error: unknown): string {
 function mergeSorted(current: string[], incoming: string[]): string[] {
   const merged = new Set([...current, ...incoming]);
   return merged.size === current.length ? current : [...merged].sort();
-}
-
-function Section({
-  title,
-  description,
-  children,
-}: {
-  title: string;
-  description?: string;
-  children: ReactNode;
-}) {
-  return (
-    <Card>
-      <CardHeader>
-        <CardTitle>{title}</CardTitle>
-        {description ? <CardDescription>{description}</CardDescription> : null}
-      </CardHeader>
-      <CardContent>{children}</CardContent>
-    </Card>
-  );
 }
 
 function Stat({ label, children }: { label: string; children: ReactNode }) {
@@ -230,13 +213,15 @@ export default function OverviewPage() {
   }));
 
   return (
-    <div className="mx-auto max-w-6xl space-y-6">
-      <div className="flex items-center justify-between gap-4">
-        <h1 className="text-2xl font-semibold">Overview</h1>
-        <Button variant="outline" size="sm" onClick={() => setRefreshKey((key) => key + 1)} disabled={loading}>
-          {loading ? "Loading…" : "Refresh"}
-        </Button>
-      </div>
+    <div className={PAGE_SHELL}>
+      <PageHeader
+        title="Overview"
+        actions={
+          <Button variant="outline" size="sm" onClick={() => setRefreshKey((key) => key + 1)} disabled={loading}>
+            {loading ? "Loading…" : "Refresh"}
+          </Button>
+        }
+      />
 
       <Filters
         value={filters}
@@ -256,14 +241,14 @@ export default function OverviewPage() {
       {summary === null ? (
         !error ? <p className="text-sm text-muted-foreground">Loading usage…</p> : null
       ) : (
-        <div className={loading ? "space-y-6 opacity-60 transition-opacity" : "space-y-6"}>
-          <Section title="Recorded spend">
+        <div className={cn(loading && "opacity-60 transition-opacity")}>
+          <Chapter title="Recorded spend">
             <div className="space-y-4">
               <div className="flex flex-wrap items-center gap-3">
                 <CostValue
                   value={summary.total_estimated_cost}
                   currency={summary.currency}
-                  className="text-3xl font-semibold"
+                  className="text-3xl font-medium"
                 />
                 <BasisBadge basis={summary.cost_basis} />
               </div>
@@ -289,35 +274,35 @@ export default function OverviewPage() {
                 eventsWithUnknownCost={summary.events_with_unknown_cost}
               />
             </div>
-          </Section>
+          </Chapter>
 
-          <Section
+          <Chapter
             title="Spend over time"
             description={bucket === "day" ? "Estimated cost per UTC day" : "Estimated cost per hour"}
           >
             <SpendChart points={summary.timeseries} bucket={bucket} currency={summary.currency} />
-          </Section>
+          </Chapter>
 
           <div className="grid gap-6 lg:grid-cols-2">
-            <Section title="Most expensive projects">
+            <Chapter title="Most expensive projects">
               <RankingTable
                 rows={projectRows}
                 nameHeader="Project"
                 emptyText="No project usage in this range."
               />
-            </Section>
-            <Section title="Highest-cost sessions">
+            </Chapter>
+            <Chapter title="Highest-cost sessions">
               <RankingTable
                 rows={sessionRows}
                 nameHeader="Session"
                 detailHeader="Outcome"
                 emptyText="No sessions in this range."
               />
-            </Section>
+            </Chapter>
           </div>
 
           <div className="grid gap-6 lg:grid-cols-2">
-            <Section
+            <Chapter
               title="Failed and unverified work"
               description="Spend on tasks or sessions that failed or have no recorded outcome"
             >
@@ -354,8 +339,8 @@ export default function OverviewPage() {
                   </Stat>
                 </div>
               </div>
-            </Section>
-            <Section title="Retry spend" description="Spend on second and later attempts">
+            </Chapter>
+            <Chapter title="Retry spend" description="Spend on second and later attempts">
               <div className="space-y-3">
                 <CostValue
                   value={moneyOrZero(
@@ -368,11 +353,11 @@ export default function OverviewPage() {
                 />
                 <Stat label="Retried requests">{formatCount(summary.retry_count)}</Stat>
               </div>
-            </Section>
+            </Chapter>
           </div>
 
           <div className="grid gap-6 lg:grid-cols-2">
-            <Section title="Recent insights">
+            <Chapter title="Recent insights">
               {insightsLoading ? (
                 <p className="text-sm text-muted-foreground">Loading insights…</p>
               ) : insightsError ? (
@@ -404,8 +389,8 @@ export default function OverviewPage() {
                   ))}
                 </ul>
               )}
-            </Section>
-            <Section title="Latest benchmarks">
+            </Chapter>
+            <Chapter title="Latest benchmarks">
               {benchmarksLoading ? (
                 <p className="text-sm text-muted-foreground">Loading benchmarks…</p>
               ) : benchmarksError ? (
@@ -441,7 +426,7 @@ export default function OverviewPage() {
                   ))}
                 </ul>
               )}
-            </Section>
+            </Chapter>
           </div>
         </div>
       )}

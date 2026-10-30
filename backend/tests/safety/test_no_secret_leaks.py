@@ -321,7 +321,12 @@ def _free_port() -> int:
 
 
 class DemoApi:
-    """HTTP client for the live demo API that keeps every response body."""
+    """HTTP client for the live demo API that keeps every response body.
+
+    Each record is ``(label, body, expect_echo)``. ``expect_echo`` marks the only
+    responses allowed (and required) to contain the secrets: the deliberate
+    echo probes, whose bodies the proxy relays verbatim from the hostile upstream.
+    """
 
     def __init__(self, base_url: str) -> None:
         self._client = httpx.Client(
@@ -329,11 +334,14 @@ class DemoApi:
             headers={"Authorization": f"Bearer {LOCAL_TOKEN}"},
             timeout=120.0,
         )
-        self.bodies: list[str] = []
+        self.records: list[tuple[str, str, bool]] = []
 
-    def request(self, method: str, path: str, **kwargs: Any) -> httpx.Response:
+    def request(
+        self, method: str, path: str, *, expect_echo: bool = False, **kwargs: Any
+    ) -> httpx.Response:
         response = self._client.request(method, path, **kwargs)
-        self.bodies.append(response.text)
+        label = f"{method} {path} -> {response.status_code}"
+        self.records.append((label, response.text, expect_echo))
         return response
 
     def get(self, path: str, **kwargs: Any) -> httpx.Response:
@@ -402,7 +410,6 @@ def test_no_secret_leaks(tmp_path: Path) -> None:
         )
 
     api: DemoApi | None = None
-    poisoned: list[httpx.Response] = []
     markdown = ""
     try:
 
@@ -417,12 +424,14 @@ def test_no_secret_leaks(tmp_path: Path) -> None:
         project_id = next(p["id"] for p in projects if p["slug"] == "invoicing-demo")
 
         # Redaction paths: the upstream echoes the key and the local token, once in
-        # an error body and once in the response id the ledger stores. These two
-        # replies are relayed verbatim by the proxy, so they are kept out of the
-        # response scan; everything the app *stores or serves afterwards* is scanned.
+        # an error body and once in the response id the ledger stores. The proxy
+        # relays these two replies verbatim, so they are the ONLY responses that
+        # must contain the secrets (expect_echo=True: asserted dirty below).
+        # Every other recorded body, gateway or /api/v1, must be clean.
         for behavior, status in (("echo-id", 200), ("echo-error", 401)):
-            reply = api._client.post(
+            reply = api.post(
                 CHAT,
+                expect_echo=True,
                 json={
                     "model": "fake-large",
                     "messages": [{"role": "user", "content": "echo my credentials"}],
@@ -434,14 +443,11 @@ def test_no_secret_leaks(tmp_path: Path) -> None:
                 },
             )
             assert reply.status_code == status, reply.text
-            assert API_KEY in reply.text and LOCAL_TOKEN in reply.text, "upstream did not echo"
-            poisoned.append(reply)
 
-        denied = api._client.get(
+        denied = api.get(
             "/api/v1/usage/summary", headers={"Authorization": f"Bearer {LOCAL_TOKEN}-wrong"}
         )
         assert denied.status_code == 401
-        api.bodies.append(denied.text)
 
         analyzed = api.post("/api/v1/insights/analyze", json={})
         assert analyzed.status_code == 202, analyzed.text
@@ -530,9 +536,17 @@ def test_no_secret_leaks(tmp_path: Path) -> None:
             leaks.append(f"patch {path.name} contains {secret}")
     if secret := _contains_secret(logs.encode()):
         leaks.append(f"demo stdout/stderr logs contain {secret}")
-    for index, body in enumerate(api.bodies):
-        if secret := _contains_secret(body.encode()):
-            leaks.append(f"api response #{index} contains {secret}")
+    # Every recorded body is scanned; nothing is dropped from the set.
+    assert sum(1 for _, _, echo in api.records if echo) == 2, "expected exactly two echo probes"
+    for index, (label, body, expect_echo) in enumerate(api.records):
+        found = {secret for secret in SECRETS if secret in body}
+        if expect_echo:
+            # Allowlisted probe: must carry BOTH echoed secrets, else the redaction
+            # exercise did not fire and the test proves nothing.
+            if found != set(SECRETS):
+                leaks.append(f"echo probe #{index} [{label}] unexpectedly clean/partial: {found}")
+        elif found:
+            leaks.append(f"response #{index} [{label}] contains {sorted(found)}")
     if secret := _contains_secret(markdown.encode()):
         leaks.append(f"markdown report contains {secret}")
     assert markdown.strip(), "markdown report was empty"

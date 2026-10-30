@@ -25,7 +25,12 @@ import httpx
 
 from tokenpilot.db.database import Database
 from tokenpilot.gateway.errors import error_category
-from tokenpilot.gateway.usage_extract import UsageFields, extract_usage, has_any_tokens
+from tokenpilot.gateway.usage_extract import (
+    UsageFields,
+    extract_usage,
+    has_any_tokens,
+    usage_body_for_extract,
+)
 from tokenpilot.ledger.fingerprint import context_blocks, request_fingerprint
 from tokenpilot.ledger.ingest import GatewayDefaults, ingest_event
 from tokenpilot.schemas.usage import EventStatus, UsageEventIn, UsageSource
@@ -334,8 +339,11 @@ def _scan_sse(data: bytes) -> tuple[bytes, dict[str, Any] | None]:
             decoded: Any = json.loads(payload)
         except ValueError:
             continue
-        if isinstance(decoded, dict) and isinstance(decoded.get("usage"), dict):
-            found = decoded
+        if not isinstance(decoded, dict):
+            continue
+        carrier = usage_body_for_extract(decoded)
+        if carrier is not None:
+            found = carrier
     return rest, found
 
 

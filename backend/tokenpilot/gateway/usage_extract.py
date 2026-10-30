@@ -35,14 +35,30 @@ def _first_count(usage: dict[str, Any], *keys: str) -> int | None:
     return None
 
 
+def usage_body_for_extract(decoded: dict[str, Any]) -> dict[str, Any] | None:
+    """Pick the JSON object that carries token usage for `extract_usage`.
+
+    Chat Completions and non-stream Responses put `usage` on the top-level
+    body. Meta Responses SSE ends with `response.completed` whose usage sits
+    on the nested `response` object (`response.usage`).
+    """
+    if isinstance(decoded.get("usage"), dict):
+        return decoded
+    nested = decoded.get("response")
+    if isinstance(nested, dict) and isinstance(nested.get("usage"), dict):
+        return nested
+    return None
+
+
 def extract_usage(body: dict[str, Any]) -> UsageFields:
     """Read `usage.*` and `id` from a provider response body."""
-    usage = _section(body.get("usage"))
+    carrier = usage_body_for_extract(body) or body
+    usage = _section(carrier.get("usage"))
     input_details = _section(usage.get("input_tokens_details"))
     prompt_details = _section(usage.get("prompt_tokens_details"))
     output_details = _section(usage.get("output_tokens_details"))
     completion_details = _section(usage.get("completion_tokens_details"))
-    source_id = body.get("id")
+    source_id = carrier.get("id")
     cached = _count(input_details.get("cached_tokens"))
     if cached is None:
         cached = _count(prompt_details.get("cached_tokens"))

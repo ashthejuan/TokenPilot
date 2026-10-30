@@ -350,7 +350,11 @@ class FakeUpstream:
         if usage is not None:
             if responses_path:
                 mapped = _responses_usage(usage) or {}
-                payload = {"id": self._next_responses_id(), "usage": mapped}
+                # Match Meta Responses SSE: usage on response.completed → response.usage
+                payload = {
+                    "type": "response.completed",
+                    "response": {"id": self._next_responses_id(), "usage": mapped},
+                }
             else:
                 payload = {"id": self._next_id(), "usage": usage}
             yield _sse_line(json.dumps(payload))

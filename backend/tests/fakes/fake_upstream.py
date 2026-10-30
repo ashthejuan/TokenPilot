@@ -228,7 +228,12 @@ def timeout() -> Behavior:
 
 def stream(chunks: list[str], usage: dict[str, Any] | None = None) -> Behavior:
     """SSE stream: each string becomes one ``data:`` line, then an optional
-    final usage chunk, then ``data: [DONE]``."""
+    final usage chunk, then ``data: [DONE]``.
+
+    On ``/responses`` paths the final usage chunk uses a ``resp-fake-…`` id and
+    ``input_tokens``/``output_tokens`` (chat keys are remapped). Chat paths keep
+    ``chatcmpl-fake-…`` ids and the usage dict as enqueued.
+    """
     return Behavior(kind="stream", chunks=list(chunks), usage=usage)
 
 
@@ -339,11 +344,16 @@ class FakeUpstream:
     async def _stream_body(
         self, request: httpx.Request, chunks: list[str], usage: dict[str, Any] | None
     ) -> AsyncIterator[bytes]:
-        _ = request
+        responses_path = request.url.path.endswith("/responses")
         for chunk in chunks:
             yield _sse_line(chunk)
         if usage is not None:
-            yield _sse_line(json.dumps({"id": self._next_id(), "usage": usage}))
+            if responses_path:
+                mapped = _responses_usage(usage) or {}
+                payload = {"id": self._next_responses_id(), "usage": mapped}
+            else:
+                payload = {"id": self._next_id(), "usage": usage}
+            yield _sse_line(json.dumps(payload))
         yield b"data: [DONE]\n\n"
 
     async def _reset_body(

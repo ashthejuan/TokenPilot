@@ -362,3 +362,86 @@ def test_markdown_header_has_period_basis_coverage(
     assert "simulated" in header.lower() or "estimated" in header.lower()
     assert "coverage" in header.lower()
     assert "estimated" in header.lower() or "actual" in header.lower()
+
+
+def test_tested_insight_excluded_from_potential(
+    client: TestClient, auth_headers: dict[str, str], settings: Settings
+) -> None:
+    """FR-11: potential savings count untested recommendations only."""
+    project_id = _create_project(client, auth_headers, "tested-potential")
+    _seed_insight(
+        settings,
+        project_id=project_id,
+        estimated_impact=Decimal("0.40"),
+        status="new",
+        recommendation={
+            "action": "Cut retries",
+            "variable_to_change": "retry_policy",
+            "expected_direction": "lower_cost",
+            "validation_procedure": "Benchmark the change.",
+        },
+    )
+    _seed_insight(
+        settings,
+        project_id=project_id,
+        estimated_impact=Decimal("0.75"),
+        status="tested",
+        rule_id="context_bloat",
+        recommendation={
+            "action": "Narrow context",
+            "variable_to_change": "context_strategy",
+            "expected_direction": "lower_cost",
+            "validation_procedure": "Already benchmarked.",
+        },
+    )
+
+    report = client.get(f"{REPORT_PROJECT}/{project_id}", headers=auth_headers)
+    assert report.status_code == 200, report.text
+    assert report.json()["savings"]["potential"] == 0.4
+
+    savings_resp = client.get(
+        REPORT_SAVINGS, params={"project_id": project_id}, headers=auth_headers
+    )
+    assert savings_resp.status_code == 200, savings_resp.text
+    assert savings_resp.json()["potential"] == 0.4
+
+
+def test_markdown_includes_methodology_and_body_sections(
+    client: TestClient, auth_headers: dict[str, str], settings: Settings
+) -> None:
+    project_id = _create_project(client, auth_headers, "md-method")
+    _seed_insight(
+        settings,
+        project_id=project_id,
+        estimated_impact=Decimal("0.12"),
+        recommendation={
+            "action": "Cut retries",
+            "variable_to_change": "retry_policy",
+            "expected_direction": "lower_cost",
+            "validation_procedure": "Benchmark the change.",
+        },
+    )
+    _seed_benchmark_with_comparison(
+        settings,
+        project_id=project_id,
+        comparison_id="cmp-md-method",
+        status="verified",
+        cost_delta=0.22,
+        benchmark_name="method-bench",
+    )
+
+    response = client.get(
+        f"{REPORT_PROJECT}/{project_id}",
+        params={"format": "markdown"},
+        headers=auth_headers,
+    )
+    assert response.status_code == 200, response.text
+    text = response.text
+    assert "## Methodology" in text or "### Methodology" in text
+    assert "low_sample" in text
+    assert "method-bench" in text
+    assert "## Top sessions" in text or "## Top Sessions" in text
+    assert "## Waste by rule" in text or "## Waste by Rule" in text
+    assert "## Top recommendations" in text or "## Recommendations" in text
+    assert "## Benchmarks" in text
+    assert "## Unattributed" in text

@@ -264,7 +264,9 @@ test.describe("demo loop (offline)", () => {
     });
     expect(md.ok()).toBeTruthy();
     const markdown = await md.text();
-    expect(markdown.toLowerCase()).toMatch(/methodolog|verified|benchmark/);
+    // FR-12: markdown must surface methodology, not only the word "Benchmark".
+    expect(markdown).toMatch(/##\s*Methodology/i);
+    expect(markdown).toMatch(/low_sample|variables_changed/);
   });
 
   test("fail-alt honesty path (Not an optimization)", async ({ page, request }) => {

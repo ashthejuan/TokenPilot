@@ -60,8 +60,14 @@ def _sum_insight_potential(
     started_from: str | None,
     started_to: str | None,
 ) -> Decimal:
-    """Sum non-dismissed insight `estimated_impact` in scope/period (insights only)."""
-    clauses = ["status != 'dismissed'", "estimated_impact IS NOT NULL"]
+    """Sum untested insight `estimated_impact` in scope/period (FR-11 potential).
+
+    Excludes dismissed and tested insights — potential is untested recommendations.
+    """
+    clauses = [
+        "status NOT IN ('dismissed', 'tested')",
+        "estimated_impact IS NOT NULL",
+    ]
     params: list[Any] = []
     if project_id is not None:
         clauses.append("project_id = ?")
@@ -412,8 +418,12 @@ def _value_label(cost_basis: str) -> str:
     return "estimated"
 
 
+def _fmt_money(value: Money | None) -> str:
+    return "n/a" if value is None else str(value)
+
+
 def render_markdown(report: ProjectReport) -> str:
-    """Render FR-12 header first, then the body sections."""
+    """Render FR-12 header first, then the body sections including methodology."""
     period = report.period
     from_label = period.from_ or "start"
     to_label = period.to or "now"
@@ -452,4 +462,72 @@ def render_markdown(report: ProjectReport) -> str:
     ]
     for item in report.limitations:
         lines.append(f"- {item}")
+
+    lines.extend(["", "## Top sessions"])
+    if not report.top_sessions:
+        lines.append("- (none)")
+    else:
+        for session in report.top_sessions:
+            lines.append(
+                f"- {session.session_id}: {_fmt_money(session.estimated_cost)} "
+                f"{session.currency or ''} "
+                f"({session.outcome}, {session.request_count} requests)".rstrip()
+            )
+
+    lines.extend(["", "## Waste by rule"])
+    if not report.waste_by_rule:
+        lines.append("- (none)")
+    else:
+        for row in report.waste_by_rule:
+            lines.append(
+                f"- {row.rule_id}: count={row.count}, "
+                f"impact={_fmt_money(row.estimated_impact)}"
+            )
+
+    lines.extend(["", "## Top recommendations"])
+    if not report.top_recommendations:
+        lines.append("- (none)")
+    else:
+        for rec in report.top_recommendations:
+            lines.append(
+                f"- {rec.title} ({rec.rule_id}): "
+                f"{_fmt_money(rec.estimated_impact)} {rec.impact_currency or ''}".rstrip()
+            )
+            lines.append(f"  recommendation: {json.dumps(rec.recommendation, sort_keys=True)}")
+
+    lines.extend(["", "## Benchmarks"])
+    if not report.benchmarks:
+        lines.append("- (none)")
+    else:
+        for bench in report.benchmarks:
+            pct = (
+                "n/a"
+                if bench.cost_delta_pct is None
+                else f"{bench.cost_delta_pct}%"
+            )
+            lines.append(
+                f"- {bench.name}: status={bench.comparison_status}, "
+                f"cost_delta={_fmt_money(bench.cost_delta)}, "
+                f"cost_delta_pct={pct}"
+            )
+
+    lines.extend(["", "## Methodology"])
+    if not report.benchmarks:
+        lines.append("- (none)")
+    else:
+        for bench in report.benchmarks:
+            lines.append(f"### {bench.name}")
+            lines.append("```json")
+            lines.append(json.dumps(bench.methodology, sort_keys=True, indent=2))
+            lines.append("```")
+
+    unattr = report.unattributed
+    lines.extend(
+        [
+            "",
+            "## Unattributed",
+            f"- Events: {unattr.events}",
+            f"- Estimated cost: {_fmt_money(unattr.estimated_cost)}",
+        ]
+    )
     return "\n".join(lines) + "\n"

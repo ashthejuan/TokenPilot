@@ -21,6 +21,7 @@ type InsightOut = components["schemas"]["InsightOut"];
 type InvestigationOut = components["schemas"]["InvestigationOut"];
 type InvestigationPreviewOut = components["schemas"]["InvestigationPreviewOut"];
 type JobOut = components["schemas"]["JobOut"];
+type Project = components["schemas"]["Project"];
 
 function errorText(error: unknown): string {
   if (error instanceof ApiError) {
@@ -62,6 +63,7 @@ export default function InsightDetailPage() {
 
   const [detail, setDetail] = useState<InsightDetail | null>(null);
   const [investigations, setInvestigations] = useState<InvestigationOut[]>([]);
+  const [repositoryPath, setRepositoryPath] = useState<string | null>(null);
   const [loading, setLoading] = useState(true);
   const [error, setError] = useState<string | null>(null);
 
@@ -77,11 +79,22 @@ export default function InsightDetailPage() {
       apiGet<InsightDetail>(`api/v1/insights/${insightId}`),
       apiGet<InvestigationOut[]>(`api/v1/insights/${insightId}/investigations`),
     ])
-      .then(([next, runs]) => {
+      .then(async ([next, runs]) => {
         if (cancelled) return;
         setDetail(next);
         setInvestigations(runs);
         setError(null);
+        const projectId = next.insight.project_id;
+        if (projectId) {
+          try {
+            const project = await apiGet<Project>(`api/v1/projects/${projectId}`);
+            if (!cancelled) setRepositoryPath(project.repository_path);
+          } catch {
+            if (!cancelled) setRepositoryPath(null);
+          }
+        } else if (!cancelled) {
+          setRepositoryPath(null);
+        }
       })
       .catch((err: unknown) => {
         if (!cancelled) setError(errorText(err));
@@ -223,6 +236,7 @@ export default function InsightDetailPage() {
         <InsightActions
           insightId={insight.id}
           status={insight.status}
+          repositoryPath={repositoryPath}
           onUpdated={onUpdated}
           onInvestigate={() => void openDisclosure()}
         />

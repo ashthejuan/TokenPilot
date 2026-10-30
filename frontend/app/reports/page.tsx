@@ -413,16 +413,27 @@ export default function ReportsPage() {
               ) : (
                 <ul className="space-y-3">
                   {report.benchmarks.map((bench, index) => (
-                    <li key={`${bench.name}-${index}`} className="flex flex-wrap items-center gap-2">
-                      <span className="text-sm font-medium">{bench.name}</span>
-                      <SavingsBadge
-                        status={bench.comparison_status}
-                        correctness_preserved={null}
-                        cost_delta={bench.cost_delta}
-                      />
-                      <span className="text-xs text-muted-foreground tabular-nums">
-                        Δ {formatMoney(bench.cost_delta, currency)}
-                      </span>
+                    <li key={`${bench.name}-${index}`} className="space-y-2">
+                      <div className="flex flex-wrap items-center gap-2">
+                        <span className="text-sm font-medium">{bench.name}</span>
+                        <SavingsBadge
+                          status={bench.comparison_status}
+                          correctness_preserved={null}
+                          cost_delta={bench.cost_delta}
+                        />
+                        <span className="text-xs text-muted-foreground tabular-nums">
+                          Δ {formatMoney(bench.cost_delta, currency)}
+                          {bench.cost_delta_pct != null ? ` (${bench.cost_delta_pct}%)` : null}
+                        </span>
+                      </div>
+                      <details className="text-xs">
+                        <summary className="cursor-pointer text-muted-foreground">
+                          Methodology
+                        </summary>
+                        <pre className="mt-2 max-h-48 overflow-auto rounded-md bg-muted p-2 font-mono">
+                          {JSON.stringify(bench.methodology, null, 2)}
+                        </pre>
+                      </details>
                     </li>
                   ))}
                 </ul>

@@ -2,8 +2,8 @@
 
 import { useEffect, useState } from "react";
 
+import { Chapter } from "@/components/Chapter";
 import { Button } from "@/components/ui/button";
-import { Card, CardContent, CardDescription, CardHeader, CardTitle } from "@/components/ui/card";
 import { Input } from "@/components/ui/input";
 import { ApiError, apiGet, apiSend } from "@/lib/api";
 import type { components } from "@/lib/api-types";
@@ -79,12 +79,11 @@ export function ThresholdsSection() {
   }
 
   return (
-    <Card data-testid="thresholds-section">
-      <CardHeader>
-        <CardTitle>Detector thresholds</CardTitle>
-        <CardDescription>Saving replaces the whole set. Stored insights are not re-run.</CardDescription>
-      </CardHeader>
-      <CardContent className="space-y-3">
+    <Chapter
+      title="Detector thresholds"
+      description="Saving replaces the whole set. Stored insights are not re-run."
+    >
+      <div className="space-y-3" data-testid="thresholds-section">
         {draft === null ? (
           <p className="text-sm text-muted-foreground">Loading…</p>
         ) : (
@@ -114,7 +113,7 @@ export function ThresholdsSection() {
         <Button size="sm" disabled={draft === null || busy} onClick={() => void save()}>
           {busy ? "Saving…" : "Save thresholds"}
         </Button>
-      </CardContent>
-    </Card>
+      </div>
+    </Chapter>
   );
 }

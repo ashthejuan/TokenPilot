@@ -1,17 +1,17 @@
+import { PageHeader } from "@/components/PageHeader";
 import { PricingSection } from "@/components/settings/PricingSection";
 import { PrivacySection } from "@/components/settings/PrivacySection";
 import { RetentionSection } from "@/components/settings/RetentionSection";
 import { ThresholdsSection } from "@/components/settings/ThresholdsSection";
+import { PAGE_SHELL_NARROW } from "@/lib/layout";
 
 export default function SettingsPage() {
   return (
-    <div className="mx-auto max-w-4xl space-y-6">
-      <div className="space-y-1">
-        <h1 className="text-2xl font-semibold">Settings</h1>
-        <p className="text-sm text-muted-foreground">
-          Privacy status, detector thresholds, pricing catalogue, and data retention.
-        </p>
-      </div>
+    <div className={PAGE_SHELL_NARROW}>
+      <PageHeader
+        title="Settings"
+        description="Privacy status, detector thresholds, pricing catalogue, and data retention."
+      />
       <PrivacySection />
       <ThresholdsSection />
       <PricingSection />

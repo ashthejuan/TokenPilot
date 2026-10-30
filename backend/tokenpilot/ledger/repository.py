@@ -229,6 +229,11 @@ class LedgerRepository:
         )
         return self.get_project(project_id)
 
+    def delete_project(self, project_id: str) -> bool:
+        """Delete the project row. FK rules cascade/null related rows. False if missing."""
+        cursor = self._conn.execute("DELETE FROM projects WHERE id = ?", (project_id,))
+        return (cursor.rowcount or 0) > 0
+
     # Tasks
 
     def task_project(self, task_id: str) -> str | None:

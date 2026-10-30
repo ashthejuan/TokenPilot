@@ -1,9 +1,11 @@
 "use client";
 
 import { useCallback, useEffect, useState } from "react";
+import { toast } from "sonner";
 
+import { Chapter } from "@/components/Chapter";
+import { PageHeader } from "@/components/PageHeader";
 import { Button } from "@/components/ui/button";
-import { Card, CardContent, CardDescription, CardHeader, CardTitle } from "@/components/ui/card";
 import { Input } from "@/components/ui/input";
 import {
   Table,
@@ -13,9 +15,10 @@ import {
   TableHeader,
   TableRow,
 } from "@/components/ui/table";
-import { ApiError, apiGet, apiSend } from "@/lib/api";
+import { ApiError, apiDelete, apiGet, apiSend } from "@/lib/api";
 import type { components } from "@/lib/api-types";
 import { formatTimestamp } from "@/lib/format";
+import { PAGE_SHELL } from "@/lib/layout";
 
 type Project = components["schemas"]["Project"];
 type ProjectCreate = components["schemas"]["ProjectCreate"];
@@ -42,6 +45,7 @@ export default function ProjectsPage() {
   const [name, setName] = useState("");
   const [repositoryPath, setRepositoryPath] = useState("");
   const [busy, setBusy] = useState(false);
+  const [deletingId, setDeletingId] = useState<string | null>(null);
   const [formError, setFormError] = useState<string | null>(null);
 
   const refresh = useCallback(() => {
@@ -64,7 +68,7 @@ export default function ProjectsPage() {
   }, [refresh]);
 
   async function createProject() {
-    if (busy) return;
+    if (busy || deletingId !== null) return;
     const trimmed = name.trim();
     if (!trimmed) {
       setFormError("Name is required.");
@@ -89,14 +93,51 @@ export default function ProjectsPage() {
     }
   }
 
+  function confirmDeleteProject(project: Project) {
+    if (busy || deletingId !== null) return;
+    toast(`Delete “${project.name}”?`, {
+      id: `delete-project-${project.id}`,
+      description:
+        "Linked benchmarks and tasks are removed; sessions and usage stay as unattributed.",
+      duration: Infinity,
+      action: {
+        label: "Delete",
+        onClick: () => {
+          void performDelete(project);
+        },
+      },
+      cancel: {
+        label: "Cancel",
+        onClick: () => toast.dismiss(`delete-project-${project.id}`),
+      },
+    });
+  }
+
+  async function performDelete(project: Project) {
+    if (busy || deletingId !== null) return;
+    toast.dismiss(`delete-project-${project.id}`);
+    setDeletingId(project.id);
+    setError(null);
+    const loadingId = toast.loading(`Deleting “${project.name}”…`);
+    try {
+      await apiDelete<null>(`api/v1/projects/${project.id}`);
+      await refresh();
+      toast.success(`Deleted “${project.name}”`, { id: loadingId });
+    } catch (err: unknown) {
+      const message = errorText(err);
+      setError(message);
+      toast.error(message, { id: loadingId });
+    } finally {
+      setDeletingId(null);
+    }
+  }
+
   return (
-    <div className="mx-auto max-w-6xl space-y-6">
-      <div className="space-y-1">
-        <h1 className="text-2xl font-semibold">Projects</h1>
-        <p className="text-sm text-muted-foreground">
-          Register repositories so usage can be attributed and benchmarks can run.
-        </p>
-      </div>
+    <div className={PAGE_SHELL}>
+      <PageHeader
+        title="Projects"
+        description="Register repositories so usage can be attributed and benchmarks can run."
+      />
 
       {error ? (
         <div
@@ -107,12 +148,11 @@ export default function ProjectsPage() {
         </div>
       ) : null}
 
-      <Card>
-        <CardHeader>
-          <CardTitle>New project</CardTitle>
-          <CardDescription>Name is required; repository path enables benchmarking.</CardDescription>
-        </CardHeader>
-        <CardContent className="space-y-4">
+      <Chapter
+        title="New project"
+        description="Name is required; repository path enables benchmarking."
+      >
+        <div className="space-y-4">
           {formError ? (
             <div
               role="alert"
@@ -142,50 +182,61 @@ export default function ProjectsPage() {
           <Button className="pressable" size="sm" onClick={() => void createProject()} disabled={busy}>
             {busy ? "Creating…" : "Create project"}
           </Button>
-        </CardContent>
-      </Card>
+        </div>
+      </Chapter>
 
-      <Card>
-        <CardHeader>
-          <CardTitle>Projects</CardTitle>
-        </CardHeader>
-        <CardContent>
-          {loading ? (
-            <p className="text-sm text-muted-foreground">Loading projects…</p>
-          ) : projects.length === 0 ? (
-            <p className="text-sm text-muted-foreground">No projects yet.</p>
-          ) : (
-            <Table>
-              <TableHeader>
-                <TableRow>
-                  <TableHead>Name</TableHead>
-                  <TableHead>Slug</TableHead>
-                  <TableHead>Repository</TableHead>
-                  <TableHead>Currency</TableHead>
-                  <TableHead>Updated</TableHead>
+      <Chapter title="Projects">
+        {loading ? (
+          <p className="text-sm text-muted-foreground">Loading projects…</p>
+        ) : projects.length === 0 ? (
+          <p className="text-sm text-muted-foreground">No projects yet.</p>
+        ) : (
+          <Table>
+            <TableHeader>
+              <TableRow>
+                <TableHead>Name</TableHead>
+                <TableHead>Slug</TableHead>
+                <TableHead>Repository</TableHead>
+                <TableHead>Currency</TableHead>
+                <TableHead>Updated</TableHead>
+                <TableHead className="w-[1%] text-right">
+                  <span className="sr-only">Actions</span>
+                </TableHead>
+              </TableRow>
+            </TableHeader>
+            <TableBody>
+              {projects.map((project) => (
+                <TableRow key={project.id}>
+                  <TableCell className="font-medium">{project.name}</TableCell>
+                  <TableCell className="font-mono text-xs text-muted-foreground">
+                    {project.slug ?? "—"}
+                  </TableCell>
+                  <TableCell className="max-w-xs truncate font-mono text-xs" title={project.repository_path ?? undefined}>
+                    {project.repository_path ?? "—"}
+                  </TableCell>
+                  <TableCell className="tabular-nums">{project.default_currency}</TableCell>
+                  <TableCell className="tabular-nums text-muted-foreground">
+                    {formatTimestamp(project.updated_at)}
+                  </TableCell>
+                  <TableCell className="text-right">
+                    <Button
+                      type="button"
+                      variant="destructive"
+                      size="sm"
+                      className="pressable"
+                      disabled={busy || deletingId !== null}
+                      aria-label={`Delete project ${project.name}`}
+                      onClick={() => confirmDeleteProject(project)}
+                    >
+                      {deletingId === project.id ? "Deleting…" : "Delete"}
+                    </Button>
+                  </TableCell>
                 </TableRow>
-              </TableHeader>
-              <TableBody>
-                {projects.map((project) => (
-                  <TableRow key={project.id}>
-                    <TableCell className="font-medium">{project.name}</TableCell>
-                    <TableCell className="font-mono text-xs text-muted-foreground">
-                      {project.slug ?? "—"}
-                    </TableCell>
-                    <TableCell className="max-w-xs truncate font-mono text-xs" title={project.repository_path ?? undefined}>
-                      {project.repository_path ?? "—"}
-                    </TableCell>
-                    <TableCell className="tabular-nums">{project.default_currency}</TableCell>
-                    <TableCell className="tabular-nums text-muted-foreground">
-                      {formatTimestamp(project.updated_at)}
-                    </TableCell>
-                  </TableRow>
-                ))}
-              </TableBody>
-            </Table>
-          )}
-        </CardContent>
-      </Card>
+              ))}
+            </TableBody>
+          </Table>
+        )}
+      </Chapter>
     </div>
   );
 }

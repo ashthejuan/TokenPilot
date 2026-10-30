@@ -27,8 +27,8 @@ export function AppNav() {
             href={item.href}
             aria-current={active ? "page" : undefined}
             className={cn(
-              "rounded-md px-3 py-1.5 text-sm transition-colors hover:bg-muted",
-              active ? "bg-muted font-medium text-foreground" : "text-muted-foreground",
+              "pressable px-3 py-1.5 text-sm transition-colors hover:bg-foreground/5",
+              active ? "bg-foreground/5 font-medium text-foreground" : "text-muted-foreground",
             )}
           >
             {item.label}

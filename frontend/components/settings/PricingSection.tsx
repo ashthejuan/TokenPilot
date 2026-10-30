@@ -2,8 +2,8 @@
 
 import { useEffect, useState } from "react";
 
+import { Chapter } from "@/components/Chapter";
 import { Button } from "@/components/ui/button";
-import { Card, CardContent, CardDescription, CardHeader, CardTitle } from "@/components/ui/card";
 import { Input } from "@/components/ui/input";
 import { ApiError, apiGet, apiSend } from "@/lib/api";
 import type { components } from "@/lib/api-types";
@@ -87,14 +87,11 @@ export function PricingSection() {
   }
 
   return (
-    <Card data-testid="pricing-section">
-      <CardHeader>
-        <CardTitle>Pricing</CardTitle>
-        <CardDescription>
-          A PUT never edits in place: it versions. A new version reprices past events automatically.
-        </CardDescription>
-      </CardHeader>
-      <CardContent className="space-y-4">
+    <Chapter
+      title="Pricing"
+      description="A PUT never edits in place: it versions. A new version reprices past events automatically."
+    >
+      <div className="space-y-4" data-testid="pricing-section">
         {versions === null ? (
           <p className="text-sm text-muted-foreground">Loading…</p>
         ) : versions.length === 0 ? (
@@ -157,7 +154,7 @@ export function PricingSection() {
         <Button size="sm" disabled={busy} onClick={() => void submit()}>
           {busy ? "Saving…" : "Save pricing version"}
         </Button>
-      </CardContent>
-    </Card>
+      </div>
+    </Chapter>
   );
 }

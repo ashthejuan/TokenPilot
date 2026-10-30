@@ -2,13 +2,14 @@
 
 import Link from "next/link";
 import { useParams } from "next/navigation";
-import { useCallback, useEffect, useMemo, useRef, useState, type ReactNode } from "react";
+import { useCallback, useEffect, useMemo, useRef, useState } from "react";
 
+import { Chapter } from "@/components/Chapter";
 import { ComparisonView } from "@/components/ComparisonView";
+import { PageHeader } from "@/components/PageHeader";
 import { RunTable } from "@/components/RunTable";
 import { SavingsBadge } from "@/components/SavingsBadge";
 import { Button } from "@/components/ui/button";
-import { Card, CardContent, CardDescription, CardHeader, CardTitle } from "@/components/ui/card";
 import { ApiError, apiGet, apiSend } from "@/lib/api";
 import {
   isRunActive,
@@ -18,6 +19,7 @@ import {
   type BenchmarkDetail,
   type ComparisonOut,
 } from "@/lib/benchmarks";
+import { PAGE_SHELL } from "@/lib/layout";
 
 const SELECT_CLASS =
   "h-8 rounded-lg border border-input bg-transparent px-2.5 text-sm outline-none focus-visible:border-ring focus-visible:ring-3 focus-visible:ring-ring/50 dark:bg-input/30";
@@ -36,26 +38,6 @@ function errorText(error: unknown): string {
     return `${error.message} (${error.code})`;
   }
   return "Could not reach the TokenPilot web server.";
-}
-
-function Section({
-  title,
-  description,
-  children,
-}: {
-  title: string;
-  description?: string;
-  children: ReactNode;
-}) {
-  return (
-    <Card>
-      <CardHeader>
-        <CardTitle>{title}</CardTitle>
-        {description ? <CardDescription>{description}</CardDescription> : null}
-      </CardHeader>
-      <CardContent>{children}</CardContent>
-    </Card>
-  );
 }
 
 /** Declared alternative changes, until a comparison reports measured variables. */
@@ -180,7 +162,7 @@ export default function BenchmarkDetailPage() {
 
   if (loading) {
     return (
-      <div className="mx-auto max-w-6xl">
+      <div className={PAGE_SHELL}>
         <p className="text-sm text-muted-foreground">Loading benchmark…</p>
       </div>
     );
@@ -188,9 +170,9 @@ export default function BenchmarkDetailPage() {
 
   if (error || detail === null) {
     return (
-      <div className="mx-auto max-w-6xl space-y-4">
+      <div className={PAGE_SHELL}>
         <Link href="/benchmarks" className="text-sm text-muted-foreground underline-offset-4 hover:underline">
-          ← Benchmarks
+          Benchmarks
         </Link>
         <div
           role="alert"
@@ -209,15 +191,21 @@ export default function BenchmarkDetailPage() {
       ? variablesChangedLabel(methodologyStrings(comparison.methodology, "variables_changed"))
       : variablesChangedLabel(declaredChanges(detail));
 
+  const headerDescription = [detail.description, diffLabel].filter(Boolean).join(" · ");
+
   return (
-    <div className="mx-auto max-w-6xl space-y-6">
-      <div className="space-y-3">
-        <Link href="/benchmarks" className="text-sm text-muted-foreground underline-offset-4 hover:underline">
-          ← Benchmarks
+    <div className={PAGE_SHELL}>
+      <p className="text-sm text-muted-foreground">
+        <Link href="/benchmarks" className="underline-offset-4 hover:underline">
+          Benchmarks
         </Link>
-        <div className="flex flex-wrap items-center gap-3">
-          <h1 className="text-2xl font-semibold">{detail.name}</h1>
-          {comparison !== null ? (
+      </p>
+
+      <PageHeader
+        title={detail.name}
+        description={headerDescription || undefined}
+        actions={
+          comparison !== null ? (
             <SavingsBadge
               status={comparison.comparison_status}
               correctness_preserved={comparison.correctness_preserved}
@@ -226,19 +214,15 @@ export default function BenchmarkDetailPage() {
             />
           ) : (
             <SavingsBadge status="potential" correctness_preserved={null} cost_delta={null} />
-          )}
-        </div>
-        {detail.description ? (
-          <p className="text-sm text-muted-foreground">{detail.description}</p>
-        ) : null}
-        <p className="text-sm text-muted-foreground">{diffLabel}</p>
-      </div>
+          )
+        }
+      />
 
-      <Section title="Runs" description="Status refreshes every 2 seconds while runs are active.">
+      <Chapter title="Runs" description="Status refreshes every 2 seconds while runs are active.">
         <RunTable runs={runs} stagger={staggerRef.current} />
-      </Section>
+      </Chapter>
 
-      <Section title="Compare variants">
+      <Chapter title="Compare variants">
         {compareError ? (
           <p role="alert" className="mb-3 text-sm text-destructive">
             {compareError}
@@ -282,12 +266,12 @@ export default function BenchmarkDetailPage() {
             {comparing ? "Comparing…" : "Compare"}
           </Button>
         </div>
-      </Section>
+      </Chapter>
 
       {comparison !== null ? (
-        <Section title="Comparison">
+        <Chapter title="Comparison">
           <ComparisonView comparison={comparison} runs={runs} />
-        </Section>
+        </Chapter>
       ) : null}
     </div>
   );

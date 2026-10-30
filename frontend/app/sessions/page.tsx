@@ -3,10 +3,11 @@
 import Link from "next/link";
 import { useCallback, useEffect, useRef, useState } from "react";
 
+import { Chapter } from "@/components/Chapter";
 import { CostValue } from "@/components/CostValue";
+import { PageHeader } from "@/components/PageHeader";
 import { Badge } from "@/components/ui/badge";
 import { Button } from "@/components/ui/button";
-import { Card, CardContent, CardHeader, CardTitle } from "@/components/ui/card";
 import {
   Table,
   TableBody,
@@ -18,6 +19,7 @@ import {
 import { ApiError, apiGet } from "@/lib/api";
 import type { components } from "@/lib/api-types";
 import { formatCount, formatTimestamp } from "@/lib/format";
+import { PAGE_SHELL } from "@/lib/layout";
 import { shouldCommitFetch, shouldCommitLoadMore } from "@/lib/sessions";
 
 type SessionSummary = components["schemas"]["SessionSummary"];
@@ -144,24 +146,26 @@ export default function SessionsPage() {
   }
 
   return (
-    <div className="mx-auto max-w-6xl space-y-6">
-      <div className="flex flex-wrap items-end justify-between gap-4">
-        <h1 className="text-2xl font-semibold">Sessions</h1>
-        <label className="flex flex-col gap-1 text-xs font-medium text-muted-foreground">
-          Outcome
-          <select
-            className={SELECT_CLASS}
-            value={outcome}
-            onChange={(e) => setOutcome(e.target.value as Outcome)}
-          >
-            <option value="">All outcomes</option>
-            <option value="success">Success</option>
-            <option value="failure">Failure</option>
-            <option value="abandoned">Abandoned</option>
-            <option value="unknown">Unknown</option>
-          </select>
-        </label>
-      </div>
+    <div className={PAGE_SHELL}>
+      <PageHeader
+        title="Sessions"
+        actions={
+          <label className="flex flex-col gap-1 text-xs font-medium text-muted-foreground">
+            Outcome
+            <select
+              className={SELECT_CLASS}
+              value={outcome}
+              onChange={(e) => setOutcome(e.target.value as Outcome)}
+            >
+              <option value="">All outcomes</option>
+              <option value="success">Success</option>
+              <option value="failure">Failure</option>
+              <option value="abandoned">Abandoned</option>
+              <option value="unknown">Unknown</option>
+            </select>
+          </label>
+        }
+      />
 
       {error ? (
         <div
@@ -172,11 +176,8 @@ export default function SessionsPage() {
         </div>
       ) : null}
 
-      <Card>
-        <CardHeader>
-          <CardTitle>All sessions</CardTitle>
-        </CardHeader>
-        <CardContent className="space-y-4">
+      <Chapter title="All sessions">
+        <div className="space-y-4">
           {loading ? (
             <p className="text-sm text-muted-foreground">Loading sessions…</p>
           ) : items.length === 0 ? (
@@ -238,8 +239,8 @@ export default function SessionsPage() {
               {loadingMore ? "Loading…" : "Load more"}
             </Button>
           ) : null}
-        </CardContent>
-      </Card>
+        </div>
+      </Chapter>
     </div>
   );
 }

@@ -4,7 +4,7 @@
 set -euo pipefail
 
 ROOT="$(cd "$(dirname "${BASH_SOURCE[0]}")/../.." && pwd)"
-DATA_DIR="${ROOT}/demo/.data"
+DATA_DIR="${TOKENPILOT_DEMO_DATA_DIR:-${ROOT}/demo/.data}"
 FIXTURE_REPO="${DATA_DIR}/fixture-repo"
 DB_PATH="${DATA_DIR}/tokenpilot.sqlite3"
 API_PORT="${TOKENPILOT_DEMO_API_PORT:-8790}"
@@ -49,11 +49,16 @@ rm -rf "${FIXTURE_REPO}"
 bash "${ROOT}/demo/scripts/init_fixture_repo.sh" "${FIXTURE_REPO}" >/dev/null
 
 # Optional root .env for live MODEL_API_KEY / tokens (never printed).
+# Values already exported by the caller win over .env.
 if [[ -f "${ROOT}/.env" ]]; then
+  CALLER_MODEL_API_KEY="${MODEL_API_KEY:-}"
+  CALLER_LOCAL_TOKEN="${TOKENPILOT_LOCAL_TOKEN:-}"
   set -a
   # shellcheck disable=SC1091
   source "${ROOT}/.env"
   set +a
+  if [[ -n "${CALLER_MODEL_API_KEY}" ]]; then export MODEL_API_KEY="${CALLER_MODEL_API_KEY}"; fi
+  if [[ -n "${CALLER_LOCAL_TOKEN}" ]]; then export TOKENPILOT_LOCAL_TOKEN="${CALLER_LOCAL_TOKEN}"; fi
 fi
 
 # CLI / seed token: prefer existing env, else demo default.

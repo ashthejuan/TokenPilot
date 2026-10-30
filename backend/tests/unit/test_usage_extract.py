@@ -1,6 +1,6 @@
 """Usage extraction from provider response bodies (Task 1.4)."""
 
-from tokenpilot.gateway.usage_extract import UsageFields, extract_usage
+from tokenpilot.gateway.usage_extract import UsageFields, extract_usage, usage_body_for_extract
 
 
 def test_full_usage_with_details() -> None:
@@ -132,3 +132,38 @@ def test_responses_fields_preferred_when_both_shapes_present() -> None:
     }
     fields = extract_usage(body)
     assert (fields.input_tokens, fields.output_tokens) == (1, 2)
+
+
+def test_usage_body_for_extract_unwraps_response_completed_envelope() -> None:
+    envelope = {
+        "type": "response.completed",
+        "response": {
+            "id": "resp_abc",
+            "usage": {
+                "input_tokens": 53,
+                "output_tokens": 271,
+                "input_tokens_details": {"cached_tokens": 0},
+                "output_tokens_details": {"reasoning_tokens": 256},
+            },
+        },
+    }
+    carrier = usage_body_for_extract(envelope)
+    assert carrier is not None
+    assert carrier["id"] == "resp_abc"
+    fields = extract_usage(envelope)
+    assert fields == UsageFields(
+        input_tokens=53,
+        output_tokens=271,
+        cached_tokens=0,
+        reasoning_tokens=256,
+        source_event_id="resp_abc",
+    )
+
+
+def test_usage_body_for_extract_skips_null_usage() -> None:
+    assert (
+        usage_body_for_extract(
+            {"type": "response.created", "response": {"id": "resp_1", "usage": None}}
+        )
+        is None
+    )

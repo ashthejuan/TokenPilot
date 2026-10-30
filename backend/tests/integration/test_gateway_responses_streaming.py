@@ -43,10 +43,14 @@ def test_responses_stream_records_final_usage(
     )
 
     assert response.status_code == 200
+    completed = {
+        "type": "response.completed",
+        "response": {"id": "resp-fake-0001", "usage": usage},
+    }
     expected = (
         sse_line(chunks[0])
         + sse_line(chunks[1])
-        + sse_line(json.dumps({"id": "resp-fake-0001", "usage": usage}))
+        + sse_line(json.dumps(completed))
         + b"data: [DONE]\n\n"
     )
     assert response.content == expected
@@ -54,6 +58,7 @@ def test_responses_stream_records_final_usage(
     (event,) = list_events(gateway_client, auth_headers)
     assert event["id"] == response.headers[EVENT_ID_HEADER]
     assert (event["input_tokens"], event["output_tokens"]) == (30, 12)
+    assert event["source_event_id"] == "resp-fake-0001"
     assert event["usage_source"] == "provider"
     assert event["status"] == "success"
     assert event["metadata"].get("gateway_added_include_usage") is None

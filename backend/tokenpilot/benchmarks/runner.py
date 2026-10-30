@@ -61,7 +61,7 @@ DEFAULT_TIMEOUT_S = 300
 _ERROR_CHARS = 2000
 
 _BENCHMARK_COLUMNS = (
-    "id, project_id, task_id, name, initial_git_sha, acceptance_config_json, "
+    "id, project_id, task_id, insight_id, name, initial_git_sha, acceptance_config_json, "
     "baseline_config_json, created_at, description, task_spec_json, "
     "alternative_configs_json, repeat_count, timeout_s"
 )
@@ -264,6 +264,7 @@ def _benchmark_from_row(row: sqlite3.Row) -> BenchmarkOut:
         id=row["id"],
         project_id=row["project_id"],
         task_id=row["task_id"],
+        insight_id=row["insight_id"],
         name=row["name"],
         description=row["description"],
         initial_git_sha=row["initial_git_sha"],
@@ -334,12 +335,13 @@ class BenchmarkStore:
         initial_ref: str,
         repeat_count: int,
         timeout_s: int,
+        insight_id: str | None = None,
     ) -> BenchmarkOut:
         self._conn.execute(
             "INSERT INTO benchmarks (id, project_id, task_id, name, initial_git_sha, "
             "acceptance_config_json, baseline_config_json, created_at, description, "
-            "task_spec_json, alternative_configs_json, repeat_count, timeout_s) "
-            "VALUES (?, ?, ?, ?, ?, ?, ?, ?, ?, ?, ?, ?, ?)",
+            "task_spec_json, alternative_configs_json, repeat_count, timeout_s, insight_id) "
+            "VALUES (?, ?, ?, ?, ?, ?, ?, ?, ?, ?, ?, ?, ?, ?)",
             (
                 benchmark_id,
                 project_id,
@@ -360,6 +362,7 @@ class BenchmarkStore:
                 ),
                 repeat_count,
                 timeout_s,
+                insight_id,
             ),
         )
         benchmark = self.get_benchmark(benchmark_id)

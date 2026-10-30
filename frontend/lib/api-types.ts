@@ -227,6 +227,23 @@ export interface paths {
         patch: operations["patch_insight_api_v1_insights__insight_id__patch"];
         trace?: never;
     };
+    "/api/v1/insights/{insight_id}/benchmark": {
+        parameters: {
+            query?: never;
+            header?: never;
+            path?: never;
+            cookie?: never;
+        };
+        get?: never;
+        put?: never;
+        /** Create Benchmark From Insight */
+        post: operations["create_benchmark_from_insight_api_v1_insights__insight_id__benchmark_post"];
+        delete?: never;
+        options?: never;
+        head?: never;
+        patch?: never;
+        trace?: never;
+    };
     "/api/v1/insights/{insight_id}/feedback": {
         parameters: {
             query?: never;
@@ -698,6 +715,8 @@ export interface components {
             initial_git_sha: string | null;
             /** Initial Ref */
             initial_ref: string;
+            /** Insight Id */
+            insight_id?: string | null;
             /** Name */
             name: string;
             /** Project Id */
@@ -729,6 +748,8 @@ export interface components {
             initial_git_sha: string | null;
             /** Initial Ref */
             initial_ref: string;
+            /** Insight Id */
+            insight_id?: string | null;
             /** Name */
             name: string;
             /** Project Id */
@@ -982,6 +1003,20 @@ export interface components {
         IngestResponse: {
             /** Results */
             results: components["schemas"]["IngestItemResult"][];
+        };
+        /**
+         * InsightBenchmarkCreate
+         * @description `POST /api/v1/insights/{id}/benchmark` body.
+         */
+        InsightBenchmarkCreate: {
+            /** Repeat Count */
+            repeat_count?: number | null;
+            /** Task Spec */
+            task_spec?: {
+                [key: string]: unknown;
+            } | null;
+            /** Task Spec Path */
+            task_spec_path?: string | null;
         };
         /**
          * InsightDetail
@@ -2282,6 +2317,41 @@ export interface operations {
                 };
                 content: {
                     "application/json": components["schemas"]["InsightOut"];
+                };
+            };
+            /** @description Validation Error */
+            422: {
+                headers: {
+                    [name: string]: unknown;
+                };
+                content: {
+                    "application/json": components["schemas"]["HTTPValidationError"];
+                };
+            };
+        };
+    };
+    create_benchmark_from_insight_api_v1_insights__insight_id__benchmark_post: {
+        parameters: {
+            query?: never;
+            header?: never;
+            path: {
+                insight_id: string;
+            };
+            cookie?: never;
+        };
+        requestBody: {
+            content: {
+                "application/json": components["schemas"]["InsightBenchmarkCreate"];
+            };
+        };
+        responses: {
+            /** @description Successful Response */
+            201: {
+                headers: {
+                    [name: string]: unknown;
+                };
+                content: {
+                    "application/json": unknown;
                 };
             };
             /** @description Validation Error */

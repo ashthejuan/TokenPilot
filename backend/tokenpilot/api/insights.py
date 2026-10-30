@@ -1,10 +1,16 @@
 """Insight analyze jobs, list/detail with resolved evidence, and status PATCH."""
 
-from typing import Annotated
+import json
+import sqlite3
+from pathlib import Path
+from typing import Annotated, Any
 
+import yaml
 from fastapi import APIRouter, BackgroundTasks, Depends, HTTPException, Query, Request
 from fastapi.responses import JSONResponse
+from pydantic import ValidationError
 
+from tokenpilot.api.benchmarks import create_benchmark_record
 from tokenpilot.db.database import Database, get_db
 from tokenpilot.detectors.base import EvidenceRef, Severity
 from tokenpilot.detectors.runner import REGISTRY
@@ -18,6 +24,17 @@ from tokenpilot.investigator.evidence import (
 )
 from tokenpilot.investigator.repository import FeedbackRepository, InvestigationRepository
 from tokenpilot.investigator.service import run_investigation_job
+from tokenpilot.ledger.repository import LedgerRepository
+from tokenpilot.schemas.benchmarks import (
+    AlternativeSpec,
+    BenchmarkCreate,
+    BenchmarkOut,
+    BenchmarkTaskSpec,
+    ContextStrategy,
+    InsightBenchmarkCreate,
+    RetryPolicy,
+    RunConfig,
+)
 from tokenpilot.schemas.common import (
     DEFAULT_PAGE_LIMIT,
     MAX_PAGE_LIMIT,
@@ -41,6 +58,7 @@ from tokenpilot.schemas.insights import (
     InvestigationOut,
     InvestigationPreviewOut,
     JobOut,
+    ResolvedEvidence,
     StatusNotSettableError,
 )
 
@@ -270,3 +288,250 @@ def post_feedback(
             implemented=body.implemented,
             note=body.note,
         )
+
+
+_SUPPORTED_VARIABLES = frozenset(
+    {"context_strategy", "model_id", "retry_policy", "temperature"}
+)
+
+
+class _BridgeError(Exception):
+    """A bridge request the API answers with a structured 422 (or 404)."""
+
+    def __init__(self, code: str, message: str, status: int = 422) -> None:
+        super().__init__(message)
+        self.code = code
+        self.message = message
+        self.status = status
+
+
+def _bridge_error_response(exc: _BridgeError) -> JSONResponse:
+    return JSONResponse(
+        status_code=exc.status,
+        content={
+            "error": {
+                "code": exc.code,
+                "message": exc.message,
+                "details": None,
+            }
+        },
+    )
+
+
+def _load_task_spec(body: InsightBenchmarkCreate) -> BenchmarkTaskSpec:
+    if body.task_spec_path is not None and body.task_spec is not None:
+        raise _BridgeError(
+            "task_spec_conflict",
+            "provide either task_spec_path or task_spec, not both",
+        )
+    if body.task_spec_path is not None:
+        path = Path(body.task_spec_path).expanduser()
+        try:
+            raw = path.read_text(encoding="utf-8")
+        except OSError as exc:
+            raise _BridgeError(
+                "task_spec_not_found", f"cannot read task_spec_path: {exc}"
+            ) from exc
+        try:
+            data: Any = yaml.safe_load(raw)
+        except yaml.YAMLError as exc:
+            raise _BridgeError("invalid_task_spec", f"task_spec_path is not YAML: {exc}") from exc
+    elif body.task_spec is not None:
+        data = body.task_spec
+    else:
+        raise _BridgeError(
+            "task_spec_required",
+            "provide task_spec_path or task_spec: a benchmark needs a task prompt "
+            "and acceptance criteria",
+        )
+    if not isinstance(data, dict):
+        raise _BridgeError("invalid_task_spec", "task spec must be an object")
+    try:
+        return BenchmarkTaskSpec.model_validate(data)
+    except ValidationError as exc:
+        raise _BridgeError("invalid_task_spec", f"task spec is invalid: {exc}") from exc
+
+
+def _observed_model(
+    conn: sqlite3.Connection, insight: InsightOut, evidence_rows: list[ResolvedEvidence]
+) -> str:
+    for row in evidence_rows:
+        event = getattr(row, "event", None)
+        if event is not None and event.model_id:
+            return str(event.model_id)
+    if insight.session_id:
+        row = conn.execute(
+            "SELECT model_id FROM usage_events WHERE session_id = ? "
+            "ORDER BY started_at DESC, rowid DESC LIMIT 1",
+            (insight.session_id,),
+        ).fetchone()
+        if row is not None and row["model_id"]:
+            return str(row["model_id"])
+    raise _BridgeError(
+        "missing_baseline_model",
+        "the insight's session has no recorded model; create the benchmark manually",
+    )
+
+
+def _session_context_strategy(
+    conn: sqlite3.Connection, session_id: str | None
+) -> ContextStrategy:
+    if not session_id:
+        return "full_repo"
+    row = conn.execute(
+        "SELECT metadata_json FROM sessions WHERE id = ?", (session_id,)
+    ).fetchone()
+    if row is None:
+        return "full_repo"
+    try:
+        metadata = json.loads(row["metadata_json"] or "{}")
+    except (TypeError, ValueError):
+        return "full_repo"
+    value = metadata.get("context_strategy") if isinstance(metadata, dict) else None
+    return value if value in ("full_repo", "targeted") else "full_repo"
+
+
+def _context_files(spec: BenchmarkTaskSpec) -> list[str]:
+    for alternative in spec.alternatives:
+        if alternative.context_files:
+            return list(alternative.context_files)
+    return []
+
+
+def _alternative_model(spec: BenchmarkTaskSpec, baseline_model: str) -> str | None:
+    candidates: list[str] = []
+    if spec.baseline is not None:
+        candidates.append(spec.baseline.model_id)
+    for alternative in spec.alternatives:
+        value = alternative.changes.get("model_id")
+        if isinstance(value, str):
+            candidates.append(value)
+    for candidate in candidates:
+        if candidate and candidate != baseline_model:
+            return candidate
+    return None
+
+
+def _build_alternative(
+    variable: str, baseline: RunConfig, spec: BenchmarkTaskSpec
+) -> AlternativeSpec:
+    if variable == "context_strategy":
+        strategy: ContextStrategy = (
+            "targeted" if baseline.context_strategy == "full_repo" else "full_repo"
+        )
+        return AlternativeSpec(
+            name="targeted-context" if strategy == "targeted" else "full-repo-context",
+            changes={"context_strategy": strategy},
+            context_files=_context_files(spec) if strategy == "targeted" else [],
+        )
+    if variable == "model_id":
+        model = _alternative_model(spec, baseline.model_id)
+        if model is None:
+            raise _BridgeError(
+                "missing_alternative_value",
+                "the task spec names no different model; create the benchmark manually",
+            )
+        return AlternativeSpec(name="alternative-model", changes={"model_id": model})
+    if variable == "retry_policy":
+        current = baseline.retry_policy.max_retries
+        next_retries = 0 if current > 0 else 1
+        return AlternativeSpec(
+            name="no-retries" if next_retries == 0 else "one-retry",
+            changes={"retry_policy": RetryPolicy(max_retries=next_retries).model_dump()},
+        )
+    if variable == "temperature":
+        current_temperature = baseline.temperature
+        next_temperature = 0.0 if current_temperature is None or current_temperature > 0 else 0.7
+        return AlternativeSpec(
+            name=f"temperature-{next_temperature:g}",
+            changes={"temperature": next_temperature},
+        )
+    raise _BridgeError(
+        "unsupported_variable",
+        f"variable {variable!r} cannot be mapped to a benchmark config; "
+        "create the benchmark manually",
+    )
+
+
+def _recommendation_variable(insight: InsightOut) -> str:
+    recommendation = insight.recommendation
+    if not isinstance(recommendation, dict):
+        raise _BridgeError(
+            "missing_recommendation",
+            "the insight has no recommendation; investigate it first or "
+            "create the benchmark manually",
+        )
+    variable = recommendation.get("variable_to_change")
+    if not isinstance(variable, str) or not variable:
+        raise _BridgeError(
+            "missing_recommendation",
+            "the recommendation has no variable_to_change; create the benchmark manually",
+        )
+    return variable
+
+
+def _create_benchmark_from_insight(
+    insight_id: str, body: InsightBenchmarkCreate, db: Database
+) -> BenchmarkOut:
+    with db.read() as conn:
+        insight = InsightRepository(conn).get(insight_id)
+        if insight is None:
+            raise _BridgeError("not_found", "insight not found", status=404)
+        if insight.project_id is None:
+            raise _BridgeError(
+                "insight_not_attributed",
+                "the insight has no project; attribute its events before creating a benchmark",
+            )
+        project = LedgerRepository(conn).get_project(insight.project_id)
+        if project is None:
+            raise _BridgeError("project_not_found", "the insight's project no longer exists")
+        if project.repository_path is None:
+            raise _BridgeError(
+                "project_has_no_repository",
+                "register a repository path on the project before creating a benchmark",
+            )
+        evidence_rows = resolve_evidence(conn, _evidence_refs(insight))
+        model = _observed_model(conn, insight, evidence_rows)
+        context_strategy = _session_context_strategy(conn, insight.session_id)
+
+    spec = _load_task_spec(body)
+    variable = _recommendation_variable(insight)
+    if variable not in _SUPPORTED_VARIABLES:
+        raise _BridgeError(
+            "unsupported_variable",
+            f"variable {variable!r} cannot be mapped to a benchmark config; "
+            "create the benchmark manually",
+        )
+
+    task_baseline = spec.baseline or RunConfig(model_id=model, max_steps=12)
+    baseline = task_baseline.model_copy(
+        update={"model_id": model, "context_strategy": context_strategy}
+    )
+    alternative = _build_alternative(variable, baseline, spec)
+    name = (spec.name or insight.title)[:200]
+    create = BenchmarkCreate(
+        project_id=project.id,
+        repository_path=project.repository_path,
+        name=name,
+        description=spec.description or insight.summary,
+        task_prompt=spec.task_prompt,
+        initial_ref=spec.initial_ref,
+        acceptance=spec.acceptance,
+        timeout_s=spec.timeout_s,
+        repeat_count=body.repeat_count or spec.repeat_count or 1,
+        baseline=baseline,
+        alternatives=[alternative],
+    )
+    return create_benchmark_record(create, db, insight_id=insight.id)
+
+
+@router.post("/insights/{insight_id}/benchmark", status_code=201, response_model=None)
+def create_benchmark_from_insight(
+    insight_id: str,
+    body: InsightBenchmarkCreate,
+    db: Annotated[Database, Depends(get_db)],
+) -> BenchmarkOut | JSONResponse:
+    try:
+        return _create_benchmark_from_insight(insight_id, body, db)
+    except _BridgeError as exc:
+        return _bridge_error_response(exc)

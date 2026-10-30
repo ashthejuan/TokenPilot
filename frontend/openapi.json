@@ -304,6 +304,17 @@
             "title": "Initial Ref",
             "type": "string"
           },
+          "insight_id": {
+            "anyOf": [
+              {
+                "type": "string"
+              },
+              {
+                "type": "null"
+              }
+            ],
+            "title": "Insight Id"
+          },
           "name": {
             "title": "Name",
             "type": "string"
@@ -424,6 +435,17 @@
           "initial_ref": {
             "title": "Initial Ref",
             "type": "string"
+          },
+          "insight_id": {
+            "anyOf": [
+              {
+                "type": "string"
+              },
+              {
+                "type": "null"
+              }
+            ],
+            "title": "Insight Id"
           },
           "name": {
             "title": "Name",
@@ -1284,6 +1306,52 @@
           "results"
         ],
         "title": "IngestResponse",
+        "type": "object"
+      },
+      "InsightBenchmarkCreate": {
+        "additionalProperties": false,
+        "description": "`POST /api/v1/insights/{id}/benchmark` body.",
+        "properties": {
+          "repeat_count": {
+            "anyOf": [
+              {
+                "maximum": 20.0,
+                "minimum": 1.0,
+                "type": "integer"
+              },
+              {
+                "type": "null"
+              }
+            ],
+            "title": "Repeat Count"
+          },
+          "task_spec": {
+            "anyOf": [
+              {
+                "additionalProperties": true,
+                "type": "object"
+              },
+              {
+                "type": "null"
+              }
+            ],
+            "title": "Task Spec"
+          },
+          "task_spec_path": {
+            "anyOf": [
+              {
+                "maxLength": 2048,
+                "minLength": 1,
+                "type": "string"
+              },
+              {
+                "type": "null"
+              }
+            ],
+            "title": "Task Spec Path"
+          }
+        },
+        "title": "InsightBenchmarkCreate",
         "type": "object"
       },
       "InsightDetail": {
@@ -4485,6 +4553,56 @@
           }
         },
         "summary": "Patch Insight",
+        "tags": [
+          "insights"
+        ]
+      }
+    },
+    "/api/v1/insights/{insight_id}/benchmark": {
+      "post": {
+        "operationId": "create_benchmark_from_insight_api_v1_insights__insight_id__benchmark_post",
+        "parameters": [
+          {
+            "in": "path",
+            "name": "insight_id",
+            "required": true,
+            "schema": {
+              "title": "Insight Id",
+              "type": "string"
+            }
+          }
+        ],
+        "requestBody": {
+          "content": {
+            "application/json": {
+              "schema": {
+                "$ref": "#/components/schemas/InsightBenchmarkCreate"
+              }
+            }
+          },
+          "required": true
+        },
+        "responses": {
+          "201": {
+            "content": {
+              "application/json": {
+                "schema": {}
+              }
+            },
+            "description": "Successful Response"
+          },
+          "422": {
+            "content": {
+              "application/json": {
+                "schema": {
+                  "$ref": "#/components/schemas/HTTPValidationError"
+                }
+              }
+            },
+            "description": "Validation Error"
+          }
+        },
+        "summary": "Create Benchmark From Insight",
         "tags": [
           "insights"
         ]

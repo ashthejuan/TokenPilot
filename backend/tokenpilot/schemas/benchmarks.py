@@ -70,10 +70,41 @@ class BenchmarkCreate(BaseModel):
     alternatives: list[AlternativeSpec] = Field(default_factory=list)
 
 
+class BenchmarkTaskSpec(BaseModel):
+    """`benchmark_task.yaml` as accepted by the insight → benchmark bridge.
+
+    `baseline` and `alternatives` are optional: the bridge replaces them with
+    the config observed in the insight's session and one derived alternative.
+    """
+
+    model_config = ConfigDict(extra="ignore")
+
+    name: str | None = Field(default=None, min_length=1, max_length=200)
+    description: str | None = None
+    task_prompt: str = Field(min_length=1)
+    initial_ref: str = Field(default="main", min_length=1, max_length=256)
+    acceptance: AcceptanceConfig
+    timeout_s: int = Field(default=300, gt=0, le=3600)
+    repeat_count: int | None = Field(default=None, ge=1, le=20)
+    baseline: RunConfig | None = None
+    alternatives: list[AlternativeSpec] = Field(default_factory=list)
+
+
+class InsightBenchmarkCreate(BaseModel):
+    """`POST /api/v1/insights/{id}/benchmark` body."""
+
+    model_config = ConfigDict(extra="forbid")
+
+    task_spec_path: str | None = Field(default=None, min_length=1, max_length=2048)
+    task_spec: dict[str, Any] | None = None
+    repeat_count: int | None = Field(default=None, ge=1, le=20)
+
+
 class BenchmarkOut(BaseModel):
     id: str
     project_id: str
     task_id: str | None
+    insight_id: str | None = None
     name: str
     description: str | None
     initial_git_sha: str | None

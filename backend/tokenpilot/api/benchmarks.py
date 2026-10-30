@@ -93,6 +93,23 @@ def create_benchmark(
             replayed = BenchmarkStore(conn).get_benchmark(keys[idempotency_key])
         if replayed is not None:
             return JSONResponse(status_code=200, content=_out_payload(replayed))
+    benchmark = create_benchmark_record(body, db)
+    if idempotency_key:
+        keys[idempotency_key] = benchmark.id
+    return benchmark
+
+
+def create_benchmark_record(
+    body: BenchmarkCreate,
+    db: Database,
+    *,
+    insight_id: str | None = None,
+) -> BenchmarkOut:
+    """Validate a benchmark definition and persist it, pinning `initial_git_sha`.
+
+    Shared by `POST /benchmarks` and the insight → benchmark bridge; callers own
+    idempotency handling.
+    """
     with db.read() as conn:
         project = LedgerRepository(conn).get_project(body.project_id)
     if project is None:
@@ -123,7 +140,7 @@ def create_benchmark(
         task_id = repository_ledger.create_task(
             project_id=project.id, external_task_id=f"benchmark-{benchmark_id}"
         )
-        benchmark = BenchmarkStore(conn).create_benchmark(
+        return BenchmarkStore(conn).create_benchmark(
             benchmark_id=benchmark_id,
             project_id=project.id,
             task_id=task_id,
@@ -137,10 +154,8 @@ def create_benchmark(
             initial_ref=body.initial_ref,
             repeat_count=body.repeat_count,
             timeout_s=body.timeout_s,
+            insight_id=insight_id,
         )
-    if idempotency_key:
-        keys[idempotency_key] = benchmark.id
-    return benchmark
 
 
 @router.get("/benchmarks")
@@ -277,6 +292,12 @@ def compare_variants(
                 created_at,
             ),
         )
+        if benchmark.insight_id:
+            # A persisted comparison is the proof the recommendation was tested.
+            conn.execute(
+                "UPDATE insights SET status = 'tested', updated_at = ? WHERE id = ?",
+                (created_at, benchmark.insight_id),
+            )
     return ComparisonOut(
         id=comparison_id,
         benchmark_id=benchmark_id,

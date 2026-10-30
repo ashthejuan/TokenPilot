@@ -521,6 +521,33 @@ def test_task_spec_path_outside_allowed_roots_is_rejected(
     assert client.get(BENCHMARKS, headers=AUTH).json() == []
 
 
+def test_task_spec_path_null_byte_returns_task_spec_not_found(
+    client: TestClient, settings: Settings, tmp_path: Path
+) -> None:
+    repo = _make_repo(tmp_path / "repo")
+    project = _register_project(client, repo)
+    event_id = _post_event(client)
+    insight_id = _seed_insight(
+        settings,
+        project_id=project["id"],
+        event_id=event_id,
+        session_id=_session_id(settings),
+        variable="context_strategy",
+    )
+    # Path string under the repo root but with an embedded null (unopenable).
+    poisoned = f"{repo}/bench\x00mark_task.yaml"
+
+    response = client.post(
+        f"{INSIGHTS}/{insight_id}/benchmark",
+        json={"task_spec_path": poisoned},
+        headers=AUTH,
+    )
+
+    assert response.status_code == 422, response.text
+    assert response.json()["error"]["code"] == "task_spec_not_found"
+    assert client.get(BENCHMARKS, headers=AUTH).json() == []
+
+
 def test_unsupported_variable_wins_over_missing_task_spec(
     client: TestClient, settings: Settings, tmp_path: Path
 ) -> None:

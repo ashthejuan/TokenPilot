@@ -345,8 +345,8 @@ def _read_task_spec_text(path: Path, allowed_roots: list[Path]) -> str:
     """Read a spec file confined to `allowed_roots`, without echoing contents."""
     try:
         resolved = path.resolve(strict=True)
-    except (OSError, RuntimeError):
-        # RuntimeError covers symlink loops on 3.12.
+    except (OSError, RuntimeError, ValueError):
+        # RuntimeError covers symlink loops on 3.12; ValueError covers null bytes.
         raise _BridgeError(
             "task_spec_not_found", "cannot read task_spec_path"
         ) from None

@@ -37,3 +37,6 @@ __pycache__/
 .tokenpilot/
 *.sqlite3-wal
 *.sqlite3-shm
+
+# Demo runtime data (fixture clone, isolated DB)
+demo/.data/

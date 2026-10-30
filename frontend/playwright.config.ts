@@ -7,9 +7,15 @@ import { defineConfig, devices } from "@playwright/test";
 const dataDir = join(tmpdir(), `tp-e2e-${process.pid}`);
 mkdirSync(dataDir, { recursive: true });
 const dbPath = join(dataDir, `tp-e2e-${process.pid}.sqlite3`);
-// Isolated per run so a manual fake on the default 8799 never collides.
-const fakePort = 38000 + (process.pid % 10000);
+// Fixed port (not pid-derived): Playwright reloads this config in the worker
+// with a different pid, and demo-loop.spec.ts must hit the same fake.
+const fakePort = Number(process.env.TOKENPILOT_E2E_FAKE_PORT || 18799);
 const fakeUrl = `http://127.0.0.1:${fakePort}`;
+
+// Expose for demo-loop.spec.ts (scenario switching on the fake).
+process.env.TOKENPILOT_E2E_FAKE_URL = fakeUrl;
+process.env.TOKENPILOT_E2E_FAKE_PORT = String(fakePort);
+process.env.TOKENPILOT_E2E_DATA_DIR = dataDir;
 
 export default defineConfig({
   testDir: "./e2e",
@@ -25,7 +31,7 @@ export default defineConfig({
   projects: [{ name: "chromium", use: { ...devices["Desktop Chrome"] } }],
   webServer: [
     {
-      command: `cd ../backend && uv run python -m tests.fakes.fake_upstream --port ${fakePort}`,
+      command: `cd ../backend && TOKENPILOT_FAKE_DEMO_MODE=1 TOKENPILOT_FAKE_DEMO_SCENARIO=success uv run python -m tests.fakes.fake_upstream --port ${fakePort}`,
       url: fakeUrl,
       reuseExistingServer: false,
     },
@@ -40,6 +46,10 @@ export default defineConfig({
         TOKENPILOT_DB_PATH: dbPath,
         TOKENPILOT_DATA_DIR: dataDir,
         TOKENPILOT_UPSTREAM_BASE_URL: fakeUrl,
+        TOKENPILOT_UPSTREAM_PROVIDER: "fake",
+        TOKENPILOT_FAKE_DEMO_MODE: "1",
+        TOKENPILOT_FAKE_DEMO_SCENARIO: "success",
+        TOKENPILOT_INVESTIGATOR_MODEL: "fake-large",
         MODEL_API_KEY: "e2e-fake-key",
       },
     },

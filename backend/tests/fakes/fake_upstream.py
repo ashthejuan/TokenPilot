@@ -10,11 +10,20 @@ Manual runs: ``python -m tests.fakes.fake_upstream --port 8799`` serves the
 same behaviors over HTTP. The default is ``ok`` with usage; the
 ``X-Fake-Behavior`` header picks another (``ok``, ``stream``, ``error``,
 ``html``, ``timeout``, ``reset``).
+
+Demo / offline benchmarks: tool-calling agent requests get a scripted
+invoicing fix (list_files → read_file → write_file → done). Usage scales with
+full_repo vs targeted prompts. ``TOKENPILOT_FAKE_DEMO_SCENARIO`` or header
+``X-Fake-Demo-Scenario`` selects ``success`` (both variants fix) or
+``fail-alt`` (targeted write fails acceptance while full_repo still passes).
 """
+
+from __future__ import annotations
 
 import argparse
 import itertools
 import json
+import os
 import threading
 from collections.abc import AsyncIterator, Callable
 from dataclasses import dataclass, field
@@ -25,6 +34,170 @@ import httpx
 
 DEFAULT_OK_USAGE: dict[str, Any] = {"prompt_tokens": 10, "completion_tokens": 5}
 DEFAULT_MODEL = "fake-large"
+FULL_REPO_USAGE: dict[str, Any] = {"prompt_tokens": 80_000, "completion_tokens": 200}
+TARGETED_USAGE: dict[str, Any] = {"prompt_tokens": 8_000, "completion_tokens": 200}
+
+# Sticky demo scenario for the HTTP server (env seeds it; header can override).
+_DEMO_SCENARIO_LOCK = threading.Lock()
+_DEMO_SCENARIO = os.environ.get("TOKENPILOT_FAKE_DEMO_SCENARIO", "success").strip() or "success"
+
+_FIXED_APPLY_DISCOUNT = '''\
+def apply_discount(
+    subtotal_cents: int,
+    discount_percent: int | float | str | Decimal,
+    tax_rate_percent: int | float | str | Decimal,
+) -> int:
+    """Return the final total after discount and tax, in cents.
+
+    Intended behaviour (discount before tax):
+
+    * discount the subtotal first,
+    * charge percentage tax on the discounted subtotal,
+    * add the flat levy in full.
+
+    For a $100.00 subtotal with a 20% discount and 10% tax the
+    intended total is $80.00 + $8.00 tax + $12.00 levy = $100.00
+    (10_000 cents). ``invoicing.totals.invoice_total`` implements
+    the same calculation and the two must agree.
+    """
+    _validate_subtotal(subtotal_cents)
+    _validate_discount_percent(discount_percent)
+    discounted = discounted_subtotal(subtotal_cents, discount_percent)
+    return discounted + compute_total_tax(discounted, tax_rate_percent)
+'''
+
+_BUGGY_APPLY_DISCOUNT = '''\
+def apply_discount(
+    subtotal_cents: int,
+    discount_percent: int | float | str | Decimal,
+    tax_rate_percent: int | float | str | Decimal,
+) -> int:
+    """Return the final total after discount and tax, in cents."""
+    _validate_subtotal(subtotal_cents)
+    _validate_discount_percent(discount_percent)
+    # Intentionally wrong for fail-alt honesty scenario.
+    taxed_total = subtotal_cents + compute_total_tax(
+        subtotal_cents, tax_rate_percent
+    )
+    return taxed_total - discount_amount(taxed_total, discount_percent)
+'''
+
+_FIXED_DISCOUNTS_FILE = '''\
+"""Percentage discounts for the invoicing fixture.
+
+All money is integer cents. The discount helpers in this module
+come in two flavours:
+
+* :func:`discount_amount` and :func:`discounted_subtotal` work
+  purely on a subtotal and know nothing about tax.
+* :func:`apply_discount` returns the final amount a customer
+  pays for a subtotal once a percentage discount and tax are
+  both taken into account.
+
+Correct order of operations for :func:`apply_discount`
+------------------------------------------------------
+1. Take the percentage discount off the subtotal.
+2. Charge percentage tax on the *discounted* subtotal.
+3. Add the flat per-invoice levy in full.
+
+The levy (see ``invoicing.tax.FLAT_LEVY_CENTS``) is not part of
+the price of the goods, so a discount must never reduce it, and
+the percentage tax must be worked out on the discounted price,
+not on the original subtotal.
+"""
+
+from __future__ import annotations
+
+from decimal import ROUND_HALF_UP, Decimal
+
+from invoicing.tax import compute_total_tax
+
+
+def _validate_subtotal(subtotal_cents: int) -> None:
+    if subtotal_cents < 0:
+        raise ValueError("subtotal_cents must be non-negative")
+
+
+def _validate_discount_percent(
+    discount_percent: int | float | str | Decimal,
+) -> Decimal:
+    rate = (
+        discount_percent
+        if isinstance(discount_percent, Decimal)
+        else Decimal(str(discount_percent))
+    )
+    if rate < 0 or rate > 100:
+        raise ValueError("discount percent must be between 0 and 100")
+    return rate
+
+
+def discount_amount(
+    subtotal_cents: int,
+    discount_percent: int | float | str | Decimal,
+) -> int:
+    """Return how many cents a percentage discount removes."""
+    _validate_subtotal(subtotal_cents)
+    rate = _validate_discount_percent(discount_percent)
+    exact = (Decimal(subtotal_cents) * rate) / Decimal("100")
+    return int(exact.quantize(Decimal("1"), rounding=ROUND_HALF_UP))
+
+
+def discounted_subtotal(
+    subtotal_cents: int,
+    discount_percent: int | float | str | Decimal,
+) -> int:
+    """Return the subtotal after a percentage discount, in cents."""
+    return subtotal_cents - discount_amount(subtotal_cents, discount_percent)
+
+
+''' + _FIXED_APPLY_DISCOUNT
+
+_BUGGY_DISCOUNTS_FILE = '''\
+"""Percentage discounts for the invoicing fixture (intentionally broken)."""
+
+from __future__ import annotations
+
+from decimal import ROUND_HALF_UP, Decimal
+
+from invoicing.tax import compute_total_tax
+
+
+def _validate_subtotal(subtotal_cents: int) -> None:
+    if subtotal_cents < 0:
+        raise ValueError("subtotal_cents must be non-negative")
+
+
+def _validate_discount_percent(
+    discount_percent: int | float | str | Decimal,
+) -> Decimal:
+    rate = (
+        discount_percent
+        if isinstance(discount_percent, Decimal)
+        else Decimal(str(discount_percent))
+    )
+    if rate < 0 or rate > 100:
+        raise ValueError("discount percent must be between 0 and 100")
+    return rate
+
+
+def discount_amount(
+    subtotal_cents: int,
+    discount_percent: int | float | str | Decimal,
+) -> int:
+    _validate_subtotal(subtotal_cents)
+    rate = _validate_discount_percent(discount_percent)
+    exact = (Decimal(subtotal_cents) * rate) / Decimal("100")
+    return int(exact.quantize(Decimal("1"), rounding=ROUND_HALF_UP))
+
+
+def discounted_subtotal(
+    subtotal_cents: int,
+    discount_percent: int | float | str | Decimal,
+) -> int:
+    return subtotal_cents - discount_amount(subtotal_cents, discount_percent)
+
+
+''' + _BUGGY_APPLY_DISCOUNT
 
 
 @dataclass
@@ -217,10 +390,12 @@ def canned_investigation_for_request(raw_body: bytes) -> dict[str, Any] | None:
         return None
 
     bundle = _request_bundle(payload)
-    events = bundle.get("events") or []
+    raw_events = bundle.get("events")
+    events = raw_events if isinstance(raw_events, list) else []
     first = events[0] if events and isinstance(events[0], dict) else {}
     evidence_id = first.get("id") if isinstance(first.get("id"), str) else None
-    aggregates = bundle.get("aggregates") if isinstance(bundle.get("aggregates"), dict) else {}
+    raw_aggregates = bundle.get("aggregates")
+    aggregates: dict[str, Any] = raw_aggregates if isinstance(raw_aggregates, dict) else {}
     event_count = aggregates.get("event_count", len(events))
     count = event_count if isinstance(event_count, int) else len(events)
     summary = (
@@ -228,6 +403,53 @@ def canned_investigation_for_request(raw_body: bytes) -> dict[str, Any] | None:
         if count == 0
         else f"Bundle holds {count} related events for review."
     )
+
+    # Offline demo (TOKENPILOT_FAKE_DEMO_MODE=1): recommend context_strategy so
+    # insight → benchmark yields full_repo vs targeted. Leave the default
+    # retry_policy canned answer for unit / investigate e2e tests.
+    demo_mode = os.environ.get("TOKENPILOT_FAKE_DEMO_MODE", "").strip().lower() in (
+        "1",
+        "true",
+        "yes",
+    )
+
+    if demo_mode:
+        return {
+            "title": "Repeated full-repo context during debugging",
+            "summary": (
+                summary
+                if count == 0
+                else f"Bundle holds {count} related events; large context may be resent."
+            ),
+            "observed_facts": [
+                {
+                    "statement": (
+                        "The earliest related event in the bundle shows "
+                        "a retry after a rate limit."
+                    ),
+                    "evidence_ids": [evidence_id] if evidence_id else [],
+                }
+            ],
+            "root_cause_hypothesis": (
+                "Debugging turns may resend the full repository on every request."
+            ),
+            "impact_assessment": "Each retry adds spend without new progress.",
+            "recommendation": {
+                "action": "Test a targeted-context strategy",
+                "variable_to_change": "context_strategy",
+                "expected_direction": "lower_cost",
+                "validation_procedure": (
+                    "Replay the same task with targeted context and the same tests."
+                ),
+                "proposed_benchmark": {
+                    "baseline_change": "Keep full_repo context.",
+                    "alternative_change": "Send only the files needed for the fix.",
+                },
+            },
+            "confidence": "medium",
+            "limitations": ["The bundle covers recent events only."],
+            "verdict": "supported",
+        }
 
     return {
         "title": "Retry pattern under review",
@@ -258,6 +480,144 @@ def canned_investigation_for_request(raw_body: bytes) -> dict[str, Any] | None:
         "confidence": "medium",
         "limitations": ["The bundle covers recent events only."],
         "verdict": "supported",
+    }
+
+
+def _demo_scenario() -> str:
+    with _DEMO_SCENARIO_LOCK:
+        return _DEMO_SCENARIO
+
+
+def set_demo_scenario(scenario: str) -> None:
+    """Set the sticky demo scenario (``success`` or ``fail-alt``)."""
+    global _DEMO_SCENARIO
+    normalized = scenario.strip().lower() if scenario else "success"
+    if normalized not in ("success", "fail-alt"):
+        normalized = "success"
+    with _DEMO_SCENARIO_LOCK:
+        _DEMO_SCENARIO = normalized
+
+
+def _parse_payload(raw_body: bytes) -> dict[str, Any] | None:
+    try:
+        payload = json.loads(raw_body.decode("utf-8"))
+    except (ValueError, UnicodeDecodeError):
+        return None
+    return payload if isinstance(payload, dict) else None
+
+
+def _is_tool_agent_request(payload: dict[str, Any]) -> bool:
+    """True when the request looks like the benchmark coding agent."""
+    tools = payload.get("tools")
+    if isinstance(tools, list) and tools:
+        return True
+    messages = payload.get("messages")
+    if not isinstance(messages, list):
+        return False
+    return any(isinstance(m, dict) and m.get("role") == "tool" for m in messages)
+
+
+def _first_user_content(payload: dict[str, Any]) -> str:
+    messages = payload.get("messages")
+    if not isinstance(messages, list):
+        return ""
+    for message in messages:
+        if isinstance(message, dict) and message.get("role") == "user":
+            content = message.get("content")
+            return content if isinstance(content, str) else ""
+    return ""
+
+
+def _looks_full_repo(payload: dict[str, Any]) -> bool:
+    content = _first_user_content(payload)
+    if "full_repo context" in content:
+        return True
+    if "Repository listing:" in content:
+        return False
+    return len(content) >= 20_000
+
+
+def _agent_step(payload: dict[str, Any]) -> int:
+    """0=list_files, 1=read_file, 2=write_file, 3+=done from tool-result count."""
+    messages = payload.get("messages")
+    if not isinstance(messages, list):
+        return 0
+    return sum(1 for m in messages if isinstance(m, dict) and m.get("role") == "tool")
+
+
+def _tool_call(name: str, arguments: dict[str, Any], call_id: str) -> dict[str, Any]:
+    return {
+        "id": call_id,
+        "type": "function",
+        "function": {"name": name, "arguments": json.dumps(arguments)},
+    }
+
+
+def demo_agent_response(
+    payload: dict[str, Any], source_id: str, *, scenario: str | None = None
+) -> dict[str, Any]:
+    """Scripted invoicing-fix tool loop for offline benchmarks."""
+    model = payload.get("model")
+    model_id = model if isinstance(model, str) and model else DEFAULT_MODEL
+    full_repo = _looks_full_repo(payload)
+    usage = dict(FULL_REPO_USAGE if full_repo else TARGETED_USAGE)
+    step = _agent_step(payload)
+    active = (scenario or _demo_scenario()).strip().lower() or "success"
+    write_fixed = not (active == "fail-alt" and not full_repo)
+
+    if step == 0:
+        message: dict[str, Any] = {
+            "role": "assistant",
+            "content": None,
+            "tool_calls": [_tool_call("list_files", {}, f"{source_id}-list")],
+        }
+        finish = "tool_calls"
+    elif step == 1:
+        message = {
+            "role": "assistant",
+            "content": None,
+            "tool_calls": [
+                _tool_call(
+                    "read_file",
+                    {"path": "invoicing/discounts.py"},
+                    f"{source_id}-read",
+                )
+            ],
+        }
+        finish = "tool_calls"
+    elif step == 2:
+        content = _FIXED_DISCOUNTS_FILE if write_fixed else _BUGGY_DISCOUNTS_FILE
+        message = {
+            "role": "assistant",
+            "content": None,
+            "tool_calls": [
+                _tool_call(
+                    "write_file",
+                    {"path": "invoicing/discounts.py", "content": content},
+                    f"{source_id}-write",
+                )
+            ],
+        }
+        finish = "tool_calls"
+    else:
+        summary = (
+            "Fixed apply_discount to discount before tax."
+            if write_fixed
+            else "Attempted a fix; leaving apply_discount unchanged for honesty demo."
+        )
+        message = {
+            "role": "assistant",
+            "content": None,
+            "tool_calls": [_tool_call("done", {"summary": summary}, f"{source_id}-done")],
+        }
+        finish = "tool_calls"
+
+    return {
+        "id": source_id,
+        "object": "chat.completion",
+        "model": model_id,
+        "choices": [{"index": 0, "message": message, "finish_reason": finish}],
+        "usage": usage,
     }
 
 
@@ -406,6 +766,10 @@ class _Handler(BaseHTTPRequestHandler):
             self.end_headers()
             self.wfile.write(body)
 
+        scenario_header = self.headers.get("X-Fake-Demo-Scenario")
+        if scenario_header:
+            set_demo_scenario(scenario_header)
+
         canned = canned_investigation_for_request(raw_body)
         if canned is not None:
             with _CLI_LOCK:
@@ -413,11 +777,47 @@ class _Handler(BaseHTTPRequestHandler):
                 send(_CLI_FAKE._handle(request))
             return
 
+        payload = _parse_payload(raw_body)
+        if payload is not None and _is_tool_agent_request(payload):
+            with _CLI_LOCK:
+                source_id = _CLI_FAKE._next_id()
+            body = demo_agent_response(payload, source_id)
+            send(
+                httpx.Response(
+                    200,
+                    content=json.dumps(body).encode("utf-8"),
+                    headers={"content-type": "application/json"},
+                )
+            )
+            return
+
+        # Seed sessions and other non-agent traffic: honor X-Fake-Behavior.
+        # For large full-repo-looking prompts without tools, return high usage
+        # so offline seeding can still price expensive sessions.
         name = self.headers.get("X-Fake-Behavior")
         if name is None and _body_wants_stream(raw_body):
             name = "stream"
         elif name is None:
             name = "ok"
+
+        if name == "ok" and payload is not None:
+            usage = (
+                dict(FULL_REPO_USAGE)
+                if _looks_full_repo(payload)
+                else dict(DEFAULT_OK_USAGE)
+            )
+            # Cheap control prompts stay tiny; mid-size "expensive" seeds that
+            # are not full_repo still need enough tokens to clear detector D.
+            user = _first_user_content(payload)
+            if 4_000 <= len(user) < 20_000:
+                usage = {"prompt_tokens": 200_000, "completion_tokens": 50}
+            model = payload.get("model")
+            model_id = model if isinstance(model, str) and model else DEFAULT_MODEL
+            with _CLI_LOCK:
+                source_id = _CLI_FAKE._next_id()
+            send(_chat_response(model_id, source_id, usage))
+            return
+
         try:
             response = _cli_handle(request, name)
         except httpx.ConnectTimeout:

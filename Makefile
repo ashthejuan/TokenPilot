@@ -1,6 +1,6 @@
 PYTHON ?= uv run
 
-.PHONY: dev-api dev-web test lint types demo e2e
+.PHONY: dev-api dev-web test lint types demo demo-offline e2e
 
 dev-api:
 	cd backend && uv run uvicorn tokenpilot.main:create_app --factory --host 127.0.0.1 --port 8787 --reload
@@ -20,8 +20,13 @@ types:
 	cd backend && uv run python -m tokenpilot.main --export-openapi ../frontend/openapi.json
 	cd frontend && npx openapi-typescript openapi.json -o lib/api-types.ts
 
+# --once: seed + analyze + verify, then exit (for CI / make). Omit for an
+# interactive session that stays up until Ctrl-C: bash demo/scripts/run_demo.sh --live
 demo:
-	bash demo/scripts/run_demo.sh
+	bash demo/scripts/run_demo.sh --live --once
+
+demo-offline:
+	bash demo/scripts/run_demo.sh --offline --once
 
 e2e:
 	cd frontend && npx playwright test

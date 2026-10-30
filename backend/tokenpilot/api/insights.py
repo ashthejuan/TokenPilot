@@ -293,6 +293,7 @@ def post_feedback(
 _SUPPORTED_VARIABLES = frozenset(
     {"context_strategy", "model_id", "retry_policy", "temperature"}
 )
+_MAX_TASK_SPEC_BYTES = 64 * 1024
 
 
 class _BridgeError(Exception):
@@ -318,7 +319,18 @@ def _bridge_error_response(exc: _BridgeError) -> JSONResponse:
     )
 
 
-def _load_task_spec(body: InsightBenchmarkCreate) -> BenchmarkTaskSpec:
+def _validation_message(exc: ValidationError) -> str:
+    """Field locations and messages only: never echo the input value."""
+    parts: list[str] = []
+    for error in exc.errors():
+        location = ".".join(str(part) for part in error.get("loc", ())) or "<root>"
+        parts.append(f"{location}: {error.get('msg', 'invalid value')}")
+    return "; ".join(parts)
+
+
+def _load_task_spec(
+    body: InsightBenchmarkCreate, allowed_roots: list[Path]
+) -> BenchmarkTaskSpec:
     if body.task_spec_path is not None and body.task_spec is not None:
         raise _BridgeError(
             "task_spec_conflict",
@@ -327,7 +339,25 @@ def _load_task_spec(body: InsightBenchmarkCreate) -> BenchmarkTaskSpec:
     if body.task_spec_path is not None:
         path = Path(body.task_spec_path).expanduser()
         try:
-            raw = path.read_text(encoding="utf-8")
+            resolved = path.resolve(strict=True)
+        except OSError as exc:
+            raise _BridgeError(
+                "task_spec_not_found", f"cannot read task_spec_path: {exc}"
+            ) from exc
+        roots = [root.resolve() for root in allowed_roots]
+        if not any(resolved.is_relative_to(root) for root in roots):
+            raise _BridgeError(
+                "task_spec_path_outside_allowed_roots",
+                "task_spec_path must be inside the project repository or the "
+                "TokenPilot data directory",
+            )
+        try:
+            if resolved.stat().st_size > _MAX_TASK_SPEC_BYTES:
+                raise _BridgeError(
+                    "task_spec_too_large",
+                    f"task_spec_path exceeds {_MAX_TASK_SPEC_BYTES} bytes",
+                )
+            raw = resolved.read_text(encoding="utf-8")
         except OSError as exc:
             raise _BridgeError(
                 "task_spec_not_found", f"cannot read task_spec_path: {exc}"
@@ -349,7 +379,9 @@ def _load_task_spec(body: InsightBenchmarkCreate) -> BenchmarkTaskSpec:
     try:
         return BenchmarkTaskSpec.model_validate(data)
     except ValidationError as exc:
-        raise _BridgeError("invalid_task_spec", f"task spec is invalid: {exc}") from exc
+        raise _BridgeError(
+            "invalid_task_spec", f"task spec is invalid: {_validation_message(exc)}"
+        ) from exc
 
 
 def _observed_model(
@@ -471,12 +503,21 @@ def _recommendation_variable(insight: InsightOut) -> str:
 
 
 def _create_benchmark_from_insight(
-    insight_id: str, body: InsightBenchmarkCreate, db: Database
+    insight_id: str, body: InsightBenchmarkCreate, db: Database, data_dir: Path
 ) -> BenchmarkOut:
     with db.read() as conn:
         insight = InsightRepository(conn).get(insight_id)
         if insight is None:
             raise _BridgeError("not_found", "insight not found", status=404)
+        # Reject an unsupported variable before any other missing input: the plan
+        # pins this code for "any other variable".
+        variable = _recommendation_variable(insight)
+        if variable not in _SUPPORTED_VARIABLES:
+            raise _BridgeError(
+                "unsupported_variable",
+                f"variable {variable!r} cannot be mapped to a benchmark config; "
+                "create the benchmark manually",
+            )
         if insight.project_id is None:
             raise _BridgeError(
                 "insight_not_attributed",
@@ -494,15 +535,7 @@ def _create_benchmark_from_insight(
         model = _observed_model(conn, insight, evidence_rows)
         context_strategy = _session_context_strategy(conn, insight.session_id)
 
-    spec = _load_task_spec(body)
-    variable = _recommendation_variable(insight)
-    if variable not in _SUPPORTED_VARIABLES:
-        raise _BridgeError(
-            "unsupported_variable",
-            f"variable {variable!r} cannot be mapped to a benchmark config; "
-            "create the benchmark manually",
-        )
-
+    spec = _load_task_spec(body, [Path(project.repository_path), data_dir])
     task_baseline = spec.baseline or RunConfig(model_id=model, max_steps=12)
     baseline = task_baseline.model_copy(
         update={"model_id": model, "context_strategy": context_strategy}
@@ -529,9 +562,12 @@ def _create_benchmark_from_insight(
 def create_benchmark_from_insight(
     insight_id: str,
     body: InsightBenchmarkCreate,
+    request: Request,
     db: Annotated[Database, Depends(get_db)],
 ) -> BenchmarkOut | JSONResponse:
     try:
-        return _create_benchmark_from_insight(insight_id, body, db)
+        return _create_benchmark_from_insight(
+            insight_id, body, db, Path(request.app.state.settings.data_dir)
+        )
     except _BridgeError as exc:
         return _bridge_error_response(exc)

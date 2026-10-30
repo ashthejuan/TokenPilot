@@ -103,8 +103,8 @@ def _seed_insight(
     settings: Settings,
     *,
     project_id: str,
-    event_id: str,
-    session_id: str,
+    event_id: str | None = None,
+    session_id: str | None = None,
     variable: str,
     extra_recommendation: dict[str, Any] | None = None,
 ) -> str:
@@ -112,16 +112,19 @@ def _seed_insight(
     conn = connect(settings.db_path)
     try:
         repository = InsightRepository(conn)
+        evidence = (
+            [EvidenceRef(kind="usage_event", id=event_id)] if event_id is not None else []
+        )
         finding = Finding(
             rule_id="retry_amplification",
             rule_version=1,
-            anchor="session:s1",
+            anchor=f"session:{session_id or 'none'}",
             severity="medium",
             confidence=0.8,
             title="Retries amplify spend",
             summary="The same request was retried three times.",
             scope=Scope(project_id=project_id, session_id=session_id),
-            evidence=[EvidenceRef(kind="usage_event", id=event_id)],
+            evidence=evidence,
             measurements={"retries": 2},
             estimated_impact=None,
             impact_currency=None,
@@ -209,7 +212,7 @@ def test_context_strategy_recommendation_creates_one_variable_benchmark(
 ) -> None:
     repo = _make_repo(tmp_path / "repo")
     project = _register_project(client, repo)
-    event_id = _post_event(client)
+    event_id = _post_event(client, model_id="fake-observed")
     session_id = _session_id(settings)
     insight_id = _seed_insight(
         settings,
@@ -226,7 +229,7 @@ def test_context_strategy_recommendation_creates_one_variable_benchmark(
     )
 
     assert benchmark["insight_id"] == insight_id
-    assert benchmark["baseline"]["model_id"] == "fake-large"
+    assert benchmark["baseline"]["model_id"] == "fake-observed"
     assert benchmark["baseline"]["context_strategy"] == "full_repo"
     assert len(benchmark["alternatives"]) == 1
     alternative = benchmark["alternatives"][0]
@@ -454,7 +457,11 @@ def test_session_context_strategy_is_the_baseline(
 @pytest.mark.parametrize(
     ("variable", "baseline_override", "expected_change"),
     [
-        ("retry_policy", {"retry_policy": {"max_retries": 2}}, {"retry_policy": {"max_retries": 0}}),
+        (
+            "retry_policy",
+            {"retry_policy": {"max_retries": 2}},
+            {"retry_policy": {"max_retries": 0}},
+        ),
         ("temperature", {"temperature": 0.7}, {"temperature": 0.0}),
     ],
 )
@@ -483,3 +490,132 @@ def test_retry_and_temperature_recommendations_map_to_alternatives(
     )
 
     assert benchmark["alternatives"][0]["changes"] == expected_change
+
+
+def test_task_spec_path_outside_allowed_roots_is_rejected(
+    client: TestClient, settings: Settings, tmp_path: Path
+) -> None:
+    repo = _make_repo(tmp_path / "repo")
+    project = _register_project(client, repo)
+    event_id = _post_event(client)
+    insight_id = _seed_insight(
+        settings,
+        project_id=project["id"],
+        event_id=event_id,
+        session_id=_session_id(settings),
+        variable="context_strategy",
+    )
+    outside = tmp_path.parent / f"{tmp_path.name}-outside"
+    outside.mkdir()
+    spec_path = outside / "benchmark_task.yaml"
+    spec_path.write_text(yaml.safe_dump(_task_spec()), encoding="utf-8")
+
+    response = client.post(
+        f"{INSIGHTS}/{insight_id}/benchmark",
+        json={"task_spec_path": str(spec_path)},
+        headers=AUTH,
+    )
+
+    assert response.status_code == 422, response.text
+    assert response.json()["error"]["code"] == "task_spec_path_outside_allowed_roots"
+    assert client.get(BENCHMARKS, headers=AUTH).json() == []
+
+
+def test_unsupported_variable_wins_over_missing_task_spec(
+    client: TestClient, settings: Settings, tmp_path: Path
+) -> None:
+    repo = _make_repo(tmp_path / "repo")
+    project = _register_project(client, repo)
+    event_id = _post_event(client)
+    insight_id = _seed_insight(
+        settings,
+        project_id=project["id"],
+        event_id=event_id,
+        session_id=_session_id(settings),
+        variable="prompt_template",
+    )
+
+    response = client.post(
+        f"{INSIGHTS}/{insight_id}/benchmark", json={}, headers=AUTH
+    )
+
+    assert response.status_code == 422, response.text
+    assert response.json()["error"]["code"] == "unsupported_variable"
+
+
+def test_invalid_task_spec_does_not_echo_file_content(
+    client: TestClient, settings: Settings, tmp_path: Path
+) -> None:
+    repo = _make_repo(tmp_path / "repo")
+    project = _register_project(client, repo)
+    event_id = _post_event(client)
+    insight_id = _seed_insight(
+        settings,
+        project_id=project["id"],
+        event_id=event_id,
+        session_id=_session_id(settings),
+        variable="context_strategy",
+    )
+    spec_path = tmp_path / "invalid_task.yaml"
+    spec_path.write_text(
+        yaml.safe_dump(
+            {
+                "task_prompt": "fix it",
+                "acceptance": "hunter2-not-a-config",
+            }
+        ),
+        encoding="utf-8",
+    )
+
+    response = client.post(
+        f"{INSIGHTS}/{insight_id}/benchmark",
+        json={"task_spec_path": str(spec_path)},
+        headers=AUTH,
+    )
+
+    assert response.status_code == 422, response.text
+    assert response.json()["error"]["code"] == "invalid_task_spec"
+    assert "hunter2" not in response.text
+
+
+def test_missing_model_returns_422(
+    client: TestClient, settings: Settings, tmp_path: Path
+) -> None:
+    repo = _make_repo(tmp_path / "repo")
+    project = _register_project(client, repo)
+    insight_id = _seed_insight(
+        settings,
+        project_id=project["id"],
+        variable="context_strategy",
+    )
+
+    response = client.post(
+        f"{INSIGHTS}/{insight_id}/benchmark",
+        json={"task_spec": _task_spec()},
+        headers=AUTH,
+    )
+
+    assert response.status_code == 422, response.text
+    assert response.json()["error"]["code"] == "missing_baseline_model"
+    assert client.get(BENCHMARKS, headers=AUTH).json() == []
+
+
+def test_model_falls_back_to_latest_session_event(
+    client: TestClient, settings: Settings, tmp_path: Path
+) -> None:
+    repo = _make_repo(tmp_path / "repo")
+    project = _register_project(client, repo)
+    _post_event(client, model_id="fake-observed")
+    session_id = _session_id(settings)
+    insight_id = _seed_insight(
+        settings,
+        project_id=project["id"],
+        session_id=session_id,
+        variable="context_strategy",
+    )
+
+    benchmark = _create_from_insight(
+        client, insight_id, {"task_spec": _task_spec()}
+    )
+
+    assert benchmark["baseline"]["model_id"] == "fake-observed"

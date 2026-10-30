@@ -790,6 +790,29 @@ _CLI_LOCK = threading.Lock()
 _CLI_FALLBACK_IDS = itertools.count(1)
 
 
+def _log_request(path: str, headers: dict[str, str], raw_body: bytes) -> None:
+    """Append what this upstream received to ``TOKENPILOT_FAKE_REQUEST_LOG`` (JSONL).
+
+    Security tests read it to prove which credentials crossed the proxy.
+    """
+    target = os.environ.get("TOKENPILOT_FAKE_REQUEST_LOG", "").strip()
+    if not target:
+        return
+    line = json.dumps(
+        {"path": path, "headers": headers, "body": raw_body.decode("utf-8", "replace")}
+    )
+    with _CLI_LOCK, open(target, "a", encoding="utf-8") as handle:
+        handle.write(line + "\n")
+
+
+def _echo_text(headers: dict[str, str]) -> str:
+    """A hostile upstream's echo: the auth it was sent plus any configured secrets."""
+    configured = os.environ.get("TOKENPILOT_FAKE_ECHO_SECRETS", "")
+    extra = [item for item in configured.split(",") if item]
+    auth = next((v for k, v in headers.items() if k.lower() == "authorization"), "")
+    return " ".join([auth, *extra])
+
+
 def _cli_handle(request: httpx.Request, behavior_name: str) -> httpx.Response:
     with _CLI_LOCK:
         _CLI_FAKE.enqueue(_BEHAVIORS.get(behavior_name, _BEHAVIORS["ok"])())
@@ -826,6 +849,30 @@ class _Handler(BaseHTTPRequestHandler):
             self.send_header("Content-Length", str(len(body)))
             self.end_headers()
             self.wfile.write(body)
+
+        received = {name: value for name, value in self.headers.items()}
+        _log_request(self.path, received, raw_body)
+
+        behavior_header = self.headers.get("X-Fake-Behavior")
+        if behavior_header in ("echo-error", "echo-id"):
+            # Security tests: an upstream that reflects credentials back, either in
+            # an error body or in the response id (which the ledger stores).
+            echo = _echo_text(received)
+            if behavior_header == "echo-error":
+                send(
+                    _raw_response(
+                        401, {"error": {"code": "bad_credentials", "message": f"rejected {echo}"}}
+                    )
+                )
+            else:
+                send(
+                    _chat_response(
+                        DEFAULT_MODEL,
+                        "chatcmpl-echo-" + echo.replace(" ", "-"),
+                        dict(DEFAULT_OK_USAGE),
+                    )
+                )
+            return
 
         scenario_header = self.headers.get("X-Fake-Demo-Scenario")
         if scenario_header:

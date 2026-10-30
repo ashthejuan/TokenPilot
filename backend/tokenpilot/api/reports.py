@@ -38,7 +38,19 @@ def _utc_bound(value: datetime | None, name: str) -> str | None:
     return to_utc_z(value)
 
 
-@router.get("/project/{project_id}", response_model=None)
+@router.get(
+    "/project/{project_id}",
+    response_model=ProjectReport,
+    responses={
+        200: {
+            "content": {
+                "text/markdown": {
+                    "schema": {"type": "string"},
+                }
+            }
+        }
+    },
+)
 def get_project_report(
     project_id: str,
     db: Annotated[Database, Depends(get_db)],

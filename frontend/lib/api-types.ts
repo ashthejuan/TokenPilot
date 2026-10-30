@@ -1424,6 +1424,42 @@ export interface components {
             slug?: string | null;
         };
         /**
+         * ProjectReport
+         * @description Full project report for JSON responses and the Markdown renderer.
+         */
+        ProjectReport: {
+            /** Benchmarks */
+            benchmarks: components["schemas"]["ReportBenchmark"][];
+            /**
+             * Cost Basis
+             * @enum {string}
+             */
+            cost_basis: "estimated" | "reported" | "mixed" | "simulated" | "unavailable";
+            cost_by_outcome: components["schemas"]["CostByOutcome"];
+            coverage: components["schemas"]["Coverage"];
+            /** Currency */
+            currency: string | null;
+            /** Limitations */
+            limitations: string[];
+            period: components["schemas"]["ReportPeriod"];
+            /** Project Id */
+            project_id: string;
+            /** Project Name */
+            project_name: string;
+            savings: components["schemas"]["SavingsBreakdown"];
+            /** Spend Total */
+            spend_total: number | null;
+            /** Top Recommendations */
+            top_recommendations: components["schemas"]["ReportRecommendation"][];
+            /** Top Sessions */
+            top_sessions: components["schemas"]["SessionCost"][];
+            unattributed: components["schemas"]["UnattributedUsage"];
+            /** Unknown Cost Events */
+            unknown_cost_events: number;
+            /** Waste By Rule */
+            waste_by_rule: components["schemas"]["WasteByRule"][];
+        };
+        /**
          * ProjectUpdate
          * @description Only the fields present in the body change; `repository_path: null` clears it.
          */
@@ -1436,6 +1472,57 @@ export interface components {
             repository_path?: string | null;
             /** Slug */
             slug?: string | null;
+        };
+        /**
+         * ReportBenchmark
+         * @description One comparison row for the project report's benchmarks list.
+         */
+        ReportBenchmark: {
+            /**
+             * Comparison Status
+             * @enum {string}
+             */
+            comparison_status: "incomparable" | "measured" | "correctness_preserving" | "verified" | "inconclusive";
+            /** Cost Delta */
+            cost_delta: number | null;
+            /** Cost Delta Pct */
+            cost_delta_pct: number | null;
+            /** Methodology */
+            methodology: {
+                [key: string]: unknown;
+            };
+            /** Name */
+            name: string;
+        };
+        /**
+         * ReportPeriod
+         * @description Inclusive `from`, exclusive `to`; both are `Z` strings when set.
+         */
+        ReportPeriod: {
+            /** From */
+            from?: string | null;
+            /** To */
+            to?: string | null;
+        };
+        /**
+         * ReportRecommendation
+         * @description One investigated insight with a stored recommendation.
+         */
+        ReportRecommendation: {
+            /** Estimated Impact */
+            estimated_impact: number | null;
+            /** Impact Currency */
+            impact_currency: string | null;
+            /** Insight Id */
+            insight_id: string;
+            /** Recommendation */
+            recommendation: {
+                [key: string]: unknown;
+            };
+            /** Rule Id */
+            rule_id: string;
+            /** Title */
+            title: string;
         };
         /** RepriceResponse */
         RepriceResponse: {
@@ -1488,6 +1575,20 @@ export interface components {
             retry_policy?: components["schemas"]["RetryPolicy"];
             /** Temperature */
             temperature?: number | null;
+        };
+        /**
+         * SavingsBreakdown
+         * @description FR-11 ladder amounts. Kinds are never summed; `realized` is always null in MVP.
+         */
+        SavingsBreakdown: {
+            /** Benchmark */
+            benchmark: number | null;
+            /** Potential */
+            potential: number | null;
+            /** Realized */
+            realized?: number | null;
+            /** Verified */
+            verified: number | null;
         };
         /**
          * SavingsReport
@@ -1779,6 +1880,16 @@ export interface components {
             request_count: number;
         };
         /**
+         * UnattributedUsage
+         * @description Events in the window that have no project attribution.
+         */
+        UnattributedUsage: {
+            /** Estimated Cost */
+            estimated_cost: number | null;
+            /** Events */
+            events: number;
+        };
+        /**
          * UsageEvent
          * @description A stored event as the API returns it. Never carries `raw_event_json`.
          */
@@ -1898,6 +2009,18 @@ export interface components {
             msg: string;
             /** Error Type */
             type: string;
+        };
+        /**
+         * WasteByRule
+         * @description Non-dismissed insight impact rolled up by detector rule.
+         */
+        WasteByRule: {
+            /** Count */
+            count: number;
+            /** Estimated Impact */
+            estimated_impact: number | null;
+            /** Rule Id */
+            rule_id: string;
         };
     };
     responses: never;
@@ -2718,7 +2841,8 @@ export interface operations {
                     [name: string]: unknown;
                 };
                 content: {
-                    "application/json": unknown;
+                    "application/json": components["schemas"]["ProjectReport"];
+                    "text/markdown": string;
                 };
             };
             /** @description Validation Error */

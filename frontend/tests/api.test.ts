@@ -1,6 +1,6 @@
 import { afterEach, describe, expect, it, vi } from "vitest";
 
-import { ApiError, apiDelete, apiGet, apiSend } from "@/lib/api";
+import { ApiError, apiDelete, apiGet, apiGetText, apiSend } from "@/lib/api";
 
 function jsonResponse(body: unknown, status: number): Response {
   return new Response(JSON.stringify(body), {
@@ -47,6 +47,39 @@ describe("apiGet", () => {
     const err = await apiGet("api/v1/projects").catch((e: unknown) => e);
 
     expect(err).toMatchObject({ code: "http_error", status: 502 });
+  });
+});
+
+describe("apiGetText", () => {
+  it("returns raw text without JSON parsing", async () => {
+    const markdown = "# Report\n\nSpend: $1";
+    const fetchMock = vi.fn().mockResolvedValue(
+      new Response(markdown, { status: 200, headers: { "content-type": "text/markdown" } }),
+    );
+    vi.stubGlobal("fetch", fetchMock);
+
+    const body = await apiGetText("api/v1/reports/project/p1", { format: "markdown" });
+
+    expect(body).toBe(markdown);
+    expect(fetchMock).toHaveBeenCalledWith(
+      "/api/tp/api/v1/reports/project/p1?format=markdown",
+      expect.objectContaining({ method: "GET" }),
+    );
+  });
+
+  it("throws ApiError from a structured JSON error body", async () => {
+    vi.stubGlobal(
+      "fetch",
+      vi.fn().mockResolvedValue(
+        jsonResponse({ error: { code: "not_found", message: "project not found" } }, 404),
+      ),
+    );
+
+    const err = await apiGetText("api/v1/reports/project/missing", { format: "markdown" }).catch(
+      (e: unknown) => e,
+    );
+
+    expect(err).toMatchObject({ code: "not_found", message: "project not found", status: 404 });
   });
 });
 

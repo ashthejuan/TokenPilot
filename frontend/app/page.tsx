@@ -8,12 +8,14 @@ import { CostValue } from "@/components/CostValue";
 import { CoverageBanner } from "@/components/CoverageBanner";
 import { Filters } from "@/components/Filters";
 import { RankingTable, type RankingRow } from "@/components/RankingTable";
+import { SavingsBadge } from "@/components/SavingsBadge";
 import { SeverityBadge } from "@/components/SeverityBadge";
 import { SpendChart } from "@/components/SpendChart";
 import { Button } from "@/components/ui/button";
 import { Card, CardContent, CardDescription, CardHeader, CardTitle } from "@/components/ui/card";
 import { ApiError, apiGet } from "@/lib/api";
 import type { components } from "@/lib/api-types";
+import { latestComparison, type BenchmarkOut, type ComparisonOut } from "@/lib/benchmarks";
 import { DEFAULT_FILTERS, summaryParams } from "@/lib/filters";
 import { addMoney, formatCount, moneyOrZero } from "@/lib/format";
 import { impactLabel, ruleLabel } from "@/lib/insights";
@@ -23,6 +25,7 @@ type Project = components["schemas"]["Project"];
 type InsightOut = components["schemas"]["InsightOut"];
 type PagedInsights = components["schemas"]["Paged_InsightOut_"];
 type Bucket = "day" | "hour";
+type LatestBenchmark = { benchmark: BenchmarkOut; latest: ComparisonOut | null };
 
 // A summary holds the backend's single DB lock (~0.7 s at 100k events), so fetch on change only.
 const FETCH_DEBOUNCE_MS = 300;
@@ -94,6 +97,9 @@ export default function OverviewPage() {
   const [recentInsights, setRecentInsights] = useState<InsightOut[]>([]);
   const [insightsLoading, setInsightsLoading] = useState(true);
   const [insightsError, setInsightsError] = useState<string | null>(null);
+  const [latestBenchmarks, setLatestBenchmarks] = useState<LatestBenchmark[]>([]);
+  const [benchmarksLoading, setBenchmarksLoading] = useState(true);
+  const [benchmarksError, setBenchmarksError] = useState<string | null>(null);
 
   const rangeError =
     filters.range === "custom" && summaryParams(filters, new Date()) === null
@@ -128,6 +134,35 @@ export default function OverviewPage() {
       })
       .finally(() => {
         if (!cancelled) setInsightsLoading(false);
+      });
+    return () => {
+      cancelled = true;
+    };
+  }, [refreshKey]);
+
+  useEffect(() => {
+    let cancelled = false;
+    setBenchmarksLoading(true);
+    apiGet<BenchmarkOut[]>("api/v1/benchmarks")
+      .then(async (benchmarks) => {
+        const recent = [...benchmarks].reverse().slice(0, 5);
+        const rows = await Promise.all(
+          recent.map(async (benchmark) => {
+            const comparisons = await apiGet<ComparisonOut[]>(
+              `api/v1/benchmarks/${benchmark.id}/comparisons`,
+            );
+            return { benchmark, latest: latestComparison(comparisons) };
+          }),
+        );
+        if (cancelled) return;
+        setLatestBenchmarks(rows);
+        setBenchmarksError(null);
+      })
+      .catch((err: unknown) => {
+        if (!cancelled) setBenchmarksError(errorText(err));
+      })
+      .finally(() => {
+        if (!cancelled) setBenchmarksLoading(false);
       });
     return () => {
       cancelled = true;
@@ -370,8 +405,42 @@ export default function OverviewPage() {
                 </ul>
               )}
             </Section>
-            <Section title="Latest benchmarks (Phase 4)">
-              <p className="text-sm text-muted-foreground">No benchmarks yet. Benchmarking arrives in Phase 4.</p>
+            <Section title="Latest benchmarks">
+              {benchmarksLoading ? (
+                <p className="text-sm text-muted-foreground">Loading benchmarks…</p>
+              ) : benchmarksError ? (
+                <p className="text-sm text-destructive">{benchmarksError}</p>
+              ) : latestBenchmarks.length === 0 ? (
+                <p className="text-sm text-muted-foreground">No benchmarks yet.</p>
+              ) : (
+                <ul className="space-y-3">
+                  {latestBenchmarks.map(({ benchmark, latest }) => (
+                    <li key={benchmark.id} className="flex flex-wrap items-center gap-2">
+                      <Link
+                        href={`/benchmarks/${benchmark.id}`}
+                        className="min-w-0 flex-1 truncate text-sm font-medium underline-offset-4 hover:underline"
+                        title={benchmark.name}
+                      >
+                        {benchmark.name}
+                      </Link>
+                      {latest !== null ? (
+                        <SavingsBadge
+                          status={latest.comparison_status}
+                          correctness_preserved={latest.correctness_preserved}
+                          cost_delta={latest.cost_delta}
+                          reasons={latest.reasons ?? []}
+                        />
+                      ) : (
+                        <SavingsBadge
+                          status="potential"
+                          correctness_preserved={null}
+                          cost_delta={null}
+                        />
+                      )}
+                    </li>
+                  ))}
+                </ul>
+              )}
             </Section>
           </div>
         </div>

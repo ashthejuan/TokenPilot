@@ -38,6 +38,31 @@ export function apiGet<T>(path: string, params?: Record<string, string>): Promis
   return request<T>("GET", `${path}${query}`);
 }
 
+/** GET that returns raw text (e.g. markdown reports) without JSON parsing. */
+export async function apiGetText(path: string, params?: Record<string, string>): Promise<string> {
+  const query = params && Object.keys(params).length ? `?${new URLSearchParams(params)}` : "";
+  const response = await fetch(`/api/tp/${path}${query}`, {
+    method: "GET",
+    headers: { accept: "text/markdown, text/plain, */*" },
+    cache: "no-store",
+  });
+  const text = await response.text();
+  if (!response.ok) {
+    let body: unknown = null;
+    try {
+      body = text ? JSON.parse(text) : null;
+    } catch {
+      body = null;
+    }
+    const error = (body as { error?: { code?: unknown; message?: unknown } } | null)?.error;
+    if (error && typeof error.code === "string") {
+      throw new ApiError(error.code, String(error.message ?? error.code), response.status);
+    }
+    throw new ApiError("http_error", response.statusText || `HTTP ${response.status}`, response.status);
+  }
+  return text;
+}
+
 export function apiSend<T>(method: "POST" | "PATCH" | "PUT", path: string, body: unknown): Promise<T> {
   return request<T>(method, path, {
     headers: { "content-type": "application/json" },

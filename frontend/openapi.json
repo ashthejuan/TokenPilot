@@ -2529,6 +2529,126 @@
         "title": "ProjectCreate",
         "type": "object"
       },
+      "ProjectReport": {
+        "description": "Full project report for JSON responses and the Markdown renderer.",
+        "properties": {
+          "benchmarks": {
+            "items": {
+              "$ref": "#/components/schemas/ReportBenchmark"
+            },
+            "title": "Benchmarks",
+            "type": "array"
+          },
+          "cost_basis": {
+            "enum": [
+              "estimated",
+              "reported",
+              "mixed",
+              "simulated",
+              "unavailable"
+            ],
+            "title": "Cost Basis",
+            "type": "string"
+          },
+          "cost_by_outcome": {
+            "$ref": "#/components/schemas/CostByOutcome"
+          },
+          "coverage": {
+            "$ref": "#/components/schemas/Coverage"
+          },
+          "currency": {
+            "anyOf": [
+              {
+                "type": "string"
+              },
+              {
+                "type": "null"
+              }
+            ],
+            "title": "Currency"
+          },
+          "limitations": {
+            "items": {
+              "type": "string"
+            },
+            "title": "Limitations",
+            "type": "array"
+          },
+          "period": {
+            "$ref": "#/components/schemas/ReportPeriod"
+          },
+          "project_id": {
+            "title": "Project Id",
+            "type": "string"
+          },
+          "project_name": {
+            "title": "Project Name",
+            "type": "string"
+          },
+          "savings": {
+            "$ref": "#/components/schemas/SavingsBreakdown"
+          },
+          "spend_total": {
+            "anyOf": [
+              {
+                "type": "number"
+              },
+              {
+                "type": "null"
+              }
+            ],
+            "title": "Spend Total"
+          },
+          "top_recommendations": {
+            "items": {
+              "$ref": "#/components/schemas/ReportRecommendation"
+            },
+            "title": "Top Recommendations",
+            "type": "array"
+          },
+          "top_sessions": {
+            "items": {
+              "$ref": "#/components/schemas/SessionCost"
+            },
+            "title": "Top Sessions",
+            "type": "array"
+          },
+          "unattributed": {
+            "$ref": "#/components/schemas/UnattributedUsage"
+          },
+          "unknown_cost_events": {
+            "title": "Unknown Cost Events",
+            "type": "integer"
+          },
+          "waste_by_rule": {
+            "items": {
+              "$ref": "#/components/schemas/WasteByRule"
+            },
+            "title": "Waste By Rule",
+            "type": "array"
+          }
+        },
+        "required": [
+          "project_id",
+          "project_name",
+          "period",
+          "cost_basis",
+          "currency",
+          "coverage",
+          "spend_total",
+          "unknown_cost_events",
+          "top_sessions",
+          "cost_by_outcome",
+          "waste_by_rule",
+          "top_recommendations",
+          "benchmarks",
+          "savings",
+          "limitations",
+          "unattributed"
+        ],
+        "title": "ProjectReport",
+        "type": "object"
+      },
       "ProjectUpdate": {
         "additionalProperties": false,
         "description": "Only the fields present in the body change; `repository_path: null` clears it.",
@@ -2583,6 +2703,145 @@
           }
         },
         "title": "ProjectUpdate",
+        "type": "object"
+      },
+      "ReportBenchmark": {
+        "description": "One comparison row for the project report's benchmarks list.",
+        "properties": {
+          "comparison_status": {
+            "enum": [
+              "incomparable",
+              "measured",
+              "correctness_preserving",
+              "verified",
+              "inconclusive"
+            ],
+            "title": "Comparison Status",
+            "type": "string"
+          },
+          "cost_delta": {
+            "anyOf": [
+              {
+                "type": "number"
+              },
+              {
+                "type": "null"
+              }
+            ],
+            "title": "Cost Delta"
+          },
+          "cost_delta_pct": {
+            "anyOf": [
+              {
+                "type": "number"
+              },
+              {
+                "type": "null"
+              }
+            ],
+            "title": "Cost Delta Pct"
+          },
+          "methodology": {
+            "additionalProperties": true,
+            "title": "Methodology",
+            "type": "object"
+          },
+          "name": {
+            "title": "Name",
+            "type": "string"
+          }
+        },
+        "required": [
+          "name",
+          "comparison_status",
+          "cost_delta",
+          "cost_delta_pct",
+          "methodology"
+        ],
+        "title": "ReportBenchmark",
+        "type": "object"
+      },
+      "ReportPeriod": {
+        "description": "Inclusive `from`, exclusive `to`; both are `Z` strings when set.",
+        "properties": {
+          "from": {
+            "anyOf": [
+              {
+                "type": "string"
+              },
+              {
+                "type": "null"
+              }
+            ],
+            "title": "From"
+          },
+          "to": {
+            "anyOf": [
+              {
+                "type": "string"
+              },
+              {
+                "type": "null"
+              }
+            ],
+            "title": "To"
+          }
+        },
+        "title": "ReportPeriod",
+        "type": "object"
+      },
+      "ReportRecommendation": {
+        "description": "One investigated insight with a stored recommendation.",
+        "properties": {
+          "estimated_impact": {
+            "anyOf": [
+              {
+                "type": "number"
+              },
+              {
+                "type": "null"
+              }
+            ],
+            "title": "Estimated Impact"
+          },
+          "impact_currency": {
+            "anyOf": [
+              {
+                "type": "string"
+              },
+              {
+                "type": "null"
+              }
+            ],
+            "title": "Impact Currency"
+          },
+          "insight_id": {
+            "title": "Insight Id",
+            "type": "string"
+          },
+          "recommendation": {
+            "additionalProperties": true,
+            "title": "Recommendation",
+            "type": "object"
+          },
+          "rule_id": {
+            "title": "Rule Id",
+            "type": "string"
+          },
+          "title": {
+            "title": "Title",
+            "type": "string"
+          }
+        },
+        "required": [
+          "insight_id",
+          "rule_id",
+          "title",
+          "recommendation",
+          "estimated_impact",
+          "impact_currency"
+        ],
+        "title": "ReportRecommendation",
         "type": "object"
       },
       "RepriceResponse": {
@@ -2724,6 +2983,62 @@
           "max_steps"
         ],
         "title": "RunConfig",
+        "type": "object"
+      },
+      "SavingsBreakdown": {
+        "description": "FR-11 ladder amounts. Kinds are never summed; `realized` is always null in MVP.",
+        "properties": {
+          "benchmark": {
+            "anyOf": [
+              {
+                "type": "number"
+              },
+              {
+                "type": "null"
+              }
+            ],
+            "title": "Benchmark"
+          },
+          "potential": {
+            "anyOf": [
+              {
+                "type": "number"
+              },
+              {
+                "type": "null"
+              }
+            ],
+            "title": "Potential"
+          },
+          "realized": {
+            "anyOf": [
+              {
+                "type": "number"
+              },
+              {
+                "type": "null"
+              }
+            ],
+            "title": "Realized"
+          },
+          "verified": {
+            "anyOf": [
+              {
+                "type": "number"
+              },
+              {
+                "type": "null"
+              }
+            ],
+            "title": "Verified"
+          }
+        },
+        "required": [
+          "potential",
+          "benchmark",
+          "verified"
+        ],
+        "title": "SavingsBreakdown",
         "type": "object"
       },
       "SavingsReport": {
@@ -3355,6 +3670,32 @@
         "title": "TimeseriesPoint",
         "type": "object"
       },
+      "UnattributedUsage": {
+        "description": "Events in the window that have no project attribution.",
+        "properties": {
+          "estimated_cost": {
+            "anyOf": [
+              {
+                "type": "number"
+              },
+              {
+                "type": "null"
+              }
+            ],
+            "title": "Estimated Cost"
+          },
+          "events": {
+            "title": "Events",
+            "type": "integer"
+          }
+        },
+        "required": [
+          "events",
+          "estimated_cost"
+        ],
+        "title": "UnattributedUsage",
+        "type": "object"
+      },
       "UsageEvent": {
         "description": "A stored event as the API returns it. Never carries `raw_event_json`.",
         "properties": {
@@ -3849,6 +4190,37 @@
           "type"
         ],
         "title": "ValidationError",
+        "type": "object"
+      },
+      "WasteByRule": {
+        "description": "Non-dismissed insight impact rolled up by detector rule.",
+        "properties": {
+          "count": {
+            "title": "Count",
+            "type": "integer"
+          },
+          "estimated_impact": {
+            "anyOf": [
+              {
+                "type": "number"
+              },
+              {
+                "type": "null"
+              }
+            ],
+            "title": "Estimated Impact"
+          },
+          "rule_id": {
+            "title": "Rule Id",
+            "type": "string"
+          }
+        },
+        "required": [
+          "rule_id",
+          "estimated_impact",
+          "count"
+        ],
+        "title": "WasteByRule",
         "type": "object"
       }
     }
@@ -5132,7 +5504,14 @@
           "200": {
             "content": {
               "application/json": {
-                "schema": {}
+                "schema": {
+                  "$ref": "#/components/schemas/ProjectReport"
+                }
+              },
+              "text/markdown": {
+                "schema": {
+                  "type": "string"
+                }
               }
             },
             "description": "Successful Response"

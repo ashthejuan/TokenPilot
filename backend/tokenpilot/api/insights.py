@@ -1,7 +1,9 @@
 """Insight analyze jobs, list/detail with resolved evidence, and status PATCH."""
 
 import json
+import os
 import sqlite3
+import stat
 from pathlib import Path
 from typing import Annotated, Any
 
@@ -328,6 +330,73 @@ def _validation_message(exc: ValidationError) -> str:
     return "; ".join(parts)
 
 
+def _yaml_error_message(exc: yaml.YAMLError) -> str:
+    """Position only: `str(exc)` embeds the offending source line."""
+    mark = getattr(exc, "problem_mark", None)
+    if mark is None:
+        return "task_spec_path is not valid YAML"
+    return (
+        f"task_spec_path is not valid YAML (line {mark.line + 1}, "
+        f"column {mark.column + 1})"
+    )
+
+
+def _read_task_spec_text(path: Path, allowed_roots: list[Path]) -> str:
+    """Read a spec file confined to `allowed_roots`, without echoing contents."""
+    try:
+        resolved = path.resolve(strict=True)
+    except (OSError, RuntimeError):
+        # RuntimeError covers symlink loops on 3.12.
+        raise _BridgeError(
+            "task_spec_not_found", "cannot read task_spec_path"
+        ) from None
+    # Only absolute roots confine anything; a relative or empty project path
+    # would otherwise resolve against the server's working directory.
+    roots = [root.resolve() for root in allowed_roots if root.is_absolute()]
+    if not any(resolved.is_relative_to(root) for root in roots):
+        raise _BridgeError(
+            "task_spec_path_outside_allowed_roots",
+            "task_spec_path must be inside the project repository or the "
+            "TokenPilot data directory",
+        )
+    try:
+        # O_NOFOLLOW closes the resolve-then-read race; fstat checks the opened
+        # file, and the bounded read closes the stat-then-read race.
+        descriptor = os.open(resolved, os.O_RDONLY | os.O_NOFOLLOW)
+    except OSError:
+        raise _BridgeError(
+            "task_spec_not_found", "cannot read task_spec_path"
+        ) from None
+    try:
+        info = os.fstat(descriptor)
+        if not stat.S_ISREG(info.st_mode):
+            raise _BridgeError(
+                "task_spec_not_found", "task_spec_path is not a regular file"
+            )
+        if info.st_size > _MAX_TASK_SPEC_BYTES:
+            raise _BridgeError(
+                "task_spec_too_large",
+                f"task_spec_path exceeds {_MAX_TASK_SPEC_BYTES} bytes",
+            )
+        raw = os.read(descriptor, _MAX_TASK_SPEC_BYTES + 1)
+    except OSError:
+        raise _BridgeError(
+            "task_spec_not_found", "cannot read task_spec_path"
+        ) from None
+    finally:
+        os.close(descriptor)
+    if len(raw) > _MAX_TASK_SPEC_BYTES:
+        raise _BridgeError(
+            "task_spec_too_large", f"task_spec_path exceeds {_MAX_TASK_SPEC_BYTES} bytes"
+        )
+    try:
+        return raw.decode("utf-8")
+    except UnicodeDecodeError:
+        raise _BridgeError(
+            "invalid_task_spec", "task_spec_path is not UTF-8 text"
+        ) from None
+
+
 def _load_task_spec(
     body: InsightBenchmarkCreate, allowed_roots: list[Path]
 ) -> BenchmarkTaskSpec:
@@ -337,35 +406,17 @@ def _load_task_spec(
             "provide either task_spec_path or task_spec, not both",
         )
     if body.task_spec_path is not None:
-        path = Path(body.task_spec_path).expanduser()
-        try:
-            resolved = path.resolve(strict=True)
-        except OSError as exc:
-            raise _BridgeError(
-                "task_spec_not_found", f"cannot read task_spec_path: {exc}"
-            ) from exc
-        roots = [root.resolve() for root in allowed_roots]
-        if not any(resolved.is_relative_to(root) for root in roots):
-            raise _BridgeError(
-                "task_spec_path_outside_allowed_roots",
-                "task_spec_path must be inside the project repository or the "
-                "TokenPilot data directory",
-            )
-        try:
-            if resolved.stat().st_size > _MAX_TASK_SPEC_BYTES:
-                raise _BridgeError(
-                    "task_spec_too_large",
-                    f"task_spec_path exceeds {_MAX_TASK_SPEC_BYTES} bytes",
-                )
-            raw = resolved.read_text(encoding="utf-8")
-        except OSError as exc:
-            raise _BridgeError(
-                "task_spec_not_found", f"cannot read task_spec_path: {exc}"
-            ) from exc
+        raw = _read_task_spec_text(
+            Path(body.task_spec_path).expanduser(), allowed_roots
+        )
         try:
             data: Any = yaml.safe_load(raw)
         except yaml.YAMLError as exc:
-            raise _BridgeError("invalid_task_spec", f"task_spec_path is not YAML: {exc}") from exc
+            raise _BridgeError("invalid_task_spec", _yaml_error_message(exc)) from exc
+        except RecursionError:
+            raise _BridgeError(
+                "invalid_task_spec", "task_spec_path is not valid YAML"
+            ) from None
     elif body.task_spec is not None:
         data = body.task_spec
     else:

@@ -578,6 +578,144 @@ def test_invalid_task_spec_does_not_echo_file_content(
     assert "hunter2" not in response.text
 
 
+def test_unparseable_yaml_does_not_echo_file_content(
+    client: TestClient, settings: Settings, tmp_path: Path
+) -> None:
+    repo = _make_repo(tmp_path / "repo")
+    project = _register_project(client, repo)
+    event_id = _post_event(client)
+    insight_id = _seed_insight(
+        settings,
+        project_id=project["id"],
+        event_id=event_id,
+        session_id=_session_id(settings),
+        variable="context_strategy",
+    )
+    spec_path = tmp_path / "broken_task.yaml"
+    # A YAML scanner error quotes the offending source line in str(exc).
+    spec_path.write_text(
+        "name: fix-add\nacceptance: hunter2-secret: [\n", encoding="utf-8"
+    )
+
+    response = client.post(
+        f"{INSIGHTS}/{insight_id}/benchmark",
+        json={"task_spec_path": str(spec_path)},
+        headers=AUTH,
+    )
+
+    assert response.status_code == 422, response.text
+    assert response.json()["error"]["code"] == "invalid_task_spec"
+    assert "hunter2" not in response.text
+
+
+def test_binary_task_spec_returns_422(
+    client: TestClient, settings: Settings, tmp_path: Path
+) -> None:
+    repo = _make_repo(tmp_path / "repo")
+    project = _register_project(client, repo)
+    event_id = _post_event(client)
+    insight_id = _seed_insight(
+        settings,
+        project_id=project["id"],
+        event_id=event_id,
+        session_id=_session_id(settings),
+        variable="context_strategy",
+    )
+    spec_path = tmp_path / "spec.yaml"
+    spec_path.write_bytes(b"\x89PNG\r\n\x1a\n\xff\xfe\x00\x01binary")
+
+    response = client.post(
+        f"{INSIGHTS}/{insight_id}/benchmark",
+        json={"task_spec_path": str(spec_path)},
+        headers=AUTH,
+    )
+
+    assert response.status_code == 422, response.text
+    assert response.json()["error"]["code"] == "invalid_task_spec"
+
+
+def test_symlink_escape_is_rejected(
+    client: TestClient, settings: Settings, tmp_path: Path
+) -> None:
+    repo = _make_repo(tmp_path / "repo")
+    project = _register_project(client, repo)
+    event_id = _post_event(client)
+    insight_id = _seed_insight(
+        settings,
+        project_id=project["id"],
+        event_id=event_id,
+        session_id=_session_id(settings),
+        variable="context_strategy",
+    )
+    outside = tmp_path.parent / f"{tmp_path.name}-secret"
+    outside.mkdir()
+    secret = outside / "secret.yaml"
+    secret.write_text(yaml.safe_dump(_task_spec()), encoding="utf-8")
+    link = repo / "linked_task.yaml"
+    link.symlink_to(secret)
+
+    response = client.post(
+        f"{INSIGHTS}/{insight_id}/benchmark",
+        json={"task_spec_path": str(link)},
+        headers=AUTH,
+    )
+
+    assert response.status_code == 422, response.text
+    assert response.json()["error"]["code"] == "task_spec_path_outside_allowed_roots"
+    assert client.get(BENCHMARKS, headers=AUTH).json() == []
+
+
+def test_task_spec_path_too_large_is_rejected(
+    client: TestClient, settings: Settings, tmp_path: Path
+) -> None:
+    repo = _make_repo(tmp_path / "repo")
+    project = _register_project(client, repo)
+    event_id = _post_event(client)
+    insight_id = _seed_insight(
+        settings,
+        project_id=project["id"],
+        event_id=event_id,
+        session_id=_session_id(settings),
+        variable="context_strategy",
+    )
+    spec_path = tmp_path / "huge_task.yaml"
+    spec_path.write_text(
+        yaml.safe_dump(_task_spec()) + ("# pad\n" * 12_000), encoding="utf-8"
+    )
+    assert spec_path.stat().st_size > 64 * 1024
+
+    response = client.post(
+        f"{INSIGHTS}/{insight_id}/benchmark",
+        json={"task_spec_path": str(spec_path)},
+        headers=AUTH,
+    )
+
+    assert response.status_code == 422, response.text
+    assert response.json()["error"]["code"] == "task_spec_too_large"
+    assert client.get(BENCHMARKS, headers=AUTH).json() == []
+
+
+def test_task_spec_path_inside_project_repo_is_accepted(tmp_path: Path) -> None:
+    """Pin the repo term of the allow-list; the data dir is a sibling here."""
+    from tokenpilot.api.insights import _load_task_spec
+    from tokenpilot.schemas.benchmarks import InsightBenchmarkCreate
+
+    repo = tmp_path / "repo"
+    repo.mkdir()
+    data_dir = tmp_path / "data"
+    data_dir.mkdir()
+    spec_path = repo / "benchmark_task.yaml"
+    spec_path.write_text(yaml.safe_dump(_task_spec()), encoding="utf-8")
+
+    spec = _load_task_spec(
+        InsightBenchmarkCreate(task_spec_path=str(spec_path)), [repo, data_dir]
+    )
+
+    assert spec.name == "fix-add"
+    assert spec.baseline is not None
+    assert spec.baseline.model_id == "fake-large"
+
+
 def test_missing_model_returns_422(
     client: TestClient, settings: Settings, tmp_path: Path
 ) -> None:

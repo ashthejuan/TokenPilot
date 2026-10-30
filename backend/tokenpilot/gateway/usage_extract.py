@@ -27,17 +27,33 @@ def _section(value: Any) -> dict[str, Any]:
     return value if isinstance(value, dict) else {}
 
 
+def _first_count(usage: dict[str, Any], *keys: str) -> int | None:
+    for key in keys:
+        value = _count(usage.get(key))
+        if value is not None:
+            return value
+    return None
+
+
 def extract_usage(body: dict[str, Any]) -> UsageFields:
     """Read `usage.*` and `id` from a provider response body."""
     usage = _section(body.get("usage"))
+    input_details = _section(usage.get("input_tokens_details"))
     prompt_details = _section(usage.get("prompt_tokens_details"))
+    output_details = _section(usage.get("output_tokens_details"))
     completion_details = _section(usage.get("completion_tokens_details"))
     source_id = body.get("id")
+    cached = _count(input_details.get("cached_tokens"))
+    if cached is None:
+        cached = _count(prompt_details.get("cached_tokens"))
+    reasoning = _count(output_details.get("reasoning_tokens"))
+    if reasoning is None:
+        reasoning = _count(completion_details.get("reasoning_tokens"))
     return UsageFields(
-        input_tokens=_count(usage.get("prompt_tokens")),
-        output_tokens=_count(usage.get("completion_tokens")),
-        cached_tokens=_count(prompt_details.get("cached_tokens")),
-        reasoning_tokens=_count(completion_details.get("reasoning_tokens")),
+        input_tokens=_first_count(usage, "input_tokens", "prompt_tokens"),
+        output_tokens=_first_count(usage, "output_tokens", "completion_tokens"),
+        cached_tokens=cached,
+        reasoning_tokens=reasoning,
         source_event_id=source_id if isinstance(source_id, str) else None,
     )
 

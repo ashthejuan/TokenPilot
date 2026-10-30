@@ -17,6 +17,7 @@ from starlette.exceptions import HTTPException as StarletteHTTPException
 
 from tokenpilot.api.benchmarks import router as benchmarks_router
 from tokenpilot.api.data import router as data_router
+from tokenpilot.api.gateway import muse_code_router
 from tokenpilot.api.gateway import router as gateway_router
 from tokenpilot.api.health import router as health_router
 from tokenpilot.api.insights import router as insights_router
@@ -184,6 +185,7 @@ def create_app(
         data_router,
         insights_router,
         gateway_router,
+        muse_code_router,
         benchmarks_router,
         reports_router,
     ):

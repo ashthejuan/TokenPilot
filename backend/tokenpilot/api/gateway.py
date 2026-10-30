@@ -29,6 +29,9 @@ from tokenpilot.gateway.proxy import (
 from tokenpilot.ledger.ingest import GatewayDefaults
 
 router = APIRouter(prefix="/gateway", tags=["gateway"])
+# Muse resolves models at origin root `/muse-code/models` (sibling of `/v1`),
+# not under the `--base-url` path prefix. Mounted without `/gateway`.
+muse_code_router = APIRouter(tags=["gateway"])
 
 
 def _error_content(code: str, message: str) -> dict[str, Any]:
@@ -310,4 +313,22 @@ async def list_models(request: Request) -> Response:
 @router.get("/p/{project_slug}/v1/models")
 async def list_models_for_project(request: Request, project_slug: str) -> Response:
     _ = project_slug
+    return await _models(request)
+
+
+@router.get("/muse-code/models")
+async def muse_code_models(request: Request) -> Response:
+    """Non-recording Muse models relay (under /gateway)."""
+    return await _models(request)
+
+
+@router.get("/p/{project_slug}/muse-code/models")
+async def muse_code_models_for_project(request: Request, project_slug: str) -> Response:
+    _ = project_slug
+    return await _models(request)
+
+
+@muse_code_router.get("/muse-code/models")
+async def muse_code_models_at_origin(request: Request) -> Response:
+    """Non-recording Muse models relay at host root (what Muse actually GETs)."""
     return await _models(request)

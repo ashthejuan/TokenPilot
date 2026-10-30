@@ -11,6 +11,7 @@ from typing import Any
 import httpx
 from fastapi import Depends, FastAPI, Request
 from fastapi.exceptions import RequestValidationError
+from fastapi.middleware.cors import CORSMiddleware
 from fastapi.responses import JSONResponse
 from pydantic import SecretStr
 from starlette.exceptions import HTTPException as StarletteHTTPException
@@ -53,6 +54,12 @@ _STATUS_CODES = {
     503: "unavailable",
     504: "upstream_timeout",
 }
+
+
+# The dashboard is the only browser origin allowed to call the API (PRD §13).
+# 127.0.0.1:3000 is a different origin and is deliberately not listed; the
+# Next.js server proxy sends no Origin, so the dashboard itself is unaffected.
+ALLOWED_CORS_ORIGINS = ["http://localhost:3000"]
 
 
 def error_body(code: str, message: str, details: Any = None) -> dict[str, Any]:
@@ -174,6 +181,16 @@ def create_app(
     app.add_exception_handler(LedgerRefError, _handle_ledger_ref_error)
     app.add_exception_handler(StatusNotSettableError, _handle_status_not_settable)
     app.add_exception_handler(Exception, _handle_unexpected_error)
+
+    # Added after the handlers so it is the outermost layer: preflights are
+    # answered before auth, and no credentials/cookies are ever allowed.
+    app.add_middleware(
+        CORSMiddleware,
+        allow_origins=ALLOWED_CORS_ORIGINS,
+        allow_credentials=False,
+        allow_methods=["GET", "POST", "PATCH", "DELETE", "OPTIONS"],
+        allow_headers=["Authorization", "Content-Type", "Idempotency-Key"],
+    )
 
     # Auth is applied here, not per router, so a new router cannot forget it.
     for router in (

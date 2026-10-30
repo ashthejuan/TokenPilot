@@ -28,7 +28,7 @@ export default function RootLayout({
 }>) {
   return (
     <html lang="en">
-      <body className={`${geistSans.variable} ${geistMono.variable} antialiased`}>
+      <body className={`${geistSans.variable} ${geistMono.variable} ${geistSans.className} antialiased`}>
         <TooltipProvider>
           <div className="flex min-h-screen flex-col md:flex-row">
             <aside className="border-b bg-white p-4 md:w-56 md:shrink-0 md:border-r md:border-b-0">

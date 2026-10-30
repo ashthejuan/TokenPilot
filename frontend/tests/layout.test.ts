@@ -12,6 +12,14 @@ describe("layout tokens", () => {
     expect(css).toMatch(/--foreground:\s*#000000/i);
   });
 
+  it("wires font-sans and font-heading to Geist sans, not a circular or serif stack", () => {
+    const css = readFileSync(join(root, "app/globals.css"), "utf8");
+    expect(css).toMatch(/--font-sans:\s*var\(--font-geist-sans\)/);
+    expect(css).toMatch(/--font-heading:\s*var\(--font-geist-sans\)/);
+    expect(css).not.toMatch(/--font-sans:\s*var\(--font-sans\)/);
+    expect(css).not.toMatch(/font-serif|Times|Georgia|ui-serif/i);
+  });
+
   it("keeps pressable reduced-motion without transform", () => {
     const css = readFileSync(join(root, "app/globals.css"), "utf8");
     expect(css).toMatch(/prefers-reduced-motion:\s*reduce/);

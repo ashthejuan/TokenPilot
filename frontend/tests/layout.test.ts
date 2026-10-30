@@ -27,3 +27,12 @@ describe("layout class contracts", () => {
     expect(layout.PAGE_TITLE).toContain("font-medium");
   });
 });
+
+describe("layout components", () => {
+  it("ships PageHeader and Chapter components", () => {
+    const header = readFileSync(join(root, "components/PageHeader.tsx"), "utf8");
+    const chapter = readFileSync(join(root, "components/Chapter.tsx"), "utf8");
+    expect(header).toMatch(/export function PageHeader/);
+    expect(chapter).toMatch(/export function Chapter/);
+  });
+});

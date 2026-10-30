@@ -31,11 +31,11 @@ export default function RootLayout({
       <body className={`${geistSans.variable} ${geistMono.variable} antialiased`}>
         <TooltipProvider>
           <div className="flex min-h-screen flex-col md:flex-row">
-            <aside className="border-b p-4 md:w-52 md:shrink-0 md:border-r md:border-b-0">
-              <p className="mb-4 px-3 text-base font-semibold">TokenPilot</p>
+            <aside className="border-b bg-white p-4 md:w-56 md:shrink-0 md:border-r md:border-b-0">
+              <p className="mb-4 px-3 text-base font-medium">TokenPilot</p>
               <AppNav />
             </aside>
-            <main className="min-w-0 flex-1 p-6">{children}</main>
+            <main className="min-w-0 flex-1 p-6 md:p-10">{children}</main>
           </div>
         </TooltipProvider>
       </body>

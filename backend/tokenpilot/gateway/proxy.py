@@ -125,6 +125,45 @@ def prepare_body(raw: bytes) -> PreparedBody:
     )
 
 
+def prepare_responses_body(raw: bytes) -> PreparedBody:
+    """Parse a Responses API body. Never injects ``stream_options``."""
+    try:
+        parsed: Any = json.loads(raw.decode("utf-8"))
+    except (ValueError, UnicodeDecodeError):
+        parsed = None
+    if not isinstance(parsed, dict):
+        return PreparedBody(raw, None, "unknown", None, {}, False, False)
+    model = parsed.get("model")
+    model_id = model if isinstance(model, str) and model else "unknown"
+    fingerprint: str | None = None
+    context_metadata: dict[str, Any] = {}
+    raw_input = parsed.get("input")
+    if isinstance(raw_input, list):
+        message_dicts = [
+            item
+            for item in raw_input
+            if isinstance(item, dict) and "role" in item and "content" in item
+        ]
+        if message_dicts:
+            tools = parsed.get("tools")
+            try:
+                fingerprint = request_fingerprint(
+                    model_id, message_dicts, tools if isinstance(tools, list) else None
+                )
+            except Exception:
+                fingerprint = None
+            blocks = context_blocks(message_dicts)
+            if blocks:
+                context_metadata = {
+                    "context_blocks": [asdict(block) for block in blocks],
+                    "context_blocks_basis": "approximate",
+                }
+    is_stream = parsed.get("stream") is True
+    return PreparedBody(
+        raw, parsed, model_id, fingerprint, context_metadata, False, is_stream
+    )
+
+
 @dataclass(frozen=True)
 class Attribution:
     project: str | None

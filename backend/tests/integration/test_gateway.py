@@ -373,3 +373,19 @@ def test_models_relayed_without_event(
     assert [m["id"] for m in response.json()["data"]] == ["fake-large", "fake-small"]
     assert slug_response.status_code == 200
     assert list_events(gateway_client, auth_headers) == []
+
+
+def test_muse_code_models_relayed_without_event(
+    gateway_client: TestClient, auth_headers: dict[str, str], fake: FakeUpstream
+) -> None:
+    """Muse GETs /muse-code/models at origin; also accept /gateway variants."""
+    origin = gateway_client.get("/muse-code/models", headers=auth_headers)
+    under_gateway = gateway_client.get("/gateway/muse-code/models", headers=auth_headers)
+    slug = gateway_client.get("/gateway/p/alpha/muse-code/models", headers=auth_headers)
+
+    assert origin.status_code == 200
+    assert [m["id"] for m in origin.json()["data"]] == ["fake-large", "fake-small"]
+    assert under_gateway.status_code == 200
+    assert slug.status_code == 200
+    assert list_events(gateway_client, auth_headers) == []
+    assert all(r.url.path.endswith("/models") for r in fake.requests)

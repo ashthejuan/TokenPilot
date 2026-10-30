@@ -228,7 +228,12 @@ def timeout() -> Behavior:
 
 def stream(chunks: list[str], usage: dict[str, Any] | None = None) -> Behavior:
     """SSE stream: each string becomes one ``data:`` line, then an optional
-    final usage chunk, then ``data: [DONE]``."""
+    final usage chunk, then ``data: [DONE]``.
+
+    On ``/responses`` paths the final usage chunk uses a ``resp-fake-…`` id and
+    ``input_tokens``/``output_tokens`` (chat keys are remapped). Chat paths keep
+    ``chatcmpl-fake-…`` ids and the usage dict as enqueued.
+    """
     return Behavior(kind="stream", chunks=list(chunks), usage=usage)
 
 
@@ -280,6 +285,9 @@ class FakeUpstream:
     def _next_id(self) -> str:
         return f"chatcmpl-fake-{next(self._ids):04d}"
 
+    def _next_responses_id(self) -> str:
+        return f"resp-fake-{next(self._ids):04d}"
+
     def _handle(self, request: httpx.Request) -> httpx.Response:
         self.requests.append(request)
         behavior = self._behaviors.pop(0) if self._behaviors else None
@@ -322,6 +330,13 @@ class FakeUpstream:
                 behavior.usage,
                 status=behavior.status,
             )
+        if request.url.path.endswith("/responses"):
+            return _responses_response(
+                _requested_model(request),
+                self._next_responses_id(),
+                behavior.usage,
+                status=behavior.status,
+            )
         return _chat_response(
             _requested_model(request), self._next_id(), behavior.usage, status=behavior.status
         )
@@ -329,11 +344,16 @@ class FakeUpstream:
     async def _stream_body(
         self, request: httpx.Request, chunks: list[str], usage: dict[str, Any] | None
     ) -> AsyncIterator[bytes]:
-        _ = request
+        responses_path = request.url.path.endswith("/responses")
         for chunk in chunks:
             yield _sse_line(chunk)
         if usage is not None:
-            yield _sse_line(json.dumps({"id": self._next_id(), "usage": usage}))
+            if responses_path:
+                mapped = _responses_usage(usage) or {}
+                payload = {"id": self._next_responses_id(), "usage": mapped}
+            else:
+                payload = {"id": self._next_id(), "usage": usage}
+            yield _sse_line(json.dumps(payload))
         yield b"data: [DONE]\n\n"
 
     async def _reset_body(
@@ -642,6 +662,43 @@ def _chat_response(
     }
     if usage is not None:
         body["usage"] = usage
+    return httpx.Response(
+        status,
+        content=json.dumps(body).encode(),
+        headers={"content-type": "application/json"},
+    )
+
+
+def _responses_usage(usage: dict[str, Any] | None) -> dict[str, Any] | None:
+    """Map enqueued usage to Responses keys (accept chat or Responses shapes)."""
+    if usage is None:
+        return None
+    input_tokens = usage.get("input_tokens", usage.get("prompt_tokens"))
+    output_tokens = usage.get("output_tokens", usage.get("completion_tokens"))
+    mapped: dict[str, Any] = {}
+    if input_tokens is not None:
+        mapped["input_tokens"] = input_tokens
+    if output_tokens is not None:
+        mapped["output_tokens"] = output_tokens
+    # Preserve any other keys (e.g. details) without remapping.
+    for key, value in usage.items():
+        if key in ("input_tokens", "output_tokens", "prompt_tokens", "completion_tokens"):
+            continue
+        mapped[key] = value
+    return mapped
+
+
+def _responses_response(
+    model: str, source_id: str, usage: dict[str, Any] | None, status: int = 200
+) -> httpx.Response:
+    body: dict[str, Any] = {
+        "id": source_id,
+        "object": "response",
+        "model": model,
+    }
+    mapped = _responses_usage(usage)
+    if mapped is not None:
+        body["usage"] = mapped
     return httpx.Response(
         status,
         content=json.dumps(body).encode(),

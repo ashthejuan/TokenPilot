@@ -21,6 +21,7 @@ from tokenpilot.gateway.proxy import (
     finish_buffered,
     is_benchmark_request,
     prepare_body,
+    prepare_responses_body,
     read_attribution,
     relay_response_headers,
     relay_stream,
@@ -28,6 +29,9 @@ from tokenpilot.gateway.proxy import (
 from tokenpilot.ledger.ingest import GatewayDefaults
 
 router = APIRouter(prefix="/gateway", tags=["gateway"])
+# Muse resolves models at origin root `/muse-code/models` (sibling of `/v1`),
+# not under the `--base-url` path prefix. Mounted without `/gateway`.
+muse_code_router = APIRouter(tags=["gateway"])
 
 
 def _error_content(code: str, message: str) -> dict[str, Any]:
@@ -36,6 +40,10 @@ def _error_content(code: str, message: str) -> dict[str, Any]:
 
 def _chat_url(base_url: str) -> str:
     return base_url.rstrip("/") + "/chat/completions"
+
+
+def _responses_url(base_url: str) -> str:
+    return base_url.rstrip("/") + "/responses"
 
 
 def _models_url(base_url: str, query: str) -> str:
@@ -202,6 +210,71 @@ async def chat_completions_for_project(
     return await _chat(request, db, project_slug)
 
 
+async def _responses(
+    request: Request, db: Database, project_slug: str | None
+) -> Response:
+    settings = _settings(request)
+    api_key = _upstream_key(settings)
+    if not api_key.strip():
+        # D13: nothing was sent upstream, so nothing is recorded.
+        return JSONResponse(
+            status_code=503,
+            content=_error_content("upstream_not_configured", "upstream API key is not configured"),
+        )
+    event_id = uuid.uuid4().hex
+    prepared = prepare_responses_body(await request.body())
+    attribution = read_attribution(request.headers)
+    metadata = dict(prepared.context_metadata)
+    ctx = CaptureContext(
+        db=db,
+        provider=settings.upstream_provider,
+        event_id=event_id,
+        started_at=datetime.now(UTC),
+        start_mono=time.monotonic(),
+        model_id=prepared.model_id,
+        fingerprint=prepared.fingerprint,
+        metadata=metadata,
+        project_id=attribution.project,
+        external_session_id=attribution.session,
+        task_id=attribution.task,
+        retry_of=attribution.retry_of,
+        benchmark_run_id=attribution.benchmark_run,
+        defaults=GatewayDefaults(project_ref=project_slug),
+    )
+    headers = build_upstream_headers(request.headers, api_key)
+    client = _upstream_client(request)
+    if prepared.is_stream:
+        url = _responses_url(settings.upstream_base_url)
+        return await _stream_request(client, url, prepared, headers, ctx)
+    try:
+        upstream = await client.post(
+            _responses_url(settings.upstream_base_url), content=prepared.forward, headers=headers
+        )
+    except httpx.TimeoutException as exc:
+        return await _timeout_response(ctx, exc)
+    except httpx.TransportError as exc:
+        return await _transport_error_response(ctx, exc)
+    finish_buffered(ctx, upstream.status_code, upstream.content)
+    await ctx.record()
+    return Response(
+        content=upstream.content,
+        status_code=upstream.status_code,
+        headers=relay_response_headers(upstream.headers, event_id),
+    )
+
+
+@router.post("/v1/responses")
+async def responses(request: Request, db: Annotated[Database, Depends(get_db)]) -> Response:
+    return await _responses(request, db, None)
+
+
+@router.post("/p/{project_slug}/v1/responses")
+async def responses_for_project(
+    request: Request, db: Annotated[Database, Depends(get_db)], project_slug: str
+) -> Response:
+    return await _responses(request, db, project_slug)
+
+
 async def _models(request: Request) -> Response:
     """A plain relay: a model listing is not usage, so no event is recorded."""
     settings = _settings(request)
@@ -240,4 +313,22 @@ async def list_models(request: Request) -> Response:
 @router.get("/p/{project_slug}/v1/models")
 async def list_models_for_project(request: Request, project_slug: str) -> Response:
     _ = project_slug
+    return await _models(request)
+
+
+@router.get("/muse-code/models")
+async def muse_code_models(request: Request) -> Response:
+    """Non-recording Muse models relay (under /gateway)."""
+    return await _models(request)
+
+
+@router.get("/p/{project_slug}/muse-code/models")
+async def muse_code_models_for_project(request: Request, project_slug: str) -> Response:
+    _ = project_slug
+    return await _models(request)
+
+
+@muse_code_router.get("/muse-code/models")
+async def muse_code_models_at_origin(request: Request) -> Response:
+    """Non-recording Muse models relay at host root (what Muse actually GETs)."""
     return await _models(request)

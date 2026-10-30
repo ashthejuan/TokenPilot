@@ -21,6 +21,7 @@ from tokenpilot.api.gateway import router as gateway_router
 from tokenpilot.api.health import router as health_router
 from tokenpilot.api.insights import router as insights_router
 from tokenpilot.api.projects import router as projects_router
+from tokenpilot.api.reports import router as reports_router
 from tokenpilot.api.sessions import router as sessions_router
 from tokenpilot.api.settings import router as settings_router
 from tokenpilot.api.usage import router as usage_router
@@ -184,6 +185,7 @@ def create_app(
         insights_router,
         gateway_router,
         benchmarks_router,
+        reports_router,
     ):
         app.include_router(router, dependencies=[Depends(require_local_token)])
     return app

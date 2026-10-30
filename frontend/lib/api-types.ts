@@ -365,6 +365,40 @@ export interface paths {
         patch: operations["update_project_api_v1_projects__project_id__patch"];
         trace?: never;
     };
+    "/api/v1/reports/project/{project_id}": {
+        parameters: {
+            query?: never;
+            header?: never;
+            path?: never;
+            cookie?: never;
+        };
+        /** Get Project Report */
+        get: operations["get_project_report_api_v1_reports_project__project_id__get"];
+        put?: never;
+        post?: never;
+        delete?: never;
+        options?: never;
+        head?: never;
+        patch?: never;
+        trace?: never;
+    };
+    "/api/v1/reports/savings": {
+        parameters: {
+            query?: never;
+            header?: never;
+            path?: never;
+            cookie?: never;
+        };
+        /** Get Savings Report */
+        get: operations["get_savings_report_api_v1_reports_savings_get"];
+        put?: never;
+        post?: never;
+        delete?: never;
+        options?: never;
+        head?: never;
+        patch?: never;
+        trace?: never;
+    };
     "/api/v1/sessions": {
         parameters: {
             query?: never;
@@ -1454,6 +1488,20 @@ export interface components {
             retry_policy?: components["schemas"]["RetryPolicy"];
             /** Temperature */
             temperature?: number | null;
+        };
+        /**
+         * SavingsReport
+         * @description `GET /reports/savings` body: the four kinds separately, never totalled.
+         */
+        SavingsReport: {
+            /** Benchmark */
+            benchmark: number | null;
+            /** Potential */
+            potential: number | null;
+            /** Realized */
+            realized?: number | null;
+            /** Verified */
+            verified: number | null;
         };
         /** SessionCost */
         SessionCost: {
@@ -2636,6 +2684,74 @@ export interface operations {
                 };
                 content: {
                     "application/json": components["schemas"]["Project"];
+                };
+            };
+            /** @description Validation Error */
+            422: {
+                headers: {
+                    [name: string]: unknown;
+                };
+                content: {
+                    "application/json": components["schemas"]["HTTPValidationError"];
+                };
+            };
+        };
+    };
+    get_project_report_api_v1_reports_project__project_id__get: {
+        parameters: {
+            query?: {
+                from?: string | null;
+                to?: string | null;
+                format?: "json" | "markdown";
+            };
+            header?: never;
+            path: {
+                project_id: string;
+            };
+            cookie?: never;
+        };
+        requestBody?: never;
+        responses: {
+            /** @description Successful Response */
+            200: {
+                headers: {
+                    [name: string]: unknown;
+                };
+                content: {
+                    "application/json": unknown;
+                };
+            };
+            /** @description Validation Error */
+            422: {
+                headers: {
+                    [name: string]: unknown;
+                };
+                content: {
+                    "application/json": components["schemas"]["HTTPValidationError"];
+                };
+            };
+        };
+    };
+    get_savings_report_api_v1_reports_savings_get: {
+        parameters: {
+            query?: {
+                project_id?: string | null;
+                from?: string | null;
+                to?: string | null;
+            };
+            header?: never;
+            path?: never;
+            cookie?: never;
+        };
+        requestBody?: never;
+        responses: {
+            /** @description Successful Response */
+            200: {
+                headers: {
+                    [name: string]: unknown;
+                };
+                content: {
+                    "application/json": components["schemas"]["SavingsReport"];
                 };
             };
             /** @description Validation Error */

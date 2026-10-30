@@ -77,3 +77,27 @@ def test_project_validation_and_not_found(
     assert missing.json()["error"]["code"] == "not_found"
     gone = client.patch("/api/v1/projects/nope", json={"name": "n"}, headers=auth_headers)
     assert gone.status_code == 404
+    delete_missing = client.delete("/api/v1/projects/nope", headers=auth_headers)
+    assert delete_missing.status_code == 404
+    assert delete_missing.json()["error"]["code"] == "not_found"
+
+
+def test_delete_project(client: TestClient, auth_headers: dict[str, str]) -> None:
+    created = client.post(
+        "/api/v1/projects",
+        json={"name": "Temp", "repository_path": "/tmp/temp"},
+        headers=auth_headers,
+    )
+    assert created.status_code == 201
+    project_id = created.json()["id"]
+
+    deleted = client.delete(f"/api/v1/projects/{project_id}", headers=auth_headers)
+    assert deleted.status_code == 204
+    assert deleted.content == b""
+
+    assert client.get(f"/api/v1/projects/{project_id}", headers=auth_headers).status_code == 404
+    listed = client.get("/api/v1/projects", headers=auth_headers).json()
+    assert listed == []
+
+    again = client.delete(f"/api/v1/projects/{project_id}", headers=auth_headers)
+    assert again.status_code == 404

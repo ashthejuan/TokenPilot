@@ -2,6 +2,7 @@ import type { Metadata } from "next";
 import { Geist, Geist_Mono } from "next/font/google";
 
 import { AppNav } from "@/components/AppNav";
+import { Toaster } from "@/components/ui/sonner";
 import { TooltipProvider } from "@/components/ui/tooltip";
 
 import "./globals.css";
@@ -37,6 +38,7 @@ export default function RootLayout({
             </aside>
             <main className="min-w-0 flex-1 p-6 md:p-10">{children}</main>
           </div>
+          <Toaster />
         </TooltipProvider>
       </body>
     </html>

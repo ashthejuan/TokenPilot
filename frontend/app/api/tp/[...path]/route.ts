@@ -37,7 +37,8 @@ async function forward(request: NextRequest, context: Context): Promise<Response
   }
   const base = (process.env.TOKENPILOT_API_URL || DEFAULT_API_URL).replace(/\/+$/, "");
   const target = `${base}/${segments.map(encodeURIComponent).join("/")}${request.nextUrl.search}`;
-  const hasBody = request.method !== "GET" && request.method !== "HEAD";
+  const hasBody =
+    request.method !== "GET" && request.method !== "HEAD" && request.method !== "DELETE";
 
   let upstream: Response;
   try {
@@ -66,3 +67,4 @@ export const GET = forward;
 export const POST = forward;
 export const PATCH = forward;
 export const PUT = forward;
+export const DELETE = forward;

@@ -1,6 +1,7 @@
 "use client";
 
 import { useCallback, useEffect, useState } from "react";
+import { toast } from "sonner";
 
 import { Chapter } from "@/components/Chapter";
 import { PageHeader } from "@/components/PageHeader";
@@ -14,7 +15,7 @@ import {
   TableHeader,
   TableRow,
 } from "@/components/ui/table";
-import { ApiError, apiGet, apiSend } from "@/lib/api";
+import { ApiError, apiDelete, apiGet, apiSend } from "@/lib/api";
 import type { components } from "@/lib/api-types";
 import { formatTimestamp } from "@/lib/format";
 import { PAGE_SHELL } from "@/lib/layout";
@@ -44,6 +45,7 @@ export default function ProjectsPage() {
   const [name, setName] = useState("");
   const [repositoryPath, setRepositoryPath] = useState("");
   const [busy, setBusy] = useState(false);
+  const [deletingId, setDeletingId] = useState<string | null>(null);
   const [formError, setFormError] = useState<string | null>(null);
 
   const refresh = useCallback(() => {
@@ -66,7 +68,7 @@ export default function ProjectsPage() {
   }, [refresh]);
 
   async function createProject() {
-    if (busy) return;
+    if (busy || deletingId !== null) return;
     const trimmed = name.trim();
     if (!trimmed) {
       setFormError("Name is required.");
@@ -88,6 +90,45 @@ export default function ProjectsPage() {
       setFormError(errorText(err));
     } finally {
       setBusy(false);
+    }
+  }
+
+  function confirmDeleteProject(project: Project) {
+    if (busy || deletingId !== null) return;
+    toast(`Delete “${project.name}”?`, {
+      id: `delete-project-${project.id}`,
+      description:
+        "Linked benchmarks and tasks are removed; sessions and usage stay as unattributed.",
+      duration: Infinity,
+      action: {
+        label: "Delete",
+        onClick: () => {
+          void performDelete(project);
+        },
+      },
+      cancel: {
+        label: "Cancel",
+        onClick: () => toast.dismiss(`delete-project-${project.id}`),
+      },
+    });
+  }
+
+  async function performDelete(project: Project) {
+    if (busy || deletingId !== null) return;
+    toast.dismiss(`delete-project-${project.id}`);
+    setDeletingId(project.id);
+    setError(null);
+    const loadingId = toast.loading(`Deleting “${project.name}”…`);
+    try {
+      await apiDelete<null>(`api/v1/projects/${project.id}`);
+      await refresh();
+      toast.success(`Deleted “${project.name}”`, { id: loadingId });
+    } catch (err: unknown) {
+      const message = errorText(err);
+      setError(message);
+      toast.error(message, { id: loadingId });
+    } finally {
+      setDeletingId(null);
     }
   }
 
@@ -158,6 +199,9 @@ export default function ProjectsPage() {
                 <TableHead>Repository</TableHead>
                 <TableHead>Currency</TableHead>
                 <TableHead>Updated</TableHead>
+                <TableHead className="w-[1%] text-right">
+                  <span className="sr-only">Actions</span>
+                </TableHead>
               </TableRow>
             </TableHeader>
             <TableBody>
@@ -173,6 +217,19 @@ export default function ProjectsPage() {
                   <TableCell className="tabular-nums">{project.default_currency}</TableCell>
                   <TableCell className="tabular-nums text-muted-foreground">
                     {formatTimestamp(project.updated_at)}
+                  </TableCell>
+                  <TableCell className="text-right">
+                    <Button
+                      type="button"
+                      variant="destructive"
+                      size="sm"
+                      className="pressable"
+                      disabled={busy || deletingId !== null}
+                      aria-label={`Delete project ${project.name}`}
+                      onClick={() => confirmDeleteProject(project)}
+                    >
+                      {deletingId === project.id ? "Deleting…" : "Delete"}
+                    </Button>
                   </TableCell>
                 </TableRow>
               ))}

@@ -1,6 +1,32 @@
+import { readFileSync } from "node:fs";
+import { dirname, join } from "node:path";
+import { fileURLToPath } from "node:url";
 import { describe, expect, it } from "vitest";
 
 import { buildForwardHeaders, isAllowedPath, isTrustedRequest } from "@/lib/proxy";
+
+describe("tp proxy route methods", () => {
+  it("forwards DELETE as well as GET/POST/PATCH/PUT", () => {
+    const source = readFileSync(
+      join(dirname(fileURLToPath(import.meta.url)), "../app/api/tp/[...path]/route.ts"),
+      "utf8",
+    );
+    for (const method of ["GET", "POST", "PATCH", "PUT", "DELETE"] as const) {
+      expect(source).toMatch(new RegExp(`export const ${method}\\s*=\\s*forward`));
+    }
+  });
+});
+
+describe("toaster wiring", () => {
+  it("mounts Sonner without next-themes and keeps a light token theme", () => {
+    const root = join(dirname(fileURLToPath(import.meta.url)), "..");
+    const sonner = readFileSync(join(root, "components/ui/sonner.tsx"), "utf8");
+    const layout = readFileSync(join(root, "app/layout.tsx"), "utf8");
+    expect(sonner).not.toMatch(/next-themes/);
+    expect(sonner).toMatch(/theme="light"/);
+    expect(layout).toMatch(/<Toaster\s*\/>/);
+  });
+});
 
 describe("isAllowedPath", () => {
   it("allows the versioned REST API", () => {

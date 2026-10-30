@@ -3,7 +3,7 @@
 import sqlite3
 from typing import Annotated
 
-from fastapi import APIRouter, Depends, HTTPException
+from fastapi import APIRouter, Depends, HTTPException, Response
 
 from tokenpilot.db.database import Database, get_db
 from tokenpilot.ledger.repository import LedgerRepository
@@ -62,3 +62,12 @@ def update_project(
     if project is None:
         raise HTTPException(status_code=404, detail="project not found")
     return project
+
+
+@router.delete("/{project_id}", status_code=204)
+def delete_project(project_id: str, db: Annotated[Database, Depends(get_db)]) -> Response:
+    with db.write() as conn:
+        deleted = LedgerRepository(conn).delete_project(project_id)
+    if not deleted:
+        raise HTTPException(status_code=404, detail="project not found")
+    return Response(status_code=204)

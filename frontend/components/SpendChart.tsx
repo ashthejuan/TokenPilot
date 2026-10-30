@@ -4,6 +4,7 @@ import { Bar, BarChart, CartesianGrid, ResponsiveContainer, Tooltip, XAxis, YAxi
 
 import type { components } from "@/lib/api-types";
 import { formatCount, formatMoney } from "@/lib/format";
+import { padTimeseries } from "@/lib/timeseries";
 
 type TimeseriesPoint = components["schemas"]["TimeseriesPoint"];
 type Bucket = "day" | "hour";
@@ -38,22 +39,31 @@ export function SpendChart({
   points,
   bucket,
   currency,
+  from,
+  to,
 }: {
   points: TimeseriesPoint[];
   bucket: Bucket;
   currency: string | null;
+  /** Range start used to keep empty day/hour slots so bars stay thin. */
+  from?: string;
+  to?: string;
 }) {
   if (points.length === 0) {
     return <p className="text-sm text-muted-foreground">No usage in this range.</p>;
   }
-  const data: ChartPoint[] = points.map((point) => ({
+  const series =
+    from !== undefined
+      ? padTimeseries(points, { bucket, from, to })
+      : points;
+  const data: ChartPoint[] = series.map((point) => ({
     ...point,
     label: bucketLabel(point.bucket_start, bucket),
   }));
   return (
     <div className="h-64 w-full">
       <ResponsiveContainer width="100%" height="100%">
-        <BarChart data={data} margin={{ top: 8, right: 8, bottom: 0, left: 8 }}>
+        <BarChart data={data} margin={{ top: 8, right: 8, bottom: 0, left: 8 }} barCategoryGap="28%">
           <CartesianGrid vertical={false} strokeDasharray="3 3" className="stroke-border" />
           <XAxis dataKey="label" tickLine={false} axisLine={false} fontSize={12} minTickGap={16} />
           <YAxis
@@ -64,7 +74,7 @@ export function SpendChart({
             tickFormatter={(value: number) => (currency ? formatMoney(value, currency) : String(value))}
           />
           <Tooltip content={<PointTooltip />} cursor={{ className: "fill-muted" }} />
-          <Bar dataKey="estimated_cost" className="fill-primary" radius={[4, 4, 0, 0]} />
+          <Bar dataKey="estimated_cost" fill="#0082FB" radius={[4, 4, 0, 0]} maxBarSize={36} />
         </BarChart>
       </ResponsiveContainer>
     </div>

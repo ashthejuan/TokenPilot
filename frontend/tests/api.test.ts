@@ -112,4 +112,22 @@ describe("apiDelete", () => {
       expect.objectContaining({ method: "DELETE" }),
     );
   });
+
+  it("accepts an empty 204 body from project delete", async () => {
+    const fetchMock = vi.fn().mockResolvedValue({
+      ok: true,
+      status: 204,
+      statusText: "No Content",
+      text: async () => "",
+    });
+    vi.stubGlobal("fetch", fetchMock);
+
+    const body = await apiDelete<null>("api/v1/projects/abc");
+
+    expect(body).toBeNull();
+    expect(fetchMock).toHaveBeenCalledWith(
+      "/api/tp/api/v1/projects/abc",
+      expect.objectContaining({ method: "DELETE" }),
+    );
+  });
 });

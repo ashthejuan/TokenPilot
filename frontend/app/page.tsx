@@ -72,6 +72,8 @@ export default function OverviewPage() {
   const [refreshKey, setRefreshKey] = useState(0);
   const [summary, setSummary] = useState<UsageSummary | null>(null);
   const [bucket, setBucket] = useState<Bucket>("day");
+  const [chartFrom, setChartFrom] = useState<string | undefined>(undefined);
+  const [chartTo, setChartTo] = useState<string | undefined>(undefined);
   const [projects, setProjects] = useState<Project[]>([]);
   const [providers, setProviders] = useState<string[]>([]);
   const [models, setModels] = useState<string[]>([]);
@@ -166,6 +168,8 @@ export default function OverviewPage() {
           if (cancelled) return;
           setSummary(next);
           setBucket(params.bucket as Bucket);
+          setChartFrom(params.from);
+          setChartTo(params.to);
           setError(null);
           setProviders((current) => mergeSorted(current, next.by_model.map((m) => m.provider)));
           setModels((current) => mergeSorted(current, next.by_model.map((m) => m.model_id)));
@@ -280,7 +284,13 @@ export default function OverviewPage() {
             title="Spend over time"
             description={bucket === "day" ? "Estimated cost per UTC day" : "Estimated cost per hour"}
           >
-            <SpendChart points={summary.timeseries} bucket={bucket} currency={summary.currency} />
+            <SpendChart
+              points={summary.timeseries}
+              bucket={bucket}
+              currency={summary.currency}
+              from={chartFrom}
+              to={chartTo}
+            />
           </Chapter>
 
           <div className="grid gap-6 lg:grid-cols-2">

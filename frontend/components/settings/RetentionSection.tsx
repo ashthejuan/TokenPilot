@@ -2,8 +2,8 @@
 
 import { useState } from "react";
 
+import { Chapter } from "@/components/Chapter";
 import { Button } from "@/components/ui/button";
-import { Card, CardContent, CardDescription, CardHeader, CardTitle } from "@/components/ui/card";
 import { Input } from "@/components/ui/input";
 import { ApiError, apiDelete } from "@/lib/api";
 import type { components } from "@/lib/api-types";
@@ -39,15 +39,11 @@ export function RetentionSection() {
   }
 
   return (
-    <Card data-testid="retention-section">
-      <CardHeader>
-        <CardTitle>Retention</CardTitle>
-        <CardDescription>
-          Deletes usage events older than the bound, plus their costs and excerpts. Insights,
-          projects, sessions, and pricing are kept. This cannot be undone.
-        </CardDescription>
-      </CardHeader>
-      <CardContent className="space-y-3">
+    <Chapter
+      title="Retention"
+      description="Deletes usage events older than the bound, plus their costs and excerpts. Insights, projects, sessions, and pricing are kept. This cannot be undone."
+    >
+      <div className="space-y-3" data-testid="retention-section">
         <label className="flex max-w-xs flex-col gap-1 text-xs font-medium text-muted-foreground">
           Delete events before (UTC)
           <Input type="datetime-local" value={before} onChange={(e) => setBefore(e.target.value)} />
@@ -77,7 +73,7 @@ export function RetentionSection() {
             Delete old data…
           </Button>
         )}
-      </CardContent>
-    </Card>
+      </div>
+    </Chapter>
   );
 }

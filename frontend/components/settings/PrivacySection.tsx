@@ -2,7 +2,7 @@
 
 import { useEffect, useState } from "react";
 
-import { Card, CardContent, CardDescription, CardHeader, CardTitle } from "@/components/ui/card";
+import { Chapter } from "@/components/Chapter";
 import { ApiError, apiGet } from "@/lib/api";
 import type { components } from "@/lib/api-types";
 
@@ -33,14 +33,11 @@ export function PrivacySection() {
   }, []);
 
   return (
-    <Card data-testid="privacy-section">
-      <CardHeader>
-        <CardTitle>Connection &amp; privacy</CardTitle>
-        <CardDescription>
-          Read-only. To change these values, edit `.env` and restart the API.
-        </CardDescription>
-      </CardHeader>
-      <CardContent>
+    <Chapter
+      title="Connection & privacy"
+      description="Read-only. To change these values, edit `.env` and restart the API."
+    >
+      <div data-testid="privacy-section">
         {error ? (
           <p role="alert" className="text-sm text-destructive">
             {error}
@@ -68,7 +65,7 @@ export function PrivacySection() {
             transmission and storage are both enabled.
           </p>
         ) : null}
-      </CardContent>
-    </Card>
+      </div>
+    </Chapter>
   );
 }

@@ -2,19 +2,21 @@
 
 import Link from "next/link";
 import { useParams } from "next/navigation";
-import { useEffect, useState, type ReactNode } from "react";
+import { useEffect, useState } from "react";
 
+import { Chapter } from "@/components/Chapter";
 import { DisclosureDialog } from "@/components/DisclosureDialog";
 import { EvidenceTable } from "@/components/EvidenceTable";
 import { FeedbackButtons } from "@/components/FeedbackButtons";
 import { InsightActions } from "@/components/InsightActions";
-import { InvestigationCard } from "@/components/InvestigationPanel";
+import { InvestigationPanel } from "@/components/InvestigationPanel";
 import { MeasurementsTable } from "@/components/MeasurementsTable";
+import { PageHeader } from "@/components/PageHeader";
 import { SeverityBadge } from "@/components/SeverityBadge";
-import { Card, CardContent, CardDescription, CardHeader, CardTitle } from "@/components/ui/card";
 import { ApiError, apiGet, apiSend } from "@/lib/api";
 import type { components } from "@/lib/api-types";
 import { impactLabel, pollJob, ruleLabel } from "@/lib/insights";
+import { PAGE_SHELL } from "@/lib/layout";
 
 type InsightDetail = components["schemas"]["InsightDetail"];
 type InsightOut = components["schemas"]["InsightOut"];
@@ -35,26 +37,6 @@ function errorText(error: unknown): string {
     return `${error.message} (${error.code})`;
   }
   return "Could not reach the TokenPilot web server.";
-}
-
-function Section({
-  title,
-  description,
-  children,
-}: {
-  title: string;
-  description?: string;
-  children: ReactNode;
-}) {
-  return (
-    <Card>
-      <CardHeader>
-        <CardTitle>{title}</CardTitle>
-        {description ? <CardDescription>{description}</CardDescription> : null}
-      </CardHeader>
-      <CardContent>{children}</CardContent>
-    </Card>
-  );
 }
 
 export default function InsightDetailPage() {
@@ -159,7 +141,7 @@ export default function InsightDetailPage() {
 
   if (loading) {
     return (
-      <div className="mx-auto max-w-6xl">
+      <div className={PAGE_SHELL}>
         <p className="text-sm text-muted-foreground">Loading insight…</p>
       </div>
     );
@@ -167,9 +149,9 @@ export default function InsightDetailPage() {
 
   if (error || detail === null) {
     return (
-      <div className="mx-auto max-w-6xl space-y-4">
+      <div className={PAGE_SHELL}>
         <Link href="/insights" className="text-sm text-muted-foreground underline-offset-4 hover:underline">
-          ← Insights
+          Insights
         </Link>
         <div
           role="alert"
@@ -182,52 +164,51 @@ export default function InsightDetailPage() {
   }
 
   const { insight, evidence_rows: evidenceRows } = detail;
+  const summaryLine = `${ruleLabel(insight.rule_id, insight.rule_version)}${insight.confidence != null ? ` · ${insight.confidence}` : ""} · rule heuristic`;
 
   return (
-    <div className="mx-auto max-w-6xl space-y-6">
-      <div className="space-y-3">
-        <Link href="/insights" className="text-sm text-muted-foreground underline-offset-4 hover:underline">
-          ← Insights
+    <div className={PAGE_SHELL}>
+      <p className="text-sm text-muted-foreground">
+        <Link href="/insights" className="underline-offset-4 hover:underline">
+          Insights
         </Link>
-        <div className="flex flex-wrap items-center gap-3">
-          <h1 className="text-2xl font-semibold">{insight.title}</h1>
-          <SeverityBadge severity={insight.severity} />
-        </div>
-        <p className="text-sm text-muted-foreground">
-          {ruleLabel(insight.rule_id, insight.rule_version)}
-          {insight.confidence != null ? ` · ${insight.confidence}` : null}
-          {" · "}
-          <span>rule heuristic</span>
-        </p>
-      </div>
+      </p>
 
-      <Section title="Evidence">
+      <PageHeader
+        title={insight.title}
+        description={summaryLine}
+        actions={<SeverityBadge severity={insight.severity} />}
+      />
+
+      <Chapter title="Evidence">
         <EvidenceTable rows={evidenceRows} truncated={insight.evidence_truncated} />
-      </Section>
+      </Chapter>
 
-      <Section title="Measurements">
+      <Chapter title="Measurements">
         <MeasurementsTable measurements={insight.measurements} />
-      </Section>
+      </Chapter>
 
-      <Section title="Impact">
+      <Chapter title="Impact">
         <p className="text-sm tabular-nums">
           {impactLabel(insight.estimated_impact, insight.impact_currency)}
         </p>
-      </Section>
+      </Chapter>
 
-      <Section title="Rule guidance">
+      <Chapter title="Rule guidance">
         <p className="text-sm whitespace-pre-wrap text-muted-foreground">
           {insight.rule_guidance ?? "No guidance available."}
         </p>
-      </Section>
+      </Chapter>
 
-      <InvestigationCard investigations={investigations} evidenceRows={evidenceRows} />
+      <Chapter title="Investigation">
+        <InvestigationPanel investigations={investigations} evidenceRows={evidenceRows} />
+      </Chapter>
 
-      <Section title="Feedback">
+      <Chapter title="Feedback">
         <FeedbackButtons insightId={insight.id} />
-      </Section>
+      </Chapter>
 
-      <Section title="Actions">
+      <Chapter title="Actions">
         {previewError ? (
           <p role="alert" className="mb-3 text-sm text-destructive">
             {previewError}
@@ -240,7 +221,7 @@ export default function InsightDetailPage() {
           onUpdated={onUpdated}
           onInvestigate={() => void openDisclosure()}
         />
-      </Section>
+      </Chapter>
 
       {preview ? (
         <DisclosureDialog

@@ -4,12 +4,13 @@ import Link from "next/link";
 import { useParams } from "next/navigation";
 import { useCallback, useEffect, useState, type ReactNode } from "react";
 
+import { Chapter } from "@/components/Chapter";
 import { CostValue } from "@/components/CostValue";
 import { OutcomeSetter } from "@/components/OutcomeSetter";
+import { PageHeader } from "@/components/PageHeader";
 import { RequestTimeline } from "@/components/RequestTimeline";
 import { SeverityBadge } from "@/components/SeverityBadge";
 import { Badge } from "@/components/ui/badge";
-import { Card, CardContent, CardDescription, CardHeader, CardTitle } from "@/components/ui/card";
 import {
   Table,
   TableBody,
@@ -21,6 +22,7 @@ import {
 import { ApiError, apiGet } from "@/lib/api";
 import type { components } from "@/lib/api-types";
 import { formatCount, formatTimestamp } from "@/lib/format";
+import { PAGE_SHELL } from "@/lib/layout";
 import { contextSignals, eventsTruncated, formatTokens } from "@/lib/sessions";
 
 type SessionDetail = components["schemas"]["SessionDetail"];
@@ -46,26 +48,6 @@ function errorText(error: unknown): string {
     return `${error.message} (${error.code})`;
   }
   return "Could not reach the TokenPilot web server.";
-}
-
-function Section({
-  title,
-  description,
-  children,
-}: {
-  title: string;
-  description?: string;
-  children: ReactNode;
-}) {
-  return (
-    <Card>
-      <CardHeader>
-        <CardTitle>{title}</CardTitle>
-        {description ? <CardDescription>{description}</CardDescription> : null}
-      </CardHeader>
-      <CardContent>{children}</CardContent>
-    </Card>
-  );
 }
 
 function Stat({ label, children }: { label: string; children: ReactNode }) {
@@ -129,20 +111,14 @@ export default function SessionDetailPage() {
     : false;
 
   return (
-    <div className="mx-auto max-w-6xl space-y-6">
-      <div className="space-y-1">
-        <p className="text-sm text-muted-foreground">
-          <Link href="/sessions" className="underline-offset-4 hover:underline">
-            Sessions
-          </Link>
-        </p>
-        <h1 className="text-2xl font-semibold">Session</h1>
-        {sessionId ? (
-          <p className="truncate font-mono text-xs text-muted-foreground" title={sessionId}>
-            {sessionId}
-          </p>
-        ) : null}
-      </div>
+    <div className={PAGE_SHELL}>
+      <p className="text-sm text-muted-foreground">
+        <Link href="/sessions" className="underline-offset-4 hover:underline">
+          Sessions
+        </Link>
+      </p>
+
+      <PageHeader title="Session" description={sessionId} />
 
       {error ? (
         <div
@@ -158,8 +134,8 @@ export default function SessionDetailPage() {
       ) : null}
 
       {detail ? (
-        <div className={loading ? "space-y-6 opacity-60" : "space-y-6"}>
-          <Section title="Metadata">
+        <div className={loading ? "space-y-10 opacity-60" : "space-y-10"}>
+          <Chapter title="Summary">
             <div className="grid grid-cols-2 gap-4 sm:grid-cols-4">
               <Stat label="Started">{formatTimestamp(detail.session.started_at)}</Stat>
               <Stat label="Ended">
@@ -182,9 +158,9 @@ export default function SessionDetailPage() {
                 {detail.session.external_session_id ?? "—"}
               </Stat>
             </div>
-          </Section>
+          </Chapter>
 
-          <Section title="Outcome" description="Provenance and manual override">
+          <Chapter title="Outcome" description="Provenance and manual override">
             <div className="flex flex-wrap items-end gap-6">
               <div className="space-y-1">
                 <p className="text-xs text-muted-foreground">Current</p>
@@ -203,9 +179,9 @@ export default function SessionDetailPage() {
                 />
               </div>
             </div>
-          </Section>
+          </Chapter>
 
-          <Section title="Model breakdown">
+          <Chapter title="Model breakdown">
             {detail.by_model.length === 0 ? (
               <p className="text-sm text-muted-foreground">No model usage recorded.</p>
             ) : (
@@ -245,17 +221,17 @@ export default function SessionDetailPage() {
                 </TableBody>
               </Table>
             )}
-          </Section>
+          </Chapter>
 
-          <Section title="Request timeline">
+          <Chapter title="Request timeline">
             <RequestTimeline
               events={detail.events}
               requestCount={detail.session.request_count}
               truncated={truncated}
             />
-          </Section>
+          </Chapter>
 
-          <Section
+          <Chapter
             title="Repeated-context signals"
             description="Hash-only observations; this is not necessarily avoidable."
           >
@@ -282,9 +258,9 @@ export default function SessionDetailPage() {
                 })}
               </ul>
             )}
-          </Section>
+          </Chapter>
 
-          <Section title="Related insights">
+          <Chapter title="Related insights">
             {insights.length === 0 ? (
               <p className="text-sm text-muted-foreground">No insights linked to this session.</p>
             ) : (
@@ -302,7 +278,7 @@ export default function SessionDetailPage() {
                 ))}
               </ul>
             )}
-          </Section>
+          </Chapter>
         </div>
       ) : null}
     </div>

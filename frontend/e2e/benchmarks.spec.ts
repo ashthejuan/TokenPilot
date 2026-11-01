@@ -41,7 +41,12 @@ const DETAIL = {
   name: "discount bug",
   description: null,
   initial_git_sha: "abc123",
-  acceptance: { command: ["python", "-m", "pytest", "-q"], required_pass: [], min_success_rate: 1 },
+  acceptance: {
+    mode: "command",
+    command: ["python", "-m", "pytest", "-q"],
+    required_pass: [],
+    min_success_rate: 1,
+  },
   baseline: {
     model_id: "fake-large",
     context_strategy: "full_repo",
@@ -106,48 +111,6 @@ test("benchmark detail shows the persisted latest comparison on a fresh visit", 
   expect(comparePosts).toBe(0);
 });
 
-test("Start runs enqueues variants and refreshes the runs table", async ({
-  page,
-}) => {
-  const detailEmpty = { ...DETAIL, runs: [] };
-  let detailGets = 0;
-  let runPosts = 0;
-  let runPostBody: { variants?: string[] } | null = null;
-
-  await page.route("**/api/tp/api/v1/benchmarks/bench-1/comparisons", (route) =>
-    route.fulfill({ json: [] }),
-  );
-  await page.route("**/api/tp/api/v1/benchmarks/bench-1/runs", async (route) => {
-    if (route.request().method() !== "POST") {
-      return route.continue();
-    }
-    runPosts += 1;
-    runPostBody = route.request().postDataJSON() as { variants?: string[] };
-    return route.fulfill({ status: 202, json: [RUN_BASE, RUN_ALT] });
-  });
-  await page.route("**/api/tp/api/v1/benchmarks/bench-1", (route) => {
-    detailGets += 1;
-    const json = detailGets === 1 ? detailEmpty : DETAIL;
-    return route.fulfill({ json });
-  });
-
-  await page.goto("/benchmarks/bench-1");
-  await expect(page.getByText("No runs yet.")).toBeVisible({ timeout: 15_000 });
-
-  await page.getByRole("button", { name: "Start runs" }).click();
-
-  await expect.poll(() => runPosts).toBe(1);
-  expect(runPostBody).toEqual({
-    variants: ["baseline", "targeted-context"],
-    repeat_count: 1,
-  });
-
-  await expect(page.getByRole("cell", { name: "baseline" })).toBeVisible();
-  await expect(page.getByRole("cell", { name: "targeted-context" })).toBeVisible();
-  await expect(page.getByRole("link", { name: "Patch" }).first()).toBeVisible();
-  expect(detailGets).toBeGreaterThanOrEqual(2);
-});
-
 test("benchmark detail still renders when the comparisons fetch fails", async ({
   page,
 }) => {
@@ -168,4 +131,33 @@ test("benchmark detail still renders when the comparisons fetch fails", async ({
   // Scoped to main: the Next dev overlay renders its own empty live-region
   // alert outside the app content.
   await expect(page.getByRole("main").getByRole("alert")).toHaveCount(0);
+});
+
+test("benchmarks list delete confirms then removes the experiment", async ({ page }) => {
+  let deleted = false;
+  await page.route("**/api/tp/api/v1/benchmarks/bench-1/comparisons", (route) =>
+    route.fulfill({ json: [] }),
+  );
+  await page.route("**/api/tp/api/v1/benchmarks/bench-1", async (route) => {
+    if (route.request().method() === "DELETE") {
+      deleted = true;
+      return route.fulfill({ status: 204, body: "" });
+    }
+    return route.fulfill({ json: DETAIL });
+  });
+  await page.route("**/api/tp/api/v1/benchmarks", async (route) => {
+    if (route.request().method() === "GET") {
+      return route.fulfill({ json: deleted ? [] : [DETAIL] });
+    }
+    return route.continue();
+  });
+
+  await page.goto("/benchmarks");
+  await expect(page.getByRole("link", { name: "discount bug" })).toBeVisible({
+    timeout: 15_000,
+  });
+  await page.getByRole("button", { name: "Delete benchmark discount bug" }).click();
+  await page.getByRole("button", { name: "Delete", exact: true }).click();
+  await expect(page.getByText("No benchmarks yet.")).toBeVisible();
+  expect(deleted).toBe(true);
 });

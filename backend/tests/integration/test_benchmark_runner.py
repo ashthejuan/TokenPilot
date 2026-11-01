@@ -7,6 +7,7 @@ import subprocess
 import time
 import uuid
 from collections.abc import Iterator
+from unittest.mock import patch
 from decimal import Decimal
 from pathlib import Path
 from typing import Any
@@ -312,6 +313,54 @@ def test_run_passes_only_when_required_tests_pass(
     assert not (settings.data_dir / "worktrees" / run.id).exists()
 
 
+def test_metrics_only_skips_acceptance_and_is_eligible(
+    settings: Settings, tmp_path: Path
+) -> None:
+    """metrics_only runs record observational outcome without sandbox acceptance."""
+    repo = _make_repo(tmp_path / "repo")
+    scripted = ScriptedModel(
+        [
+            ScriptedModel.tools(ScriptedModel.call("list_files")),
+            ScriptedModel.tools(ScriptedModel.call("done", summary="explored only")),
+        ]
+    )
+    app = _make_app(settings, scripted)
+    with TestClient(app) as client:
+        project = _register_project(client, repo)
+        bench = _create_benchmark(
+            client,
+            project["id"],
+            repo,
+            acceptance={
+                "mode": "metrics_only",
+                "command": [],
+                "required_pass": [],
+                "min_success_rate": 1.0,
+            },
+        )
+        conn = connect(settings.db_path)
+        try:
+            run = BenchmarkStore(conn).create_run(
+                bench["id"], "baseline", "fake-large", _run_config(), 0
+            )
+            conn.commit()
+        finally:
+            conn.close()
+        with patch(
+            "tokenpilot.benchmarks.runner.run_sandboxed",
+            side_effect=AssertionError("run_sandboxed must not be called"),
+        ) as sandbox_mock:
+            finished = _execute(settings, app, run.id)
+        sandbox_mock.assert_not_called()
+
+    assert finished.run_status == "completed"
+    assert finished.outcome == "observational"
+    assert finished.test_exit_code is None
+    assert finished.test_results == {"mode": "metrics_only"}
+    assert finished.eligible is True
+    assert finished.error is None
+
+
 def _run_out(
     outcome: str | None,
     cost: str | None,
@@ -515,6 +564,23 @@ def test_list_and_get_benchmark(settings: Settings, tmp_path: Path) -> None:
         assert detail.status_code == 200
         assert detail.json()["runs"] == []
         missing = client.get("/api/v1/benchmarks/nope", headers=AUTH)
+        assert missing.status_code == 404
+
+
+def test_delete_benchmark_removes_record(settings: Settings, tmp_path: Path) -> None:
+    repo = _make_repo(tmp_path / "repo")
+    scripted = ScriptedModel([])
+    app = _make_app(settings, scripted)
+    with TestClient(app) as client:
+        project = _register_project(client, repo)
+        bench = _create_benchmark(client, project["id"], repo)
+        deleted = client.delete(f"/api/v1/benchmarks/{bench['id']}", headers=AUTH)
+        assert deleted.status_code == 204, deleted.text
+        assert client.get(f"/api/v1/benchmarks/{bench['id']}", headers=AUTH).status_code == 404
+        listed = client.get("/api/v1/benchmarks", headers=AUTH)
+        assert listed.status_code == 200
+        assert listed.json() == []
+        missing = client.delete("/api/v1/benchmarks/nope", headers=AUTH)
         assert missing.status_code == 404
 
 

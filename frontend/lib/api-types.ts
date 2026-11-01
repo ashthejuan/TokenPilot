@@ -569,6 +569,43 @@ export interface paths {
         patch?: never;
         trace?: never;
     };
+    "/gateway/muse-code/models": {
+        parameters: {
+            query?: never;
+            header?: never;
+            path?: never;
+            cookie?: never;
+        };
+        /**
+         * Muse Code Models
+         * @description Non-recording Muse models relay (under /gateway).
+         */
+        get: operations["muse_code_models_gateway_muse_code_models_get"];
+        put?: never;
+        post?: never;
+        delete?: never;
+        options?: never;
+        head?: never;
+        patch?: never;
+        trace?: never;
+    };
+    "/gateway/p/{project_slug}/muse-code/models": {
+        parameters: {
+            query?: never;
+            header?: never;
+            path?: never;
+            cookie?: never;
+        };
+        /** Muse Code Models For Project */
+        get: operations["muse_code_models_for_project_gateway_p__project_slug__muse_code_models_get"];
+        put?: never;
+        post?: never;
+        delete?: never;
+        options?: never;
+        head?: never;
+        patch?: never;
+        trace?: never;
+    };
     "/gateway/p/{project_slug}/v1/chat/completions": {
         parameters: {
             query?: never;
@@ -597,6 +634,23 @@ export interface paths {
         get: operations["list_models_for_project_gateway_p__project_slug__v1_models_get"];
         put?: never;
         post?: never;
+        delete?: never;
+        options?: never;
+        head?: never;
+        patch?: never;
+        trace?: never;
+    };
+    "/gateway/p/{project_slug}/v1/responses": {
+        parameters: {
+            query?: never;
+            header?: never;
+            path?: never;
+            cookie?: never;
+        };
+        get?: never;
+        put?: never;
+        /** Responses For Project */
+        post: operations["responses_for_project_gateway_p__project_slug__v1_responses_post"];
         delete?: never;
         options?: never;
         head?: never;
@@ -637,6 +691,43 @@ export interface paths {
         patch?: never;
         trace?: never;
     };
+    "/gateway/v1/responses": {
+        parameters: {
+            query?: never;
+            header?: never;
+            path?: never;
+            cookie?: never;
+        };
+        get?: never;
+        put?: never;
+        /** Responses */
+        post: operations["responses_gateway_v1_responses_post"];
+        delete?: never;
+        options?: never;
+        head?: never;
+        patch?: never;
+        trace?: never;
+    };
+    "/muse-code/models": {
+        parameters: {
+            query?: never;
+            header?: never;
+            path?: never;
+            cookie?: never;
+        };
+        /**
+         * Muse Code Models At Origin
+         * @description Non-recording Muse models relay at host root (what Muse actually GETs).
+         */
+        get: operations["muse_code_models_at_origin_muse_code_models_get"];
+        put?: never;
+        post?: never;
+        delete?: never;
+        options?: never;
+        head?: never;
+        patch?: never;
+        trace?: never;
+    };
 }
 export type webhooks = Record<string, never>;
 export interface components {
@@ -644,12 +735,18 @@ export interface components {
         /** AcceptanceConfig */
         AcceptanceConfig: {
             /** Command */
-            command: string[];
+            command?: string[];
             /**
              * Min Success Rate
              * @default 1
              */
             min_success_rate: number;
+            /**
+             * Mode
+             * @default command
+             * @enum {string}
+             */
+            mode: "command" | "metrics_only";
             /** Required Pass */
             required_pass?: string[];
         };
@@ -821,7 +918,7 @@ export interface components {
             /** Model Id */
             model_id: string | null;
             /** Outcome */
-            outcome: ("passed" | "failed" | "timed_out" | "cancelled" | "inconclusive") | null;
+            outcome: ("passed" | "failed" | "timed_out" | "cancelled" | "inconclusive" | "observational") | null;
             /** Patch Path */
             patch_path: string | null;
             /** Repeat Index */
@@ -3432,6 +3529,57 @@ export interface operations {
             };
         };
     };
+    muse_code_models_gateway_muse_code_models_get: {
+        parameters: {
+            query?: never;
+            header?: never;
+            path?: never;
+            cookie?: never;
+        };
+        requestBody?: never;
+        responses: {
+            /** @description Successful Response */
+            200: {
+                headers: {
+                    [name: string]: unknown;
+                };
+                content: {
+                    "application/json": unknown;
+                };
+            };
+        };
+    };
+    muse_code_models_for_project_gateway_p__project_slug__muse_code_models_get: {
+        parameters: {
+            query?: never;
+            header?: never;
+            path: {
+                project_slug: string;
+            };
+            cookie?: never;
+        };
+        requestBody?: never;
+        responses: {
+            /** @description Successful Response */
+            200: {
+                headers: {
+                    [name: string]: unknown;
+                };
+                content: {
+                    "application/json": unknown;
+                };
+            };
+            /** @description Validation Error */
+            422: {
+                headers: {
+                    [name: string]: unknown;
+                };
+                content: {
+                    "application/json": components["schemas"]["HTTPValidationError"];
+                };
+            };
+        };
+    };
     chat_completions_for_project_gateway_p__project_slug__v1_chat_completions_post: {
         parameters: {
             query?: never;
@@ -3494,6 +3642,37 @@ export interface operations {
             };
         };
     };
+    responses_for_project_gateway_p__project_slug__v1_responses_post: {
+        parameters: {
+            query?: never;
+            header?: never;
+            path: {
+                project_slug: string;
+            };
+            cookie?: never;
+        };
+        requestBody?: never;
+        responses: {
+            /** @description Successful Response */
+            200: {
+                headers: {
+                    [name: string]: unknown;
+                };
+                content: {
+                    "application/json": unknown;
+                };
+            };
+            /** @description Validation Error */
+            422: {
+                headers: {
+                    [name: string]: unknown;
+                };
+                content: {
+                    "application/json": components["schemas"]["HTTPValidationError"];
+                };
+            };
+        };
+    };
     chat_completions_gateway_v1_chat_completions_post: {
         parameters: {
             query?: never;
@@ -3515,6 +3694,46 @@ export interface operations {
         };
     };
     list_models_gateway_v1_models_get: {
+        parameters: {
+            query?: never;
+            header?: never;
+            path?: never;
+            cookie?: never;
+        };
+        requestBody?: never;
+        responses: {
+            /** @description Successful Response */
+            200: {
+                headers: {
+                    [name: string]: unknown;
+                };
+                content: {
+                    "application/json": unknown;
+                };
+            };
+        };
+    };
+    responses_gateway_v1_responses_post: {
+        parameters: {
+            query?: never;
+            header?: never;
+            path?: never;
+            cookie?: never;
+        };
+        requestBody?: never;
+        responses: {
+            /** @description Successful Response */
+            200: {
+                headers: {
+                    [name: string]: unknown;
+                };
+                content: {
+                    "application/json": unknown;
+                };
+            };
+        };
+    };
+    muse_code_models_at_origin_muse_code_models_get: {
         parameters: {
             query?: never;
             header?: never;

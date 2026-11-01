@@ -307,7 +307,11 @@ export default function BenchmarkDetailPage() {
 
       {comparison !== null ? (
         <Chapter title="Comparison">
-          <ComparisonView comparison={comparison} runs={runs} />
+          <ComparisonView
+            comparison={comparison}
+            runs={runs}
+            acceptanceMode={detail.acceptance.mode}
+          />
         </Chapter>
       ) : null}
     </div>

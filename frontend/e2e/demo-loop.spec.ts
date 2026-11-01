@@ -26,6 +26,7 @@ const OFFLINE_TASK_SPEC = {
     "suite pass. Do not change any tests.",
   initial_ref: "main",
   acceptance: {
+    mode: "command",
     command: ["python", "-m", "pytest", "-q"],
     required_pass: ["tests/test_discounts.py::test_discount_applied_before_tax"],
     min_success_rate: 1.0,

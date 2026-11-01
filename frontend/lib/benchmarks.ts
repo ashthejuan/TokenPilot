@@ -3,6 +3,7 @@ import type { components } from "@/lib/api-types";
 export type BenchmarkOut = components["schemas"]["BenchmarkOut"];
 export type BenchmarkDetail = components["schemas"]["BenchmarkDetail"];
 export type BenchmarkRunOut = components["schemas"]["BenchmarkRunOut"];
+export type RunOutcome = NonNullable<BenchmarkRunOut["outcome"]>;
 export type ComparisonOut = components["schemas"]["ComparisonOut"];
 export type Project = components["schemas"]["Project"];
 
@@ -20,6 +21,8 @@ export type SavingsInput = {
   status: SavingsStatus;
   correctness_preserved: boolean | null;
   cost_delta: number | null;
+  /** Metrics-only acceptance: cost delta without a pass/fail gate. */
+  observational?: boolean;
 };
 
 /**
@@ -35,6 +38,12 @@ export function savingsBadgeLabel(input: SavingsInput): string {
     case "correctness_preserving":
       // A broken-correctness result is never an optimization, whatever it cost.
       if (input.correctness_preserved === false) return "Not an optimization";
+      if (input.observational) {
+        if (input.cost_delta !== null && input.cost_delta <= 0) {
+          return "Observational — no savings";
+        }
+        return "Observational cost delta";
+      }
       // A correct result that costs as much or more measured no savings.
       if (input.cost_delta !== null && input.cost_delta <= 0) return "No savings";
       return "Measured savings";
@@ -66,17 +75,66 @@ export function isRunActive(run: Pick<BenchmarkRunOut, "run_status">): boolean {
   return run.run_status === "queued" || run.run_status === "running";
 }
 
+/** Backend `METRICS_ONLY_REASON` — listed on metrics-only comparisons. */
+export const METRICS_ONLY_REASON = "metrics-only: no acceptance tests";
+
+const COST_ELIGIBLE_OUTCOMES: RunOutcome[] = [
+  "passed",
+  "failed",
+  "timed_out",
+  "observational",
+];
+
 /**
- * Runs that entered the comparison means: completed with a scored outcome.
- * Mirrors the backend eligibility rule (`metrics._eligible`), so view totals
- * reconcile with the eligible-means delta.
+ * Runs that contribute to comparison cost totals: completed with a
+ * cost-eligible outcome (scored or observational).
+ * Mirrors backend `cost_eligible_runs` in `metrics.py`.
  */
 export function eligibleRuns(runs: BenchmarkRunOut[]): BenchmarkRunOut[] {
   return runs.filter(
     (run) =>
       run.run_status === "completed" &&
-      (run.outcome === "passed" || run.outcome === "failed" || run.outcome === "timed_out"),
+      run.outcome !== null &&
+      COST_ELIGIBLE_OUTCOMES.includes(run.outcome),
   );
+}
+
+export function runOutcomeLabel(outcome: BenchmarkRunOut["outcome"]): string {
+  if (outcome === null) return "—";
+  switch (outcome) {
+    case "observational":
+      return "Observational";
+    case "passed":
+      return "Passed";
+    case "failed":
+      return "Failed";
+    case "timed_out":
+      return "Timed out";
+    case "cancelled":
+      return "Cancelled";
+    case "inconclusive":
+      return "Inconclusive";
+  }
+}
+
+/** True when the comparison is cost-only (no acceptance verification). */
+export function isMetricsOnlyComparison(
+  comparison: ComparisonOut,
+  options?: { runs?: BenchmarkRunOut[]; acceptanceMode?: AcceptanceMode },
+): boolean {
+  const reasons = comparison.reasons ?? [];
+  if (reasons.some((reason) => reason.includes("metrics-only"))) return true;
+  if (options?.acceptanceMode === "metrics_only") return true;
+  if (options?.runs?.some((run) => run.outcome === "observational")) return true;
+  return (
+    comparison.comparison_status === "measured" &&
+    comparison.correctness_preserved === null &&
+    reasons.length > 0
+  );
+}
+
+export function metricsOnlyReasonInList(reasons: string[]): boolean {
+  return reasons.some((reason) => reason.includes("metrics-only"));
 }
 
 export type BenchmarkStatus = "empty" | "running" | "done";
@@ -148,4 +206,68 @@ export function methodologyFlag(methodology: Methodology, key: string): boolean 
 export function variablesChangedLabel(variables: string[]): string {
   if (variables.length === 0) return "Variables changed: none detected";
   return `Variables changed: ${variables.join(", ")}`;
+}
+
+export type AcceptanceMode = NonNullable<
+  components["schemas"]["AcceptanceConfig"]["mode"]
+>;
+export type AcceptanceConfig = components["schemas"]["AcceptanceConfig"];
+
+export type BuildAcceptanceInput = {
+  mode: AcceptanceMode;
+  commandText: string;
+  requiredPassText: string;
+  minSuccessRateText: string;
+};
+
+export function parseRequiredPassLines(text: string): string[] {
+  return text
+    .split("\n")
+    .map((line) => line.trim())
+    .filter((line) => line.length > 0);
+}
+
+export function splitCommandArgv(text: string): string[] {
+  const trimmed = text.trim();
+  if (!trimmed) return [];
+  return trimmed.split(/\s+/);
+}
+
+/** Client-side guard before POST in command mode. */
+export function acceptanceCommandError(
+  mode: AcceptanceMode,
+  commandText: string,
+): string | null {
+  if (mode === "command" && commandText.trim().length === 0) {
+    return "Acceptance command is required.";
+  }
+  return null;
+}
+
+export function buildAcceptanceConfig(
+  input: BuildAcceptanceInput,
+): AcceptanceConfig | { error: string } {
+  const commandError = acceptanceCommandError(input.mode, input.commandText);
+  if (commandError) return { error: commandError };
+
+  if (input.mode === "metrics_only") {
+    return {
+      mode: "metrics_only",
+      command: [],
+      required_pass: [],
+      min_success_rate: 1,
+    };
+  }
+
+  const minRate = Number.parseFloat(input.minSuccessRateText);
+  if (!Number.isFinite(minRate) || minRate < 0 || minRate > 1) {
+    return { error: "Min success rate must be a number between 0 and 1." };
+  }
+
+  return {
+    mode: "command",
+    command: splitCommandArgv(input.commandText),
+    required_pass: parseRequiredPassLines(input.requiredPassText),
+    min_success_rate: minRate,
+  };
 }

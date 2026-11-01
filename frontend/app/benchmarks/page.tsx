@@ -2,7 +2,8 @@
 
 import Link from "next/link";
 import { useRouter } from "next/navigation";
-import { useEffect, useState } from "react";
+import { useCallback, useEffect, useState } from "react";
+import { toast } from "sonner";
 
 import { Chapter } from "@/components/Chapter";
 import { NewBenchmarkForm } from "@/components/NewBenchmarkForm";
@@ -18,7 +19,7 @@ import {
   TableHeader,
   TableRow,
 } from "@/components/ui/table";
-import { ApiError, apiGet } from "@/lib/api";
+import { ApiError, apiDelete, apiGet } from "@/lib/api";
 import {
   benchmarkStatus,
   latestComparison,
@@ -40,6 +41,13 @@ const STATUS_BADGE: Record<BenchmarkStatus, { label: string; className: string }
   done: { label: "Completed", className: "border-transparent bg-secondary text-secondary-foreground" },
 };
 
+type BenchmarkRow = {
+  benchmark: BenchmarkOut;
+  runs: number;
+  status: BenchmarkStatus;
+  latest: ComparisonOut | null;
+};
+
 function errorText(error: unknown): string {
   if (error instanceof ApiError) {
     if (error.code === "proxy_not_configured") {
@@ -55,51 +63,85 @@ function errorText(error: unknown): string {
 
 export default function BenchmarksPage() {
   const router = useRouter();
-  const [rows, setRows] = useState<
-    { benchmark: BenchmarkOut; runs: number; status: BenchmarkStatus; latest: ComparisonOut | null }[]
-  >([]);
+  const [rows, setRows] = useState<BenchmarkRow[]>([]);
   const [loading, setLoading] = useState(true);
   const [error, setError] = useState<string | null>(null);
   const [showForm, setShowForm] = useState(false);
+  const [deletingId, setDeletingId] = useState<string | null>(null);
+
+  const refresh = useCallback(async () => {
+    setLoading(true);
+    try {
+      const benchmarks = await apiGet<BenchmarkOut[]>("api/v1/benchmarks");
+      const details = await Promise.all(
+        benchmarks.map(async (benchmark) => {
+          const [detail, comparisons] = await Promise.all([
+            apiGet<BenchmarkDetail>(`api/v1/benchmarks/${benchmark.id}`),
+            apiGet<ComparisonOut[]>(`api/v1/benchmarks/${benchmark.id}/comparisons`),
+          ]);
+          return { detail, comparisons };
+        }),
+      );
+      setRows(
+        details.map(({ detail, comparisons }) => {
+          const runs = detail.runs ?? [];
+          return {
+            benchmark: detail,
+            runs: runs.length,
+            status: benchmarkStatus(runs),
+            latest: latestComparison(comparisons),
+          };
+        }),
+      );
+      setError(null);
+    } catch (err: unknown) {
+      setError(errorText(err));
+    } finally {
+      setLoading(false);
+    }
+  }, []);
 
   useEffect(() => {
-    let cancelled = false;
-    setLoading(true);
-    apiGet<BenchmarkOut[]>("api/v1/benchmarks")
-      .then(async (benchmarks) => {
-        const details = await Promise.all(
-          benchmarks.map(async (benchmark) => {
-            const [detail, comparisons] = await Promise.all([
-              apiGet<BenchmarkDetail>(`api/v1/benchmarks/${benchmark.id}`),
-              apiGet<ComparisonOut[]>(`api/v1/benchmarks/${benchmark.id}/comparisons`),
-            ]);
-            return { detail, comparisons };
-          }),
-        );
-        if (cancelled) return;
-        setRows(
-          details.map(({ detail, comparisons }) => {
-            const runs = detail.runs ?? [];
-            return {
-              benchmark: detail,
-              runs: runs.length,
-              status: benchmarkStatus(runs),
-              latest: latestComparison(comparisons),
-            };
-          }),
-        );
-        setError(null);
-      })
-      .catch((err: unknown) => {
-        if (!cancelled) setError(errorText(err));
-      })
-      .finally(() => {
-        if (!cancelled) setLoading(false);
-      });
-    return () => {
-      cancelled = true;
-    };
-  }, []);
+    void refresh();
+  }, [refresh]);
+
+  function confirmDeleteBenchmark(benchmark: BenchmarkOut) {
+    if (deletingId !== null) return;
+    toast(`Delete “${benchmark.name}”?`, {
+      id: `delete-benchmark-${benchmark.id}`,
+      description: "Runs and comparisons for this experiment are removed.",
+      duration: Infinity,
+      action: {
+        label: "Delete",
+        onClick: () => {
+          void performDelete(benchmark);
+        },
+      },
+      cancel: {
+        label: "Cancel",
+        onClick: () => toast.dismiss(`delete-benchmark-${benchmark.id}`),
+      },
+    });
+  }
+
+  async function performDelete(benchmark: BenchmarkOut) {
+    if (deletingId !== null) return;
+    toast.dismiss(`delete-benchmark-${benchmark.id}`);
+    setDeletingId(benchmark.id);
+    setError(null);
+    const loadingId = toast.loading(`Deleting “${benchmark.name}”…`);
+    try {
+      await apiDelete<null>(`api/v1/benchmarks/${benchmark.id}`);
+      await refresh();
+      toast.success(`Deleted “${benchmark.name}”`, { id: loadingId });
+    } catch (err: unknown) {
+      const message = errorText(err);
+      setError(message);
+      toast.error(message, { id: loadingId });
+    } finally {
+      setDeletingId(null);
+    }
+  }
 
   return (
     <div className={PAGE_SHELL}>
@@ -111,6 +153,7 @@ export default function BenchmarksPage() {
             size="sm"
             variant={showForm ? "secondary" : "default"}
             onClick={() => setShowForm((open) => !open)}
+            disabled={deletingId !== null}
           >
             {showForm ? "Close" : "New benchmark"}
           </Button>
@@ -146,6 +189,9 @@ export default function BenchmarksPage() {
                 <TableHead>Status</TableHead>
                 <TableHead>Savings</TableHead>
                 <TableHead>Created</TableHead>
+                <TableHead className="w-[1%] text-right">
+                  <span className="sr-only">Actions</span>
+                </TableHead>
               </TableRow>
             </TableHeader>
             <TableBody>
@@ -185,6 +231,19 @@ export default function BenchmarksPage() {
                     </TableCell>
                     <TableCell className="tabular-nums text-muted-foreground">
                       {formatTimestamp(benchmark.created_at)}
+                    </TableCell>
+                    <TableCell className="text-right">
+                      <Button
+                        type="button"
+                        variant="destructive"
+                        size="sm"
+                        className="pressable"
+                        disabled={deletingId !== null}
+                        aria-label={`Delete benchmark ${benchmark.name}`}
+                        onClick={() => confirmDeleteBenchmark(benchmark)}
+                      >
+                        {deletingId === benchmark.id ? "Deleting…" : "Delete"}
+                      </Button>
                     </TableCell>
                   </TableRow>
                 );

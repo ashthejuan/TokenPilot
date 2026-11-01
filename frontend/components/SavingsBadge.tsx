@@ -19,9 +19,10 @@ export function SavingsBadge({
   status,
   correctness_preserved,
   cost_delta,
+  observational,
   reasons = [],
 }: SavingsInput & { reasons?: string[] }) {
-  const input: SavingsInput = { status, correctness_preserved, cost_delta };
+  const input: SavingsInput = { status, correctness_preserved, cost_delta, observational };
   const badge = (
     <Badge variant="outline" className={cn(KIND_CLASS[savingsBadgeKind(input)])}>
       {savingsBadgeLabel(input)}

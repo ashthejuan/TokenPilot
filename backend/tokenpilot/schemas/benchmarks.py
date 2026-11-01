@@ -3,13 +3,16 @@
 from decimal import Decimal
 from typing import Any, Literal
 
-from pydantic import BaseModel, ConfigDict, Field
+from pydantic import BaseModel, ConfigDict, Field, model_validator
 
 from tokenpilot.schemas.common import Money
 
 ContextStrategy = Literal["full_repo", "targeted"]
 RunStatus = Literal["queued", "running", "completed", "failed"]
-RunOutcome = Literal["passed", "failed", "timed_out", "cancelled", "inconclusive"]
+RunOutcome = Literal[
+    "passed", "failed", "timed_out", "cancelled", "inconclusive", "observational"
+]
+AcceptanceMode = Literal["command", "metrics_only"]
 
 TERMINAL_STATUSES: tuple[str, str] = ("completed", "failed")
 
@@ -37,9 +40,16 @@ class RunConfig(BaseModel):
 class AcceptanceConfig(BaseModel):
     model_config = ConfigDict(extra="forbid")
 
-    command: list[str] = Field(min_length=1)
+    mode: AcceptanceMode = "command"
+    command: list[str] = Field(default_factory=list)
     required_pass: list[str] = Field(default_factory=list)
     min_success_rate: float = Field(default=1.0, ge=0, le=1)
+
+    @model_validator(mode="after")
+    def _validate_command_for_mode(self) -> "AcceptanceConfig":
+        if self.mode == "command" and not self.command:
+            raise ValueError("command mode requires a non-empty command")
+        return self
 
 
 class AlternativeSpec(BaseModel):

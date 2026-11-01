@@ -8,7 +8,7 @@ from decimal import Decimal
 from pathlib import Path
 from typing import Annotated, Any
 
-from fastapi import APIRouter, Depends, Header, HTTPException, Request
+from fastapi import APIRouter, Depends, Header, HTTPException, Request, Response
 from fastapi.responses import JSONResponse, PlainTextResponse
 from pydantic import BaseModel, ConfigDict, Field, ValidationError
 
@@ -176,6 +176,27 @@ def get_benchmark(
         return BenchmarkDetail(
             **benchmark.model_dump(), runs=store.list_runs(benchmark_id)
         )
+
+
+@router.delete("/benchmarks/{benchmark_id}", status_code=204)
+def delete_benchmark(
+    benchmark_id: str,
+    request: Request,
+    db: Annotated[Database, Depends(get_db)],
+) -> Response:
+    """Hard-delete the experiment; cascade drops runs and comparisons."""
+    worker = _worker(request)
+    with db.write() as conn:
+        store = BenchmarkStore(conn)
+        if store.get_benchmark(benchmark_id) is None:
+            raise HTTPException(status_code=404, detail="benchmark not found")
+        for run in store.list_runs(benchmark_id):
+            if run.run_status in ("queued", "running"):
+                worker.cancel(run.id)
+        deleted = store.delete_benchmark(benchmark_id)
+    if not deleted:
+        raise HTTPException(status_code=404, detail="benchmark not found")
+    return Response(status_code=204)
 
 
 @router.post("/benchmarks/{benchmark_id}/runs", status_code=202)

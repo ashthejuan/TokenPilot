@@ -381,6 +381,13 @@ class BenchmarkStore:
         ).fetchall()
         return [_benchmark_from_row(row) for row in rows]
 
+    def delete_benchmark(self, benchmark_id: str) -> bool:
+        """Delete the benchmark row; runs/comparisons cascade. Returns False if missing."""
+        cursor = self._conn.execute(
+            "DELETE FROM benchmarks WHERE id = ?", (benchmark_id,)
+        )
+        return (cursor.rowcount or 0) > 0
+
     def create_run(
         self,
         benchmark_id: str,
@@ -587,6 +594,15 @@ def _execute_phases(
     )
     if _cancelled_between_steps(cancel):
         return _PhaseOutcome("completed", "cancelled", "cancelled")
+
+    if benchmark.acceptance.mode == "metrics_only":
+        return _PhaseOutcome(
+            "completed",
+            "observational",
+            None,
+            test_exit_code=None,
+            test_results={"mode": "metrics_only"},
+        )
 
     command = resolve_acceptance_command(benchmark.acceptance.command)
     test_result = run_sandboxed(

@@ -8,7 +8,6 @@
             "items": {
               "type": "string"
             },
-            "minItems": 1,
             "title": "Command",
             "type": "array"
           },
@@ -19,6 +18,15 @@
             "title": "Min Success Rate",
             "type": "number"
           },
+          "mode": {
+            "default": "command",
+            "enum": [
+              "command",
+              "metrics_only"
+            ],
+            "title": "Mode",
+            "type": "string"
+          },
           "required_pass": {
             "items": {
               "type": "string"
@@ -27,9 +35,6 @@
             "type": "array"
           }
         },
-        "required": [
-          "command"
-        ],
         "title": "AcceptanceConfig",
         "type": "object"
       },
@@ -601,7 +606,8 @@
                   "failed",
                   "timed_out",
                   "cancelled",
-                  "inconclusive"
+                  "inconclusive",
+                  "observational"
                 ],
                 "type": "string"
               },
@@ -6956,6 +6962,66 @@
         ]
       }
     },
+    "/gateway/muse-code/models": {
+      "get": {
+        "description": "Non-recording Muse models relay (under /gateway).",
+        "operationId": "muse_code_models_gateway_muse_code_models_get",
+        "responses": {
+          "200": {
+            "content": {
+              "application/json": {
+                "schema": {}
+              }
+            },
+            "description": "Successful Response"
+          }
+        },
+        "summary": "Muse Code Models",
+        "tags": [
+          "gateway"
+        ]
+      }
+    },
+    "/gateway/p/{project_slug}/muse-code/models": {
+      "get": {
+        "operationId": "muse_code_models_for_project_gateway_p__project_slug__muse_code_models_get",
+        "parameters": [
+          {
+            "in": "path",
+            "name": "project_slug",
+            "required": true,
+            "schema": {
+              "title": "Project Slug",
+              "type": "string"
+            }
+          }
+        ],
+        "responses": {
+          "200": {
+            "content": {
+              "application/json": {
+                "schema": {}
+              }
+            },
+            "description": "Successful Response"
+          },
+          "422": {
+            "content": {
+              "application/json": {
+                "schema": {
+                  "$ref": "#/components/schemas/HTTPValidationError"
+                }
+              }
+            },
+            "description": "Validation Error"
+          }
+        },
+        "summary": "Muse Code Models For Project",
+        "tags": [
+          "gateway"
+        ]
+      }
+    },
     "/gateway/p/{project_slug}/v1/chat/completions": {
       "post": {
         "operationId": "chat_completions_for_project_gateway_p__project_slug__v1_chat_completions_post",
@@ -7036,6 +7102,46 @@
         ]
       }
     },
+    "/gateway/p/{project_slug}/v1/responses": {
+      "post": {
+        "operationId": "responses_for_project_gateway_p__project_slug__v1_responses_post",
+        "parameters": [
+          {
+            "in": "path",
+            "name": "project_slug",
+            "required": true,
+            "schema": {
+              "title": "Project Slug",
+              "type": "string"
+            }
+          }
+        ],
+        "responses": {
+          "200": {
+            "content": {
+              "application/json": {
+                "schema": {}
+              }
+            },
+            "description": "Successful Response"
+          },
+          "422": {
+            "content": {
+              "application/json": {
+                "schema": {
+                  "$ref": "#/components/schemas/HTTPValidationError"
+                }
+              }
+            },
+            "description": "Validation Error"
+          }
+        },
+        "summary": "Responses For Project",
+        "tags": [
+          "gateway"
+        ]
+      }
+    },
     "/gateway/v1/chat/completions": {
       "post": {
         "operationId": "chat_completions_gateway_v1_chat_completions_post",
@@ -7069,6 +7175,45 @@
           }
         },
         "summary": "List Models",
+        "tags": [
+          "gateway"
+        ]
+      }
+    },
+    "/gateway/v1/responses": {
+      "post": {
+        "operationId": "responses_gateway_v1_responses_post",
+        "responses": {
+          "200": {
+            "content": {
+              "application/json": {
+                "schema": {}
+              }
+            },
+            "description": "Successful Response"
+          }
+        },
+        "summary": "Responses",
+        "tags": [
+          "gateway"
+        ]
+      }
+    },
+    "/muse-code/models": {
+      "get": {
+        "description": "Non-recording Muse models relay at host root (what Muse actually GETs).",
+        "operationId": "muse_code_models_at_origin_muse_code_models_get",
+        "responses": {
+          "200": {
+            "content": {
+              "application/json": {
+                "schema": {}
+              }
+            },
+            "description": "Successful Response"
+          }
+        },
+        "summary": "Muse Code Models At Origin",
         "tags": [
           "gateway"
         ]

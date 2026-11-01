@@ -37,7 +37,9 @@ _alternative_config = {**_baseline_config, "context_strategy": "targeted"}
 
 
 def make_benchmark(
-    benchmark_id: str = BENCHMARK_ID, min_success_rate: float = 1.0
+    benchmark_id: str = BENCHMARK_ID,
+    min_success_rate: float = 1.0,
+    acceptance_mode: str = "command",
 ) -> BenchmarkOut:
     return BenchmarkOut(
         id=benchmark_id,
@@ -47,7 +49,12 @@ def make_benchmark(
         description=None,
         initial_git_sha="abc123",
         acceptance=AcceptanceConfig(
-            command=["python", "-m", "pytest", "-q"],
+            mode=acceptance_mode,  # type: ignore[arg-type]
+            command=(
+                []
+                if acceptance_mode == "metrics_only"
+                else ["python", "-m", "pytest", "-q"]
+            ),
             required_pass=["tests/test_discounts.py::test_discount_applied_before_tax"],
             min_success_rate=min_success_rate,
         ),
@@ -112,6 +119,30 @@ def variant(
         make_run(benchmark_id, variant_name, cost, outcome, config)
         for cost, outcome in zip(costs, outcomes, strict=True)
     ]
+
+
+def test_metrics_only_observational_runs_cost_compare_measured() -> None:
+    benchmark = make_benchmark(acceptance_mode="metrics_only")
+    baseline = variant(
+        [Decimal("0.30"), Decimal("0.32")],
+        ["observational", "observational"],
+        "baseline",
+    )
+    alternative = variant(
+        [Decimal("0.10"), Decimal("0.11")],
+        ["observational", "observational"],
+        "targeted-context",
+        config=_alternative_config,
+    )
+
+    result = compare(benchmark, baseline, alternative)
+
+    assert result.comparison_status == "measured"
+    assert result.correctness_preserved is None
+    assert result.cost_delta is not None and result.cost_delta > 0
+    assert any("metrics-only" in reason for reason in result.reasons)
+    assert result.methodology["eligible_counts"] == {"baseline": 2, "alternative": 2}
+    assert result.methodology["success_rates"] == {"baseline": None, "alternative": None}
 
 
 def test_failed_alternative_never_verified() -> None:

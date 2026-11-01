@@ -30,7 +30,7 @@ from typing import Any, Literal
 
 from pydantic import BaseModel, ConfigDict, Field
 
-from tokenpilot.benchmarks.metrics import stdev_cost, success_rate
+from tokenpilot.benchmarks.metrics import cost_eligible_runs, stdev_cost, success_rate
 from tokenpilot.schemas.benchmarks import BenchmarkOut, BenchmarkRunOut
 from tokenpilot.schemas.common import Money
 
@@ -40,8 +40,7 @@ ComparisonStatus = Literal[
 SavingsKind = Literal["potential", "benchmark", "verified", "realized"]
 
 INCOMPARABLE_REASON = "different starting revision / acceptance criteria"
-
-_ELIGIBLE_OUTCOMES = ("passed", "failed", "timed_out")
+METRICS_ONLY_REASON = "metrics-only: no acceptance tests"
 
 _MISSING = object()
 
@@ -60,13 +59,8 @@ class Comparison(BaseModel):
 
 
 def _eligible_runs(runs: list[BenchmarkRunOut]) -> list[BenchmarkRunOut]:
-    """Completed runs with a scored outcome. Same rule as `metrics._eligible`:
-    cancelled/inconclusive runs never enter means, rates, or spread."""
-    return [
-        run
-        for run in runs
-        if run.run_status == "completed" and run.outcome in _ELIGIBLE_OUTCOMES
-    ]
+    """Completed runs that contribute to cost comparison (includes observational)."""
+    return list(cost_eligible_runs(runs))
 
 
 def _merged_config(runs: list[BenchmarkRunOut]) -> dict[str, Any]:
@@ -191,12 +185,30 @@ def compare(
     delta = mean_base - mean_alt
     delta_pct = None if mean_base == 0 else delta / mean_base * 100
 
+    if benchmark.acceptance.mode == "metrics_only":
+        return Comparison(
+            cost_delta=delta,
+            cost_delta_pct=delta_pct,
+            correctness_preserved=None,
+            comparison_status="measured",
+            methodology=methodology,
+            reasons=[
+                f"mean cost baseline {mean_base}, alternative {mean_alt}",
+                METRICS_ONLY_REASON,
+            ],
+        )
+
     # Rule 4: the correctness gate.
     rates = methodology["success_rates"]
     rate_base = rates["baseline"]
     rate_alt = rates["alternative"]
     minimum = benchmark.acceptance.min_success_rate
-    assert rate_base is not None and rate_alt is not None  # eligible runs exist
+    if rate_base is None or rate_alt is None:
+        return Comparison(
+            comparison_status="inconclusive",
+            methodology=methodology,
+            reasons=["no scored runs for success rate on one or both variants"],
+        )
     correctness = rate_alt >= rate_base and rate_alt >= minimum
 
     reasons = [

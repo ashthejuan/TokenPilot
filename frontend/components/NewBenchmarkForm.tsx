@@ -6,7 +6,11 @@ import { Button } from "@/components/ui/button";
 import { Input } from "@/components/ui/input";
 import { ApiError, apiGet, apiSend } from "@/lib/api";
 import type { components } from "@/lib/api-types";
-import type { Project } from "@/lib/benchmarks";
+import {
+  buildAcceptanceConfig,
+  type AcceptanceMode,
+  type Project,
+} from "@/lib/benchmarks";
 
 type BenchmarkCreate = components["schemas"]["BenchmarkCreate"];
 type BenchmarkOut = components["schemas"]["BenchmarkOut"];
@@ -16,13 +20,6 @@ const SELECT_CLASS =
 const TEXTAREA_CLASS =
   "min-h-24 w-full rounded-lg border border-input bg-transparent px-2.5 py-2 text-sm outline-none placeholder:text-muted-foreground focus-visible:border-ring focus-visible:ring-3 focus-visible:ring-ring/50 dark:bg-input/30";
 const LABEL_CLASS = "flex flex-col gap-1 text-xs font-medium text-muted-foreground";
-
-/** Minimal create form; acceptance stays on the pytest default. */
-const DEFAULT_ACCEPTANCE: BenchmarkCreate["acceptance"] = {
-  command: ["python", "-m", "pytest", "-q"],
-  min_success_rate: 1.0,
-  required_pass: [],
-};
 
 function errorText(error: unknown): string {
   if (error instanceof ApiError) {
@@ -47,6 +44,10 @@ export function NewBenchmarkForm({ onCreated }: { onCreated: (benchmarkId: strin
   const [maxSteps, setMaxSteps] = useState("12");
   const [altName, setAltName] = useState("targeted-context");
   const [altStrategy, setAltStrategy] = useState<"full_repo" | "targeted">("targeted");
+  const [acceptanceMode, setAcceptanceMode] = useState<AcceptanceMode>("command");
+  const [acceptanceCommand, setAcceptanceCommand] = useState("");
+  const [requiredPass, setRequiredPass] = useState("");
+  const [minSuccessRate, setMinSuccessRate] = useState("1");
   const [error, setError] = useState<string | null>(null);
   const [busy, setBusy] = useState(false);
 
@@ -82,6 +83,18 @@ export function NewBenchmarkForm({ onCreated }: { onCreated: (benchmarkId: strin
       setError("Max steps must be a positive integer.");
       return;
     }
+
+    const acceptance = buildAcceptanceConfig({
+      mode: acceptanceMode,
+      commandText: acceptanceCommand,
+      requiredPassText: requiredPass,
+      minSuccessRateText: minSuccessRate,
+    });
+    if ("error" in acceptance) {
+      setError(acceptance.error);
+      return;
+    }
+
     setBusy(true);
     setError(null);
     const body: BenchmarkCreate = {
@@ -92,7 +105,7 @@ export function NewBenchmarkForm({ onCreated }: { onCreated: (benchmarkId: strin
       initial_ref: "main",
       repeat_count: 1,
       timeout_s: 300,
-      acceptance: DEFAULT_ACCEPTANCE,
+      acceptance,
       baseline: {
         model_id: modelId,
         max_steps: steps,
@@ -112,6 +125,8 @@ export function NewBenchmarkForm({ onCreated }: { onCreated: (benchmarkId: strin
       setBusy(false);
     }
   }
+
+  const commandMode = acceptanceMode === "command";
 
   return (
     <div className="space-y-4">
@@ -194,6 +209,48 @@ export function NewBenchmarkForm({ onCreated }: { onCreated: (benchmarkId: strin
             <option value="full_repo">full_repo</option>
           </select>
         </label>
+        <label className={`${LABEL_CLASS} sm:col-span-2`}>
+          Acceptance mode
+          <select
+            className={SELECT_CLASS}
+            value={acceptanceMode}
+            onChange={(e) => setAcceptanceMode(e.target.value as AcceptanceMode)}
+          >
+            <option value="command">Acceptance tests</option>
+            <option value="metrics_only">Metrics only</option>
+          </select>
+        </label>
+        {commandMode ? (
+          <>
+            <label className={`${LABEL_CLASS} sm:col-span-2`}>
+              Acceptance command
+              <Input
+                value={acceptanceCommand}
+                onChange={(e) => setAcceptanceCommand(e.target.value)}
+                placeholder="python -m pytest -q"
+                required
+              />
+            </label>
+            <label className={`${LABEL_CLASS} sm:col-span-2`}>
+              Required pass (one pytest nodeid per line, optional)
+              <textarea
+                className={TEXTAREA_CLASS}
+                value={requiredPass}
+                onChange={(e) => setRequiredPass(e.target.value)}
+                placeholder={"tests/test_discounts.py::test_applies_before_tax"}
+              />
+            </label>
+            <label className={LABEL_CLASS}>
+              Min success rate
+              <Input
+                value={minSuccessRate}
+                inputMode="decimal"
+                onChange={(e) => setMinSuccessRate(e.target.value)}
+                placeholder="1"
+              />
+            </label>
+          </>
+        ) : null}
       </div>
       <Button className="pressable" size="sm" onClick={() => void submit()} disabled={busy}>
         {busy ? "Creating…" : "Create benchmark"}

@@ -12,21 +12,34 @@ from typing import Any
 
 from tokenpilot.schemas.benchmarks import BenchmarkRunOut
 
-_ELIGIBLE_OUTCOMES = ("passed", "failed", "timed_out")
+_SCORED_OUTCOMES = ("passed", "failed", "timed_out")
+_COST_ELIGIBLE_OUTCOMES = (*_SCORED_OUTCOMES, "observational")
 
 
-def _eligible(runs: Sequence[BenchmarkRunOut]) -> list[BenchmarkRunOut]:
-    """Completed runs that reached a scored outcome (never cancelled/inconclusive)."""
+def _scored_eligible(runs: Sequence[BenchmarkRunOut]) -> list[BenchmarkRunOut]:
+    """Completed runs with pass/fail/timed_out — used for success rates only."""
     return [
         run
         for run in runs
-        if run.run_status == "completed" and run.outcome in _ELIGIBLE_OUTCOMES
+        if run.run_status == "completed" and run.outcome in _SCORED_OUTCOMES
+    ]
+
+
+def cost_eligible_runs(runs: Sequence[BenchmarkRunOut]) -> list[BenchmarkRunOut]:
+    """Completed runs that contribute to cost and latency aggregates.
+
+    Includes `observational` (metrics-only acceptance); excludes cancelled/inconclusive.
+    """
+    return [
+        run
+        for run in runs
+        if run.run_status == "completed" and run.outcome in _COST_ELIGIBLE_OUTCOMES
     ]
 
 
 def success_rate(runs: Sequence[BenchmarkRunOut]) -> float | None:
-    """Share of eligible runs with outcome `passed`; None when none are eligible."""
-    eligible = _eligible(runs)
+    """Share of scored runs with outcome `passed`; None when none are scored."""
+    eligible = _scored_eligible(runs)
     if not eligible:
         return None
     return sum(1 for run in eligible if run.outcome == "passed") / len(eligible)
@@ -37,7 +50,7 @@ def cost_per_success(runs: Sequence[BenchmarkRunOut]) -> Decimal | None:
 
     None when there are no successes or any eligible run's cost is unknown.
     """
-    eligible = _eligible(runs)
+    eligible = _scored_eligible(runs)
     successes = [run for run in eligible if run.outcome == "passed"]
     if not successes:
         return None
@@ -59,7 +72,7 @@ def retry_amplification(runs: Sequence[BenchmarkRunOut]) -> Decimal | None:
     `stdev_cost`); None when no eligible run has a known cost, when eligible
     costs sum to zero, or when eligible requests total zero.
     """
-    known = [run for run in _eligible(runs) if run.total_cost is not None]
+    known = [run for run in cost_eligible_runs(runs) if run.total_cost is not None]
     if not known:
         return None
     if sum(run.request_count for run in known) <= 0:
@@ -81,7 +94,7 @@ def latency_stats(runs: Sequence[BenchmarkRunOut]) -> dict[str, float] | None:
     """Median and nearest-rank p90 of eligible run durations in milliseconds."""
     durations = sorted(
         float(run.duration_ms)
-        for run in _eligible(runs)
+        for run in cost_eligible_runs(runs)
         if run.duration_ms is not None
     )
     if not durations:
@@ -93,7 +106,7 @@ def latency_stats(runs: Sequence[BenchmarkRunOut]) -> dict[str, float] | None:
 def stdev_cost(runs: Sequence[BenchmarkRunOut]) -> Decimal | None:
     """Sample standard deviation of eligible run costs; None with fewer than two."""
     costs = [
-        run.total_cost for run in _eligible(runs) if run.total_cost is not None
+        run.total_cost for run in cost_eligible_runs(runs) if run.total_cost is not None
     ]
     if len(costs) < 2:
         return None

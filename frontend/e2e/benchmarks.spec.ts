@@ -41,7 +41,12 @@ const DETAIL = {
   name: "discount bug",
   description: null,
   initial_git_sha: "abc123",
-  acceptance: { command: ["python", "-m", "pytest", "-q"], required_pass: [], min_success_rate: 1 },
+  acceptance: {
+    mode: "command",
+    command: ["python", "-m", "pytest", "-q"],
+    required_pass: [],
+    min_success_rate: 1,
+  },
   baseline: {
     model_id: "fake-large",
     context_strategy: "full_repo",
@@ -126,4 +131,33 @@ test("benchmark detail still renders when the comparisons fetch fails", async ({
   // Scoped to main: the Next dev overlay renders its own empty live-region
   // alert outside the app content.
   await expect(page.getByRole("main").getByRole("alert")).toHaveCount(0);
+});
+
+test("benchmarks list delete confirms then removes the experiment", async ({ page }) => {
+  let deleted = false;
+  await page.route("**/api/tp/api/v1/benchmarks/bench-1/comparisons", (route) =>
+    route.fulfill({ json: [] }),
+  );
+  await page.route("**/api/tp/api/v1/benchmarks/bench-1", async (route) => {
+    if (route.request().method() === "DELETE") {
+      deleted = true;
+      return route.fulfill({ status: 204, body: "" });
+    }
+    return route.fulfill({ json: DETAIL });
+  });
+  await page.route("**/api/tp/api/v1/benchmarks", async (route) => {
+    if (route.request().method() === "GET") {
+      return route.fulfill({ json: deleted ? [] : [DETAIL] });
+    }
+    return route.continue();
+  });
+
+  await page.goto("/benchmarks");
+  await expect(page.getByRole("link", { name: "discount bug" })).toBeVisible({
+    timeout: 15_000,
+  });
+  await page.getByRole("button", { name: "Delete benchmark discount bug" }).click();
+  await page.getByRole("button", { name: "Delete", exact: true }).click();
+  await expect(page.getByText("No benchmarks yet.")).toBeVisible();
+  expect(deleted).toBe(true);
 });

@@ -11,12 +11,16 @@ import {
 import {
   eligibleRuns,
   formatDurationMs,
+  isMetricsOnlyComparison,
+  metricsOnlyReasonInList,
   methodologyFlag,
   methodologyNumber,
   methodologyStrings,
   patchHref,
+  runOutcomeLabel,
   sumNullable,
   variablesChangedLabel,
+  type AcceptanceMode,
   type BenchmarkRunOut,
   type ComparisonOut,
 } from "@/lib/benchmarks";
@@ -42,7 +46,10 @@ function outcomesSummary(runs: BenchmarkRunOut[]): string {
   if (counts.size === 0) return "No scored runs";
   return [...counts]
     .sort(([a], [b]) => a.localeCompare(b))
-    .map(([outcome, count]) => (count > 1 ? `${count} ${outcome}` : outcome))
+    .map(([outcome, count]) => {
+      const label = runOutcomeLabel(outcome as BenchmarkRunOut["outcome"]);
+      return count > 1 ? `${count} ${label}` : label;
+    })
     .join(", ");
 }
 
@@ -80,9 +87,11 @@ function PatchLinks({ runs }: { runs: BenchmarkRunOut[] }) {
 export function ComparisonView({
   comparison,
   runs,
+  acceptanceMode,
 }: {
   comparison: ComparisonOut;
   runs: BenchmarkRunOut[];
+  acceptanceMode?: AcceptanceMode;
 }) {
   const baselineRuns = runs.filter((run) => run.variant_name === comparison.baseline_variant);
   const alternativeRuns = runs.filter(
@@ -97,6 +106,8 @@ export function ComparisonView({
   const lowSample = methodologyFlag(methodology, "low_sample");
   const interleaved = methodologyFlag(methodology, "interleaved");
   const reasons = comparison.reasons ?? [];
+  const metricsOnly = isMetricsOnlyComparison(comparison, { runs, acceptanceMode });
+  const metricsReasonListed = metricsOnlyReasonInList(reasons);
 
   return (
     <div className="space-y-6">
@@ -105,10 +116,23 @@ export function ComparisonView({
           status={comparison.comparison_status}
           correctness_preserved={comparison.correctness_preserved}
           cost_delta={comparison.cost_delta}
+          observational={metricsOnly}
           reasons={reasons}
         />
         <p className="text-sm font-medium tabular-nums">{deltaLine(comparison, currency)}</p>
       </div>
+      {metricsOnly ? (
+        <p role="note" className="text-sm text-amber-800 dark:text-amber-200">
+          Observational / metrics-only: cost was compared without acceptance tests — not verified
+          for correctness.
+          {metricsReasonListed ? null : (
+            <span className="text-muted-foreground">
+              {" "}
+              (See methodology for details when available.)
+            </span>
+          )}
+        </p>
+      ) : null}
       <p className="text-sm text-muted-foreground">
         {variablesChangedLabel(methodologyStrings(methodology, "variables_changed"))}
       </p>

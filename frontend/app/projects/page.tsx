@@ -171,11 +171,11 @@ export default function ProjectsPage() {
               />
             </label>
             <label className={LABEL_CLASS}>
-              Repository path
+              Folder path
               <Input
                 value={repositoryPath}
                 onChange={(e) => setRepositoryPath(e.target.value)}
-                placeholder="/path/to/repo"
+                placeholder="/path/to/folder"
               />
             </label>
           </div>

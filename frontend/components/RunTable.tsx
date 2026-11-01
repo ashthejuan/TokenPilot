@@ -11,7 +11,9 @@ import {
 import {
   formatDurationMs,
   patchHref,
+  runOutcomeLabel,
   type BenchmarkRunOut,
+  type RunOutcome,
 } from "@/lib/benchmarks";
 import { formatCount } from "@/lib/format";
 import { cn } from "@/lib/utils";
@@ -28,6 +30,15 @@ const STATUS_LABEL: Record<BenchmarkRunOut["run_status"], string> = {
   running: "Running",
   completed: "Completed",
   failed: "Failed",
+};
+
+const OUTCOME_CLASS: Record<RunOutcome, string> = {
+  passed: "border-transparent bg-green-600/15 text-green-800 dark:text-green-200",
+  failed: "border-transparent bg-destructive/10 text-destructive",
+  timed_out: "border-transparent bg-amber-500/15 text-amber-800 dark:text-amber-200",
+  cancelled: "border-border bg-muted text-muted-foreground",
+  inconclusive: "border-border bg-muted text-muted-foreground",
+  observational: "border-transparent bg-blue-500/15 text-blue-800 dark:text-blue-200",
 };
 
 /** Per-row stagger step for the first-load entrance; see globals.css. */
@@ -67,7 +78,15 @@ export function RunTable({ runs, stagger }: { runs: BenchmarkRunOut[]; stagger: 
                 {STATUS_LABEL[run.run_status]}
               </Badge>
             </TableCell>
-            <TableCell>{run.outcome ?? "—"}</TableCell>
+            <TableCell>
+              {run.outcome === null ? (
+                "—"
+              ) : (
+                <Badge variant="outline" className={cn(OUTCOME_CLASS[run.outcome])}>
+                  {runOutcomeLabel(run.outcome)}
+                </Badge>
+              )}
+            </TableCell>
             <TableCell className="tabular-nums">
               <CostValue value={run.total_cost} currency={run.currency} />
             </TableCell>

@@ -63,6 +63,9 @@ export default function BenchmarkDetailPage() {
   const [comparing, setComparing] = useState(false);
   const [compareError, setCompareError] = useState<string | null>(null);
 
+  const [starting, setStarting] = useState(false);
+  const [startError, setStartError] = useState<string | null>(null);
+
   const fetchDetail = useCallback(
     () => apiGet<BenchmarkDetail>(`api/v1/benchmarks/${benchmarkId}`),
     [benchmarkId],
@@ -136,6 +139,25 @@ export default function BenchmarkDetailPage() {
       setAlternativeVariant(detail.alternatives[0]?.name ?? "");
     }
   }, [detail, alternativeVariant]);
+
+  async function startRuns() {
+    if (starting || hasActive || detail === null) return;
+    setStarting(true);
+    setStartError(null);
+    try {
+      const variants = ["baseline", ...detail.alternatives.map((spec) => spec.name)];
+      await apiSend(
+        "POST",
+        `api/v1/benchmarks/${benchmarkId}/runs`,
+        { variants, repeat_count: 1 },
+      );
+      setDetail(await fetchDetail());
+    } catch (err: unknown) {
+      setStartError(errorText(err));
+    } finally {
+      setStarting(false);
+    }
+  }
 
   async function runCompare() {
     if (comparing) return;
@@ -219,6 +241,21 @@ export default function BenchmarkDetailPage() {
       />
 
       <Chapter title="Runs" description="Status refreshes every 2 seconds while runs are active.">
+        {startError ? (
+          <p role="alert" className="mb-3 text-sm text-destructive">
+            {startError}
+          </p>
+        ) : null}
+        <div className="mb-3 flex flex-wrap items-center gap-3">
+          <Button
+            className="pressable"
+            size="sm"
+            onClick={() => void startRuns()}
+            disabled={starting || hasActive}
+          >
+            {starting ? "Starting…" : "Start runs"}
+          </Button>
+        </div>
         <RunTable runs={runs} stagger={staggerRef.current} />
       </Chapter>
 

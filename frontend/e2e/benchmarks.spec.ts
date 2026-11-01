@@ -106,6 +106,48 @@ test("benchmark detail shows the persisted latest comparison on a fresh visit", 
   expect(comparePosts).toBe(0);
 });
 
+test("Start runs enqueues variants and refreshes the runs table", async ({
+  page,
+}) => {
+  const detailEmpty = { ...DETAIL, runs: [] };
+  let detailGets = 0;
+  let runPosts = 0;
+  let runPostBody: { variants?: string[] } | null = null;
+
+  await page.route("**/api/tp/api/v1/benchmarks/bench-1/comparisons", (route) =>
+    route.fulfill({ json: [] }),
+  );
+  await page.route("**/api/tp/api/v1/benchmarks/bench-1/runs", async (route) => {
+    if (route.request().method() !== "POST") {
+      return route.continue();
+    }
+    runPosts += 1;
+    runPostBody = route.request().postDataJSON() as { variants?: string[] };
+    return route.fulfill({ status: 202, json: [RUN_BASE, RUN_ALT] });
+  });
+  await page.route("**/api/tp/api/v1/benchmarks/bench-1", (route) => {
+    detailGets += 1;
+    const json = detailGets === 1 ? detailEmpty : DETAIL;
+    return route.fulfill({ json });
+  });
+
+  await page.goto("/benchmarks/bench-1");
+  await expect(page.getByText("No runs yet.")).toBeVisible({ timeout: 15_000 });
+
+  await page.getByRole("button", { name: "Start runs" }).click();
+
+  await expect.poll(() => runPosts).toBe(1);
+  expect(runPostBody).toEqual({
+    variants: ["baseline", "targeted-context"],
+    repeat_count: 1,
+  });
+
+  await expect(page.getByRole("cell", { name: "baseline" })).toBeVisible();
+  await expect(page.getByRole("cell", { name: "targeted-context" })).toBeVisible();
+  await expect(page.getByRole("link", { name: "Patch" }).first()).toBeVisible();
+  expect(detailGets).toBeGreaterThanOrEqual(2);
+});
+
 test("benchmark detail still renders when the comparisons fetch fails", async ({
   page,
 }) => {

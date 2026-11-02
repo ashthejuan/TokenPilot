@@ -140,7 +140,7 @@ export META_API_KEY="your-TOKENPILOT_LOCAL_TOKEN-value"
 
 ```bash
 muse \
-  -c 'endpoint_transport.base_url="http://127.0.0.1:8787/gateway/p/knowledge-base/v1"' \
+  -c 'endpoint_transport.base_url="http://127.0.0.1:8787/gateway/p/<project-slug>/v1"' \
   -c 'endpoint_transport.auth="bearer"' \
   --model muse-spark-1.3-contributor
 ```

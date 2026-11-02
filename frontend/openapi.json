@@ -2655,6 +2655,27 @@
         "title": "ProjectReport",
         "type": "object"
       },
+      "ProjectTree": {
+        "properties": {
+          "entries": {
+            "items": {
+              "$ref": "#/components/schemas/TreeEntry"
+            },
+            "title": "Entries",
+            "type": "array"
+          },
+          "path": {
+            "title": "Path",
+            "type": "string"
+          }
+        },
+        "required": [
+          "path",
+          "entries"
+        ],
+        "title": "ProjectTree",
+        "type": "object"
+      },
       "ProjectUpdate": {
         "additionalProperties": false,
         "description": "Only the fields present in the body change; `repository_path: null` clears it.",
@@ -2933,6 +2954,11 @@
         "additionalProperties": false,
         "description": "One variant's agent configuration, as stored in `benchmark_runs.config_json`.",
         "properties": {
+          "allow_outside_paths": {
+            "default": false,
+            "title": "Allow Outside Paths",
+            "type": "boolean"
+          },
           "context_files": {
             "items": {
               "type": "string"
@@ -3676,6 +3702,30 @@
         "title": "TimeseriesPoint",
         "type": "object"
       },
+      "TreeEntry": {
+        "properties": {
+          "kind": {
+            "pattern": "^(dir|file)$",
+            "title": "Kind",
+            "type": "string"
+          },
+          "name": {
+            "title": "Name",
+            "type": "string"
+          },
+          "path": {
+            "title": "Path",
+            "type": "string"
+          }
+        },
+        "required": [
+          "name",
+          "path",
+          "kind"
+        ],
+        "title": "TreeEntry",
+        "type": "object"
+      },
       "UnattributedUsage": {
         "description": "Events in the window that have no project attribution.",
         "properties": {
@@ -4402,6 +4452,40 @@
       }
     },
     "/api/v1/benchmarks/{benchmark_id}": {
+      "delete": {
+        "description": "Hard-delete the experiment; cascade drops runs and comparisons.",
+        "operationId": "delete_benchmark_api_v1_benchmarks__benchmark_id__delete",
+        "parameters": [
+          {
+            "in": "path",
+            "name": "benchmark_id",
+            "required": true,
+            "schema": {
+              "title": "Benchmark Id",
+              "type": "string"
+            }
+          }
+        ],
+        "responses": {
+          "204": {
+            "description": "Successful Response"
+          },
+          "422": {
+            "content": {
+              "application/json": {
+                "schema": {
+                  "$ref": "#/components/schemas/HTTPValidationError"
+                }
+              }
+            },
+            "description": "Validation Error"
+          }
+        },
+        "summary": "Delete Benchmark",
+        "tags": [
+          "benchmarks"
+        ]
+      },
       "get": {
         "operationId": "get_benchmark_api_v1_benchmarks__benchmark_id__get",
         "parameters": [
@@ -5472,6 +5556,58 @@
           }
         },
         "summary": "Update Project",
+        "tags": [
+          "projects"
+        ]
+      }
+    },
+    "/api/v1/projects/{project_id}/tree": {
+      "get": {
+        "operationId": "get_project_tree_api_v1_projects__project_id__tree_get",
+        "parameters": [
+          {
+            "in": "path",
+            "name": "project_id",
+            "required": true,
+            "schema": {
+              "title": "Project Id",
+              "type": "string"
+            }
+          },
+          {
+            "in": "query",
+            "name": "path",
+            "required": false,
+            "schema": {
+              "default": "",
+              "title": "Path",
+              "type": "string"
+            }
+          }
+        ],
+        "responses": {
+          "200": {
+            "content": {
+              "application/json": {
+                "schema": {
+                  "$ref": "#/components/schemas/ProjectTree"
+                }
+              }
+            },
+            "description": "Successful Response"
+          },
+          "422": {
+            "content": {
+              "application/json": {
+                "schema": {
+                  "$ref": "#/components/schemas/HTTPValidationError"
+                }
+              }
+            },
+            "description": "Validation Error"
+          }
+        },
+        "summary": "Get Project Tree",
         "tags": [
           "projects"
         ]

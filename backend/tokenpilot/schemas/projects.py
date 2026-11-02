@@ -61,3 +61,14 @@ class Project(BaseModel):
     default_currency: str
     created_at: str
     updated_at: str
+
+
+class TreeEntry(BaseModel):
+    name: str
+    path: str
+    kind: Annotated[str, Field(pattern=r"^(dir|file)$")]
+
+
+class ProjectTree(BaseModel):
+    path: str
+    entries: list[TreeEntry]

@@ -67,7 +67,11 @@ export interface paths {
         get: operations["get_benchmark_api_v1_benchmarks__benchmark_id__get"];
         put?: never;
         post?: never;
-        delete?: never;
+        /**
+         * Delete Benchmark
+         * @description Hard-delete the experiment; cascade drops runs and comparisons.
+         */
+        delete: operations["delete_benchmark_api_v1_benchmarks__benchmark_id__delete"];
         options?: never;
         head?: never;
         patch?: never;
@@ -364,6 +368,23 @@ export interface paths {
         head?: never;
         /** Update Project */
         patch: operations["update_project_api_v1_projects__project_id__patch"];
+        trace?: never;
+    };
+    "/api/v1/projects/{project_id}/tree": {
+        parameters: {
+            query?: never;
+            header?: never;
+            path?: never;
+            cookie?: never;
+        };
+        /** Get Project Tree */
+        get: operations["get_project_tree_api_v1_projects__project_id__tree_get"];
+        put?: never;
+        post?: never;
+        delete?: never;
+        options?: never;
+        head?: never;
+        patch?: never;
         trace?: never;
     };
     "/api/v1/reports/project/{project_id}": {
@@ -1557,6 +1578,13 @@ export interface components {
             /** Waste By Rule */
             waste_by_rule: components["schemas"]["WasteByRule"][];
         };
+        /** ProjectTree */
+        ProjectTree: {
+            /** Entries */
+            entries: components["schemas"]["TreeEntry"][];
+            /** Path */
+            path: string;
+        };
         /**
          * ProjectUpdate
          * @description Only the fields present in the body change; `repository_path: null` clears it.
@@ -1653,6 +1681,11 @@ export interface components {
          * @description One variant's agent configuration, as stored in `benchmark_runs.config_json`.
          */
         RunConfig: {
+            /**
+             * Allow Outside Paths
+             * @default false
+             */
+            allow_outside_paths: boolean;
             /** Context Files */
             context_files?: string[];
             /**
@@ -1977,6 +2010,15 @@ export interface components {
             /** Request Count */
             request_count: number;
         };
+        /** TreeEntry */
+        TreeEntry: {
+            /** Kind */
+            kind: string;
+            /** Name */
+            name: string;
+            /** Path */
+            path: string;
+        };
         /**
          * UnattributedUsage
          * @description Events in the window that have no project attribution.
@@ -2265,6 +2307,35 @@ export interface operations {
                 content: {
                     "application/json": components["schemas"]["BenchmarkDetail"];
                 };
+            };
+            /** @description Validation Error */
+            422: {
+                headers: {
+                    [name: string]: unknown;
+                };
+                content: {
+                    "application/json": components["schemas"]["HTTPValidationError"];
+                };
+            };
+        };
+    };
+    delete_benchmark_api_v1_benchmarks__benchmark_id__delete: {
+        parameters: {
+            query?: never;
+            header?: never;
+            path: {
+                benchmark_id: string;
+            };
+            cookie?: never;
+        };
+        requestBody?: never;
+        responses: {
+            /** @description Successful Response */
+            204: {
+                headers: {
+                    [name: string]: unknown;
+                };
+                content?: never;
             };
             /** @description Validation Error */
             422: {
@@ -2934,6 +3005,39 @@ export interface operations {
                 };
                 content: {
                     "application/json": components["schemas"]["Project"];
+                };
+            };
+            /** @description Validation Error */
+            422: {
+                headers: {
+                    [name: string]: unknown;
+                };
+                content: {
+                    "application/json": components["schemas"]["HTTPValidationError"];
+                };
+            };
+        };
+    };
+    get_project_tree_api_v1_projects__project_id__tree_get: {
+        parameters: {
+            query?: {
+                path?: string;
+            };
+            header?: never;
+            path: {
+                project_id: string;
+            };
+            cookie?: never;
+        };
+        requestBody?: never;
+        responses: {
+            /** @description Successful Response */
+            200: {
+                headers: {
+                    [name: string]: unknown;
+                };
+                content: {
+                    "application/json": components["schemas"]["ProjectTree"];
                 };
             };
             /** @description Validation Error */

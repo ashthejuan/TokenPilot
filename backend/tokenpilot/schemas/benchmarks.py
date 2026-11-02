@@ -35,6 +35,7 @@ class RunConfig(BaseModel):
     temperature: float | None = Field(default=None, ge=0, le=2)
     prompt_template: str = Field(default="fix_v1", max_length=64)
     context_files: list[str] = Field(default_factory=list)
+    allow_outside_paths: bool = False
 
 
 class AcceptanceConfig(BaseModel):

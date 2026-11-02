@@ -2,13 +2,17 @@
 
 import { useEffect, useState } from "react";
 
+import { RepoTreePicker } from "@/components/RepoTreePicker";
 import { Button } from "@/components/ui/button";
 import { Input } from "@/components/ui/input";
 import { ApiError, apiGet, apiSend } from "@/lib/api";
 import type { components } from "@/lib/api-types";
 import {
+  allowOutsideHelperText,
   buildAcceptanceConfig,
+  buildAlternativeSpec,
   type AcceptanceMode,
+  type ContextStrategy,
   type Project,
 } from "@/lib/benchmarks";
 
@@ -43,7 +47,10 @@ export function NewBenchmarkForm({ onCreated }: { onCreated: (benchmarkId: strin
   const [modelId, setModelId] = useState("");
   const [maxSteps, setMaxSteps] = useState("12");
   const [altName, setAltName] = useState("targeted-context");
-  const [altStrategy, setAltStrategy] = useState<"full_repo" | "targeted">("targeted");
+  const [altStrategy, setAltStrategy] = useState<ContextStrategy>("targeted");
+  const [altModel, setAltModel] = useState("");
+  const [contextFiles, setContextFiles] = useState<string[]>([]);
+  const [allowOutside, setAllowOutside] = useState(false);
   const [acceptanceMode, setAcceptanceMode] = useState<AcceptanceMode>("command");
   const [acceptanceCommand, setAcceptanceCommand] = useState("");
   const [requiredPass, setRequiredPass] = useState("");
@@ -74,6 +81,7 @@ export function NewBenchmarkForm({ onCreated }: { onCreated: (benchmarkId: strin
     setProjectId(id);
     const project = projects.find((candidate) => candidate.id === id);
     if (project) setRepositoryPath(project.repository_path || "");
+    setContextFiles([]);
   }
 
   async function submit() {
@@ -95,6 +103,18 @@ export function NewBenchmarkForm({ onCreated }: { onCreated: (benchmarkId: strin
       return;
     }
 
+    const alternative = buildAlternativeSpec({
+      name: altName,
+      strategy: altStrategy,
+      modelId: altModel,
+      allowOutside,
+      contextFiles,
+    });
+    if ("error" in alternative) {
+      setError(alternative.error);
+      return;
+    }
+
     setBusy(true);
     setError(null);
     const body: BenchmarkCreate = {
@@ -110,11 +130,10 @@ export function NewBenchmarkForm({ onCreated }: { onCreated: (benchmarkId: strin
         model_id: modelId,
         max_steps: steps,
         context_strategy: "full_repo",
+        allow_outside_paths: false,
         prompt_template: "fix_v1",
       },
-      alternatives: [
-        { name: altName, changes: { context_strategy: altStrategy }, context_files: [] },
-      ],
+      alternatives: [alternative],
     };
     try {
       const created = await apiSend<BenchmarkOut>("POST", "api/v1/benchmarks", body);
@@ -127,6 +146,7 @@ export function NewBenchmarkForm({ onCreated }: { onCreated: (benchmarkId: strin
   }
 
   const commandMode = acceptanceMode === "command";
+  const targeted = altStrategy === "targeted";
 
   return (
     <div className="space-y-4">
@@ -203,12 +223,44 @@ export function NewBenchmarkForm({ onCreated }: { onCreated: (benchmarkId: strin
           <select
             className={SELECT_CLASS}
             value={altStrategy}
-            onChange={(e) => setAltStrategy(e.target.value as "full_repo" | "targeted")}
+            onChange={(e) => setAltStrategy(e.target.value as ContextStrategy)}
           >
             <option value="targeted">targeted</option>
             <option value="full_repo">full_repo</option>
           </select>
         </label>
+        <label className={LABEL_CLASS}>
+          Alternative model
+          <Input
+            value={altModel}
+            onChange={(e) => setAltModel(e.target.value)}
+            placeholder="Leave blank to inherit baseline"
+          />
+        </label>
+        {targeted ? (
+          <>
+            <RepoTreePicker
+              projectId={projectId}
+              repositoryPath={repositoryPath}
+              selectedPaths={contextFiles}
+              onSelectedPathsChange={setContextFiles}
+            />
+            <label className={`${LABEL_CLASS} sm:col-span-2 gap-2`}>
+              <span className="flex items-center gap-2 text-sm text-foreground">
+                <input
+                  type="checkbox"
+                  className="size-4 rounded border border-input"
+                  checked={allowOutside}
+                  onChange={(e) => setAllowOutside(e.target.checked)}
+                />
+                Allow outside path access
+              </span>
+              <span className="font-normal text-muted-foreground">
+                {allowOutsideHelperText(allowOutside)}
+              </span>
+            </label>
+          </>
+        ) : null}
         <label className={`${LABEL_CLASS} sm:col-span-2`}>
           Acceptance mode
           <select

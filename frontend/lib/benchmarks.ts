@@ -271,3 +271,72 @@ export function buildAcceptanceConfig(
     min_success_rate: minRate,
   };
 }
+
+export type ContextStrategy = "full_repo" | "targeted";
+
+export type AlternativeSpec = components["schemas"]["AlternativeSpec"];
+
+export const ALLOW_OUTSIDE_HELPER_OFF =
+  "Read/write actions will only be done in files/folders in the given path.";
+export const ALLOW_OUTSIDE_HELPER_ON = "The agent will be able to work on other files too.";
+
+export function allowOutsideHelperText(allowOutside: boolean): string {
+  return allowOutside ? ALLOW_OUTSIDE_HELPER_ON : ALLOW_OUTSIDE_HELPER_OFF;
+}
+
+/** Client-side guard: targeted alternatives need ≥1 path chip. */
+export function targetedPathsError(
+  strategy: ContextStrategy,
+  contextFiles: string[],
+): string | null {
+  if (strategy === "targeted" && contextFiles.length === 0) {
+    return "Select at least one path for targeted context.";
+  }
+  return null;
+}
+
+export function addContextPath(chips: string[], path: string): string[] {
+  const trimmed = path.trim();
+  if (!trimmed || chips.includes(trimmed)) return chips;
+  return [...chips, trimmed];
+}
+
+export function removeContextPath(chips: string[], path: string): string[] {
+  return chips.filter((chip) => chip !== path);
+}
+
+export type BuildAlternativeInput = {
+  name: string;
+  strategy: ContextStrategy;
+  modelId: string;
+  allowOutside: boolean;
+  contextFiles: string[];
+};
+
+/**
+ * Build the alternative POST body fragment. Blank model inherits baseline
+ * (omit `model_id`). `allow_outside_paths` only when strategy is targeted.
+ */
+export function buildAlternativeSpec(
+  input: BuildAlternativeInput,
+): AlternativeSpec | { error: string } {
+  const pathError = targetedPathsError(input.strategy, input.contextFiles);
+  if (pathError) return { error: pathError };
+
+  const changes: Record<string, unknown> = {
+    context_strategy: input.strategy,
+  };
+  const trimmedModel = input.modelId.trim();
+  if (trimmedModel) {
+    changes.model_id = trimmedModel;
+  }
+  if (input.strategy === "targeted") {
+    changes.allow_outside_paths = input.allowOutside;
+  }
+
+  return {
+    name: input.name,
+    changes,
+    context_files: input.strategy === "targeted" ? input.contextFiles : [],
+  };
+}

@@ -2,13 +2,20 @@ import { describe, expect, it } from "vitest";
 
 import {
   acceptanceCommandError,
+  addContextPath,
+  allowOutsideHelperText,
+  ALLOW_OUTSIDE_HELPER_OFF,
+  ALLOW_OUTSIDE_HELPER_ON,
   buildAcceptanceConfig,
+  buildAlternativeSpec,
   eligibleRuns,
   latestComparison,
   parseRequiredPassLines,
+  removeContextPath,
   savingsBadgeKind,
   savingsBadgeLabel,
   splitCommandArgv,
+  targetedPathsError,
   type BenchmarkRunOut,
   type ComparisonOut,
 } from "@/lib/benchmarks";
@@ -286,5 +293,104 @@ describe("eligibleRuns", () => {
     ];
 
     expect(eligibleRuns(runs).map((run) => run.id)).toEqual(["a", "b", "c", "d"]);
+  });
+});
+
+describe("allowOutsideHelperText", () => {
+  it("uses the exact off and on helper strings from the spec", () => {
+    expect(ALLOW_OUTSIDE_HELPER_OFF).toBe(
+      "Read/write actions will only be done in files/folders in the given path.",
+    );
+    expect(ALLOW_OUTSIDE_HELPER_ON).toBe("The agent will be able to work on other files too.");
+    expect(allowOutsideHelperText(false)).toBe(ALLOW_OUTSIDE_HELPER_OFF);
+    expect(allowOutsideHelperText(true)).toBe(ALLOW_OUTSIDE_HELPER_ON);
+  });
+});
+
+describe("targetedPathsError", () => {
+  it("requires at least one path chip when strategy is targeted", () => {
+    expect(targetedPathsError("targeted", [])).toBe(
+      "Select at least one path for targeted context.",
+    );
+    expect(targetedPathsError("targeted", ["src/"])).toBeNull();
+    expect(targetedPathsError("full_repo", [])).toBeNull();
+  });
+});
+
+describe("context path chips", () => {
+  it("adds unique relative paths and removes by path", () => {
+    expect(addContextPath([], "pkg")).toEqual(["pkg"]);
+    expect(addContextPath(["pkg"], "pkg")).toEqual(["pkg"]);
+    expect(addContextPath(["pkg"], "pkg/a.py")).toEqual(["pkg", "pkg/a.py"]);
+    expect(removeContextPath(["pkg", "pkg/a.py"], "pkg")).toEqual(["pkg/a.py"]);
+  });
+});
+
+describe("buildAlternativeSpec", () => {
+  it("omits model_id when the alt model field is blank", () => {
+    expect(
+      buildAlternativeSpec({
+        name: "targeted-context",
+        strategy: "targeted",
+        modelId: "   ",
+        allowOutside: false,
+        contextFiles: ["docs/"],
+      }),
+    ).toEqual({
+      name: "targeted-context",
+      changes: {
+        context_strategy: "targeted",
+        allow_outside_paths: false,
+      },
+      context_files: ["docs/"],
+    });
+  });
+
+  it("includes trimmed model_id when the alt model field is set", () => {
+    expect(
+      buildAlternativeSpec({
+        name: "alt",
+        strategy: "targeted",
+        modelId: "  muse-small  ",
+        allowOutside: true,
+        contextFiles: ["pkg", "root.py"],
+      }),
+    ).toEqual({
+      name: "alt",
+      changes: {
+        context_strategy: "targeted",
+        model_id: "muse-small",
+        allow_outside_paths: true,
+      },
+      context_files: ["pkg", "root.py"],
+    });
+  });
+
+  it("omits allow_outside_paths and clears context_files for full_repo", () => {
+    expect(
+      buildAlternativeSpec({
+        name: "full",
+        strategy: "full_repo",
+        modelId: "",
+        allowOutside: true,
+        contextFiles: ["ignored"],
+      }),
+    ).toEqual({
+      name: "full",
+      changes: { context_strategy: "full_repo" },
+      context_files: [],
+    });
+  });
+
+  it("returns an error when targeted has no path chips", () => {
+    expect(
+      buildAlternativeSpec({
+        name: "targeted-context",
+        strategy: "targeted",
+        modelId: "",
+        allowOutside: false,
+        contextFiles: [],
+      }),
+    ).toEqual({ error: "Select at least one path for targeted context." });
   });
 });

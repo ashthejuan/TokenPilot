@@ -113,20 +113,55 @@ class AgentResult:
     error: str | None = None
 
 
+def _usable_file_content(content: str) -> bool:
+    return not content.startswith("Error: ") and "\x00" not in content
+
+
+def _append_expanded_context(
+    parts: list[str], tools: AgentTools, context_files: list[str]
+) -> None:
+    """Inline file contents for each context entry (dirs expand recursively)."""
+    seen: set[str] = set()
+    for entry in context_files:
+        entry_tools = AgentTools(tools._root, allowed_roots=[entry])
+        for path in entry_tools.list_files():
+            if path in seen:
+                continue
+            seen.add(path)
+            content = entry_tools.read_file(path)
+            if not _usable_file_content(content):
+                continue
+            parts.append(f"=== {path} ===\n{content}")
+
+
 def build_first_user_message(
     task_prompt: str, config: RunConfig, tools: AgentTools
 ) -> str:
     """The opening user message: task plus repo context per `context_strategy`."""
     if config.context_strategy == "targeted":
-        listing = "\n".join(f"- {path}" for path in tools.list_files())
+        if not config.context_files:
+            listing = "\n".join(f"- {path}" for path in tools.list_files())
+            return "\n\n".join([task_prompt, f"Repository listing:\n{listing}"])
+
+        paths_joined = ", ".join(config.context_files)
+        if config.allow_outside_paths:
+            listing_tools = tools
+            scope_line = f"You may also read and write files outside: {paths_joined}."
+        else:
+            listing_tools = AgentTools(
+                tools._root, allowed_roots=config.context_files
+            )
+            scope_line = f"Perform operations only on: {paths_joined}."
+
+        listing = "\n".join(f"- {path}" for path in listing_tools.list_files())
         parts = [task_prompt, f"Repository listing:\n{listing}"]
-        for path in config.context_files:
-            parts.append(f"=== {path} ===\n{tools.read_file(path)}")
+        _append_expanded_context(parts, tools, config.context_files)
+        parts.append(scope_line)
         return "\n\n".join(parts)
     parts = [task_prompt, "Repository files (full_repo context):"]
     for path in tools.list_files():
         content = tools.read_file(path)
-        if content.startswith("Error: ") or "\x00" in content:
+        if not _usable_file_content(content):
             continue
         parts.append(f"=== {path} ===\n{content}")
     return "\n\n".join(parts)

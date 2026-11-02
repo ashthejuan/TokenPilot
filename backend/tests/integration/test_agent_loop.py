@@ -221,8 +221,11 @@ def test_agent_full_repo_sends_all_files_targeted_sends_subset(
         assert f"{marker}_MARKER" in targeted_msg
     for marker in ("DELTA", "EPSILON", "ZETA"):
         assert f"{marker}_MARKER" not in targeted_msg
-    # The targeted prompt still names every file so the model can navigate.
-    assert "delta.py" in targeted_msg
+    # Default allow_outside_paths=False: listing is scoped to context_files.
+    assert "delta.py" not in targeted_msg
+    assert targeted_msg.rstrip().endswith(
+        "Perform operations only on: alpha.py, beta.py, gamma.py."
+    )
     assert len(full_msg) > len(targeted_msg)
 
 

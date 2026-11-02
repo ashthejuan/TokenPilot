@@ -10,11 +10,37 @@ def _contains_git(parts: tuple[str, ...]) -> bool:
     return any(part.casefold() == ".git" for part in parts)
 
 
+def _normalize_allowed_root(root: str) -> str:
+    """Relative posix path without a leading `./`."""
+    posix = Path(root).as_posix()
+    if posix.startswith("./"):
+        return posix[2:]
+    return posix
+
+
 class AgentTools:
     """List, read, and write files under `root`. Errors are returned, never raised."""
 
-    def __init__(self, root: Path) -> None:
+    def __init__(
+        self, root: Path, allowed_roots: list[str] | None = None
+    ) -> None:
         self._root = root
+        self._allowed_roots: tuple[str, ...] = ()
+        if allowed_roots:
+            self._allowed_roots = tuple(
+                _normalize_allowed_root(r) for r in allowed_roots
+            )
+
+    def _rel_posix_under_root(self, resolved: Path, root: Path) -> str:
+        return resolved.relative_to(root).as_posix()
+
+    def _is_under_allowed_root(self, rel_posix: str) -> bool:
+        if not self._allowed_roots:
+            return True
+        for allowed in self._allowed_roots:
+            if rel_posix == allowed or rel_posix.startswith(f"{allowed}/"):
+                return True
+        return False
 
     def _resolve(self, path: str) -> tuple[Path | None, str | None]:
         """Resolve `path` against the root; return (resolved, None) or (None, error)."""
@@ -24,8 +50,11 @@ class AgentTools:
             return None, f"Error: path escapes workspace root: {path!r}"
         if candidate == root:
             return None, f"Error: path is the workspace root: {path!r}"
+        rel_posix = self._rel_posix_under_root(candidate, root)
         if _contains_git(candidate.relative_to(root).parts):
             return None, f"Error: path inside .git is forbidden: {path!r}"
+        if not self._is_under_allowed_root(rel_posix):
+            return None, f"Error: path outside allowed roots: {path!r}"
         return candidate, None
 
     def list_files(self) -> list[str]:
@@ -43,7 +72,10 @@ class AgentTools:
             rel = resolved.relative_to(root)
             if _contains_git(rel.parts):
                 continue
-            found.append(rel.as_posix())
+            rel_posix = rel.as_posix()
+            if not self._is_under_allowed_root(rel_posix):
+                continue
+            found.append(rel_posix)
         return sorted(found)
 
     def read_file(self, path: str) -> str:

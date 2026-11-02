@@ -108,3 +108,42 @@ def test_has_no_shell_tool(root: Path) -> None:
     assert not hasattr(tools, "run_shell")
     assert not hasattr(tools, "shell")
     assert not hasattr(tools, "exec")
+
+
+def test_list_files_scoped_to_allowed_roots(root: Path) -> None:
+    tools = AgentTools(root, allowed_roots=["pkg"])
+    assert tools.list_files() == ["pkg/a.py"]
+
+
+def test_read_write_succeed_under_allowed_root_fail_outside(root: Path) -> None:
+    tools = AgentTools(root, allowed_roots=["pkg"])
+    assert tools.read_file("pkg/a.py") == "print('a')\n"
+    assert tools.read_file("README.md").startswith("Error: ")
+    assert tools.write_file("pkg/b.py", "x\n").startswith("Wrote ")
+    assert tools.write_file("README.md", "x").startswith("Error: ")
+
+
+def test_allowed_roots_escape_and_git_still_blocked(root: Path) -> None:
+    tools = AgentTools(root, allowed_roots=["pkg"])
+    assert tools.read_file("../outside.py").startswith("Error: ")
+    assert tools.read_file(".git/config").startswith("Error: ")
+    assert tools.write_file(".git/config", "pwned").startswith("Error: ")
+
+
+def test_allowed_roots_directory_covers_nested_files(root: Path) -> None:
+    (root / "pkg" / "sub").mkdir()
+    (root / "pkg" / "sub" / "c.py").write_text("c\n")
+    tools = AgentTools(root, allowed_roots=["pkg"])
+    assert "pkg/sub/c.py" in tools.list_files()
+    assert tools.read_file("pkg/sub/c.py") == "c\n"
+
+
+def test_allowed_roots_none_or_empty_full_worktree(root: Path) -> None:
+    assert AgentTools(root, allowed_roots=None).list_files() == [
+        "README.md",
+        "pkg/a.py",
+    ]
+    assert AgentTools(root, allowed_roots=[]).list_files() == [
+        "README.md",
+        "pkg/a.py",
+    ]

@@ -564,6 +564,18 @@ def execute_run(
     )
 
 
+def agent_tools_for_run(worktree_path: Path, config: RunConfig) -> AgentTools:
+    """Agent file tools for a run; scoped to ``context_files`` when targeted and locked."""
+    allowed_roots: list[str] | None = None
+    if (
+        config.context_strategy == "targeted"
+        and not config.allow_outside_paths
+        and config.context_files
+    ):
+        allowed_roots = list(config.context_files)
+    return AgentTools(worktree_path, allowed_roots=allowed_roots)
+
+
 def _execute_phases(
     run: BenchmarkRunOut,
     benchmark: BenchmarkOut,
@@ -582,7 +594,7 @@ def _execute_phases(
         run_agent(
             benchmark.task_prompt,
             config,
-            AgentTools(worktree.path),
+            agent_tools_for_run(worktree.path, config),
             gateway_url,
             run.id,
             task_id=benchmark.task_id,

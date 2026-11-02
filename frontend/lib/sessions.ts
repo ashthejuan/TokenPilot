@@ -32,12 +32,12 @@ export function shouldCommitFetch(cancelled: boolean): boolean {
   return !cancelled;
 }
 
-/** Gate load-more appends when the filter generation or outcome changed mid-flight. */
+/** Gate load-more appends when the filter generation or filter fingerprint changed mid-flight. */
 export function shouldCommitLoadMore(
-  request: { generation: number; outcome: string },
-  current: { generation: number; outcome: string },
+  request: { generation: number; filter: string },
+  current: { generation: number; filter: string },
 ): boolean {
-  return request.generation === current.generation && request.outcome === current.outcome;
+  return request.generation === current.generation && request.filter === current.filter;
 }
 
 /** Select value while a PATCH may still be awaiting parent refetch. */

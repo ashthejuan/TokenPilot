@@ -4,6 +4,7 @@ import Link from "next/link";
 import { useCallback, useEffect, useRef, useState } from "react";
 
 import { Chapter } from "@/components/Chapter";
+import { ListPagination } from "@/components/ListPagination";
 import { PageHeader } from "@/components/PageHeader";
 import { SeverityBadge } from "@/components/SeverityBadge";
 import { Button } from "@/components/ui/button";
@@ -18,9 +19,15 @@ import {
 import { ApiError, apiGet, apiSend } from "@/lib/api";
 import type { components } from "@/lib/api-types";
 import { formatTimestamp } from "@/lib/format";
-import { impactLabel, pollJob, ruleLabel } from "@/lib/insights";
+import { impactLabel, insightListFilterKey, pollJob, ruleLabel } from "@/lib/insights";
 import { PAGE_SHELL } from "@/lib/layout";
-import { shouldCommitFetch } from "@/lib/sessions";
+import {
+  LIST_PAGE_SIZE,
+  advanceCursorStack,
+  pageCursor,
+  resetCursorStack,
+} from "@/lib/pagination";
+import { shouldCommitFetch, shouldCommitLoadMore } from "@/lib/sessions";
 
 type InsightOut = components["schemas"]["InsightOut"];
 type PagedInsights = components["schemas"]["Paged_InsightOut_"];
@@ -74,6 +81,9 @@ export default function InsightsPage() {
   const [severity, setSeverity] = useState<Severity>("");
   const [ruleId, setRuleId] = useState("");
   const [items, setItems] = useState<InsightOut[]>([]);
+  const [nextCursor, setNextCursor] = useState<string | null>(null);
+  const [cursorStack, setCursorStack] = useState<(string | null)[]>([null]);
+  const [pageIndex, setPageIndex] = useState(0);
   const [loading, setLoading] = useState(true);
   const [error, setError] = useState<string | null>(null);
   const [analyzing, setAnalyzing] = useState(false);
@@ -81,28 +91,54 @@ export default function InsightsPage() {
   const [jobError, setJobError] = useState<string | null>(null);
   const [refreshKey, setRefreshKey] = useState(0);
   const filterGenerationRef = useRef(0);
+  const filterKey = insightListFilterKey({ status, severity, ruleId });
+  const filterKeyRef = useRef(filterKey);
+  filterKeyRef.current = filterKey;
 
-  const fetchList = useCallback(async () => {
-    const params: Record<string, string> = {};
-    if (status) params.status = status;
-    if (severity) params.severity = severity;
-    if (ruleId) params.rule_id = ruleId;
-    return apiGet<PagedInsights>("api/v1/insights", params);
-  }, [status, severity, ruleId]);
+  const fetchPage = useCallback(
+    async (
+      cursor: string | null,
+      filters: { status: InsightStatus; severity: Severity; ruleId: string },
+    ) => {
+      const params: Record<string, string> = { limit: String(LIST_PAGE_SIZE) };
+      if (filters.status) params.status = filters.status;
+      if (filters.severity) params.severity = filters.severity;
+      if (filters.ruleId) params.rule_id = filters.ruleId;
+      if (cursor) params.cursor = cursor;
+      return apiGet<PagedInsights>("api/v1/insights", params);
+    },
+    [],
+  );
 
   useEffect(() => {
     let cancelled = false;
     const generation = ++filterGenerationRef.current;
+    const requestFilter = filterKey;
+    const cursor = pageCursor(cursorStack, pageIndex);
     setLoading(true);
-    fetchList()
+    fetchPage(cursor, { status, severity, ruleId })
       .then((page) => {
         if (!shouldCommitFetch(cancelled)) return;
-        if (generation !== filterGenerationRef.current) return;
+        if (
+          !shouldCommitLoadMore(
+            { generation, filter: requestFilter },
+            { generation: filterGenerationRef.current, filter: filterKeyRef.current },
+          )
+        ) {
+          return;
+        }
         setItems(page.items);
+        setNextCursor(page.next_cursor ?? null);
         setError(null);
       })
       .catch((err: unknown) => {
-        if (shouldCommitFetch(cancelled) && generation === filterGenerationRef.current) {
+        if (
+          shouldCommitFetch(cancelled) &&
+          shouldCommitLoadMore(
+            { generation, filter: requestFilter },
+            { generation: filterGenerationRef.current, filter: filterKeyRef.current },
+          )
+        ) {
           setError(errorText(err));
         }
       })
@@ -114,7 +150,41 @@ export default function InsightsPage() {
     return () => {
       cancelled = true;
     };
-  }, [fetchList, refreshKey]);
+  }, [fetchPage, refreshKey, status, severity, ruleId, filterKey, pageIndex, cursorStack]);
+
+  function resetPaging() {
+    const reset = resetCursorStack();
+    setCursorStack(reset.cursorStack);
+    setPageIndex(reset.pageIndex);
+    setNextCursor(null);
+  }
+
+  function changeStatus(next: InsightStatus) {
+    setStatus(next);
+    resetPaging();
+  }
+
+  function changeSeverity(next: Severity) {
+    setSeverity(next);
+    resetPaging();
+  }
+
+  function changeRuleId(next: string) {
+    setRuleId(next);
+    resetPaging();
+  }
+
+  function goPrev() {
+    if (pageIndex <= 0) return;
+    setPageIndex(pageIndex - 1);
+  }
+
+  function goNext() {
+    const advanced = advanceCursorStack(cursorStack, pageIndex, nextCursor);
+    if (!advanced) return;
+    setCursorStack(advanced.cursorStack);
+    setPageIndex(advanced.pageIndex);
+  }
 
   async function runAnalysis() {
     if (analyzing) return;
@@ -131,6 +201,7 @@ export default function InsightsPage() {
         setJobError(job.error ?? "Analysis failed.");
       } else {
         setJobError(null);
+        resetPaging();
         setRefreshKey((key) => key + 1);
       }
     } catch (err: unknown) {
@@ -165,7 +236,7 @@ export default function InsightsPage() {
           <select
             className={SELECT_CLASS}
             value={status}
-            onChange={(e) => setStatus(e.target.value as InsightStatus)}
+            onChange={(e) => changeStatus(e.target.value as InsightStatus)}
           >
             <option value="">All statuses</option>
             <option value="new">New</option>
@@ -179,7 +250,7 @@ export default function InsightsPage() {
           <select
             className={SELECT_CLASS}
             value={severity}
-            onChange={(e) => setSeverity(e.target.value as Severity)}
+            onChange={(e) => changeSeverity(e.target.value as Severity)}
           >
             <option value="">All severities</option>
             <option value="informational">Informational</option>
@@ -193,7 +264,7 @@ export default function InsightsPage() {
           <select
             className={SELECT_CLASS}
             value={ruleId}
-            onChange={(e) => setRuleId(e.target.value)}
+            onChange={(e) => changeRuleId(e.target.value)}
           >
             <option value="">All rules</option>
             {RULE_OPTIONS.map((rule) => (
@@ -224,72 +295,84 @@ export default function InsightsPage() {
       ) : null}
 
       <Chapter title="Insights">
-        {loading ? (
-          <p className="text-sm text-muted-foreground">Loading insights…</p>
-        ) : items.length === 0 ? (
-          <p className="text-sm text-muted-foreground">No insights match this filter.</p>
-        ) : (
-          <Table>
-            <TableHeader>
-              <TableRow>
-                <TableHead>Severity</TableHead>
-                <TableHead>Rule</TableHead>
-                <TableHead>Title</TableHead>
-                <TableHead>Impact</TableHead>
-                <TableHead>Scope</TableHead>
-                <TableHead>Updated</TableHead>
-              </TableRow>
-            </TableHeader>
-            <TableBody>
-              {items.map((insight) => {
-                const scope = scopeHref(insight);
-                const label = ruleLabel(insight.rule_id, insight.rule_version);
-                return (
-                  <TableRow key={insight.id}>
-                    <TableCell>
-                      <SeverityBadge severity={insight.severity} />
-                    </TableCell>
-                    <TableCell>
-                      <Link
-                        href={`/insights/${insight.id}`}
-                        className="font-mono text-xs underline-offset-4 hover:underline"
-                      >
-                        {label}
-                      </Link>
-                    </TableCell>
-                    <TableCell className="max-w-64 truncate" title={insight.title}>
-                      <Link
-                        href={`/insights/${insight.id}`}
-                        className="underline-offset-4 hover:underline"
-                      >
-                        {insight.title}
-                      </Link>
-                    </TableCell>
-                    <TableCell className="tabular-nums">
-                      {impactLabel(insight.estimated_impact, insight.impact_currency)}
-                    </TableCell>
-                    <TableCell className="max-w-32 truncate font-mono text-xs">
-                      {scope ? (
+        <div className="space-y-4">
+          {loading ? (
+            <p className="text-sm text-muted-foreground">Loading insights…</p>
+          ) : items.length === 0 ? (
+            <p className="text-sm text-muted-foreground">No insights match this filter.</p>
+          ) : (
+            <Table>
+              <TableHeader>
+                <TableRow>
+                  <TableHead>Severity</TableHead>
+                  <TableHead>Rule</TableHead>
+                  <TableHead>Title</TableHead>
+                  <TableHead>Impact</TableHead>
+                  <TableHead>Scope</TableHead>
+                  <TableHead>Updated</TableHead>
+                </TableRow>
+              </TableHeader>
+              <TableBody>
+                {items.map((insight) => {
+                  const scope = scopeHref(insight);
+                  const label = ruleLabel(insight.rule_id, insight.rule_version);
+                  return (
+                    <TableRow key={insight.id}>
+                      <TableCell>
+                        <SeverityBadge severity={insight.severity} />
+                      </TableCell>
+                      <TableCell>
                         <Link
-                          href={scope}
-                          className="underline-offset-4 hover:underline"
-                          title={insight.session_id ?? undefined}
+                          href={`/insights/${insight.id}`}
+                          className="font-mono text-xs underline-offset-4 hover:underline"
                         >
-                          {scopeLabel(insight)}
+                          {label}
                         </Link>
-                      ) : (
-                        <span title={insight.project_id ?? undefined}>{scopeLabel(insight)}</span>
-                      )}
-                    </TableCell>
-                    <TableCell className="tabular-nums text-muted-foreground">
-                      {formatTimestamp(insight.updated_at ?? insight.created_at)}
-                    </TableCell>
-                  </TableRow>
-                );
-              })}
-            </TableBody>
-          </Table>
-        )}
+                      </TableCell>
+                      <TableCell className="max-w-64 truncate" title={insight.title}>
+                        <Link
+                          href={`/insights/${insight.id}`}
+                          className="underline-offset-4 hover:underline"
+                        >
+                          {insight.title}
+                        </Link>
+                      </TableCell>
+                      <TableCell className="tabular-nums">
+                        {impactLabel(insight.estimated_impact, insight.impact_currency)}
+                      </TableCell>
+                      <TableCell className="max-w-32 truncate font-mono text-xs">
+                        {scope ? (
+                          <Link
+                            href={scope}
+                            className="underline-offset-4 hover:underline"
+                            title={insight.session_id ?? undefined}
+                          >
+                            {scopeLabel(insight)}
+                          </Link>
+                        ) : (
+                          <span title={insight.project_id ?? undefined}>{scopeLabel(insight)}</span>
+                        )}
+                      </TableCell>
+                      <TableCell className="tabular-nums text-muted-foreground">
+                        {formatTimestamp(insight.updated_at ?? insight.created_at)}
+                      </TableCell>
+                    </TableRow>
+                  );
+                })}
+              </TableBody>
+            </Table>
+          )}
+
+          {!loading ? (
+            <ListPagination
+              pageIndex={pageIndex}
+              nextCursor={nextCursor}
+              loading={loading}
+              onPrev={goPrev}
+              onNext={goNext}
+            />
+          ) : null}
+        </div>
       </Chapter>
     </div>
   );

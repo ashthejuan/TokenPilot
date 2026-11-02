@@ -99,20 +99,20 @@ describe("shouldCommitLoadMore", () => {
   it("rejects stale load-more after filter generation advances", () => {
     expect(
       shouldCommitLoadMore(
-        { generation: 1, outcome: "failure" },
-        { generation: 1, outcome: "failure" },
+        { generation: 1, filter: "failure" },
+        { generation: 1, filter: "failure" },
       ),
     ).toBe(true);
     expect(
       shouldCommitLoadMore(
-        { generation: 1, outcome: "failure" },
-        { generation: 2, outcome: "success" },
+        { generation: 1, filter: "failure" },
+        { generation: 2, filter: "success" },
       ),
     ).toBe(false);
     expect(
       shouldCommitLoadMore(
-        { generation: 2, outcome: "failure" },
-        { generation: 2, outcome: "success" },
+        { generation: 2, filter: "failure" },
+        { generation: 2, filter: "success" },
       ),
     ).toBe(false);
   });

@@ -28,6 +28,15 @@ export function impactLabel(amount: number | null, currency: string | null): str
   return `Potential: ${formatMoney(amount, currency)}`;
 }
 
+/** Stable fingerprint so load-more can ignore responses after filters change. */
+export function insightListFilterKey(filters: {
+  status: string;
+  severity: string;
+  ruleId: string;
+}): string {
+  return `status=${filters.status}|severity=${filters.severity}|rule=${filters.ruleId}`;
+}
+
 function sleep(ms: number): Promise<void> {
   return new Promise((resolve) => setTimeout(resolve, ms));
 }

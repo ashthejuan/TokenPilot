@@ -5,9 +5,9 @@ import { useCallback, useEffect, useRef, useState } from "react";
 
 import { Chapter } from "@/components/Chapter";
 import { CostValue } from "@/components/CostValue";
+import { ListPagination } from "@/components/ListPagination";
 import { PageHeader } from "@/components/PageHeader";
 import { Badge } from "@/components/ui/badge";
-import { Button } from "@/components/ui/button";
 import {
   Table,
   TableBody,
@@ -20,6 +20,12 @@ import { ApiError, apiGet } from "@/lib/api";
 import type { components } from "@/lib/api-types";
 import { formatCount, formatTimestamp } from "@/lib/format";
 import { PAGE_SHELL } from "@/lib/layout";
+import {
+  LIST_PAGE_SIZE,
+  advanceCursorStack,
+  pageCursor,
+  resetCursorStack,
+} from "@/lib/pagination";
 import { shouldCommitFetch, shouldCommitLoadMore } from "@/lib/sessions";
 
 type SessionSummary = components["schemas"]["SessionSummary"];
@@ -63,15 +69,16 @@ export default function SessionsPage() {
   const [outcome, setOutcome] = useState<Outcome>("");
   const [items, setItems] = useState<SessionSummary[]>([]);
   const [nextCursor, setNextCursor] = useState<string | null>(null);
+  const [cursorStack, setCursorStack] = useState<(string | null)[]>([null]);
+  const [pageIndex, setPageIndex] = useState(0);
   const [loading, setLoading] = useState(true);
-  const [loadingMore, setLoadingMore] = useState(false);
   const [error, setError] = useState<string | null>(null);
   const filterGenerationRef = useRef(0);
   const outcomeRef = useRef(outcome);
   outcomeRef.current = outcome;
 
   const fetchPage = useCallback(async (cursor: string | null, outcomeFilter: Outcome) => {
-    const params: Record<string, string> = {};
+    const params: Record<string, string> = { limit: String(LIST_PAGE_SIZE) };
     if (outcomeFilter) params.outcome = outcomeFilter;
     if (cursor) params.cursor = cursor;
     return apiGet<PagedSessions>("api/v1/sessions", params);
@@ -80,17 +87,16 @@ export default function SessionsPage() {
   useEffect(() => {
     let cancelled = false;
     const generation = ++filterGenerationRef.current;
+    const requestFilter = outcome;
+    const cursor = pageCursor(cursorStack, pageIndex);
     setLoading(true);
-    setLoadingMore(false);
-    setItems([]);
-    setNextCursor(null);
-    fetchPage(null, outcome)
+    fetchPage(cursor, outcome)
       .then((page) => {
         if (!shouldCommitFetch(cancelled)) return;
         if (
           !shouldCommitLoadMore(
-            { generation, outcome },
-            { generation: filterGenerationRef.current, outcome: outcomeRef.current },
+            { generation, filter: requestFilter },
+            { generation: filterGenerationRef.current, filter: outcomeRef.current },
           )
         ) {
           return;
@@ -108,41 +114,26 @@ export default function SessionsPage() {
     return () => {
       cancelled = true;
     };
-  }, [outcome, fetchPage]);
+  }, [outcome, pageIndex, cursorStack, fetchPage]);
 
-  async function loadMore() {
-    if (!nextCursor || loadingMore) return;
-    const requestCursor = nextCursor;
-    const requestOutcome = outcome;
-    const requestGeneration = filterGenerationRef.current;
-    setLoadingMore(true);
-    try {
-      const page = await fetchPage(requestCursor, requestOutcome);
-      if (
-        !shouldCommitLoadMore(
-          { generation: requestGeneration, outcome: requestOutcome },
-          { generation: filterGenerationRef.current, outcome: outcomeRef.current },
-        )
-      ) {
-        return;
-      }
-      setItems((current) => [...current, ...page.items]);
-      setNextCursor(page.next_cursor ?? null);
-      setError(null);
-    } catch (err: unknown) {
-      if (
-        shouldCommitLoadMore(
-          { generation: requestGeneration, outcome: requestOutcome },
-          { generation: filterGenerationRef.current, outcome: outcomeRef.current },
-        )
-      ) {
-        setError(errorText(err));
-      }
-    } finally {
-      if (requestGeneration === filterGenerationRef.current) {
-        setLoadingMore(false);
-      }
-    }
+  function changeOutcome(next: Outcome) {
+    setOutcome(next);
+    const reset = resetCursorStack();
+    setCursorStack(reset.cursorStack);
+    setPageIndex(reset.pageIndex);
+    setNextCursor(null);
+  }
+
+  function goPrev() {
+    if (pageIndex <= 0) return;
+    setPageIndex(pageIndex - 1);
+  }
+
+  function goNext() {
+    const advanced = advanceCursorStack(cursorStack, pageIndex, nextCursor);
+    if (!advanced) return;
+    setCursorStack(advanced.cursorStack);
+    setPageIndex(advanced.pageIndex);
   }
 
   return (
@@ -155,7 +146,7 @@ export default function SessionsPage() {
             <select
               className={SELECT_CLASS}
               value={outcome}
-              onChange={(e) => setOutcome(e.target.value as Outcome)}
+              onChange={(e) => changeOutcome(e.target.value as Outcome)}
             >
               <option value="">All outcomes</option>
               <option value="success">Success</option>
@@ -234,10 +225,14 @@ export default function SessionsPage() {
             </Table>
           )}
 
-          {!loading && nextCursor ? (
-            <Button variant="outline" size="sm" onClick={() => void loadMore()} disabled={loadingMore}>
-              {loadingMore ? "Loading…" : "Load more"}
-            </Button>
+          {!loading ? (
+            <ListPagination
+              pageIndex={pageIndex}
+              nextCursor={nextCursor}
+              loading={loading}
+              onPrev={goPrev}
+              onNext={goNext}
+            />
           ) : null}
         </div>
       </Chapter>

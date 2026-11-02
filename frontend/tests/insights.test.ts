@@ -2,7 +2,13 @@ import { afterEach, describe, expect, it, vi } from "vitest";
 
 import { ApiError } from "@/lib/api";
 import type { components } from "@/lib/api-types";
-import { evidenceHref, impactLabel, pollJob, ruleLabel } from "@/lib/insights";
+import {
+  evidenceHref,
+  impactLabel,
+  insightListFilterKey,
+  pollJob,
+  ruleLabel,
+} from "@/lib/insights";
 
 type EvidenceRefOut = components["schemas"]["EvidenceRefOut"];
 type ResolvedEvidence = components["schemas"]["ResolvedEvidence"];
@@ -115,6 +121,26 @@ describe("evidenceHref", () => {
 describe("ruleLabel", () => {
   it("rule label includes version", () => {
     expect(ruleLabel("retry_amplification", 1)).toBe("retry_amplification.v1");
+  });
+});
+
+describe("insightListFilterKey", () => {
+  it("builds a stable fingerprint for status, severity, and rule", () => {
+    expect(insightListFilterKey({ status: "new", severity: "", ruleId: "" })).toBe(
+      "status=new|severity=|rule=",
+    );
+    expect(
+      insightListFilterKey({ status: "reviewed", severity: "high", ruleId: "retry_amplification" }),
+    ).toBe("status=reviewed|severity=high|rule=retry_amplification");
+  });
+
+  it("changes when any filter dimension changes", () => {
+    const base = insightListFilterKey({ status: "new", severity: "low", ruleId: "" });
+    expect(insightListFilterKey({ status: "tested", severity: "low", ruleId: "" })).not.toBe(base);
+    expect(insightListFilterKey({ status: "new", severity: "high", ruleId: "" })).not.toBe(base);
+    expect(
+      insightListFilterKey({ status: "new", severity: "low", ruleId: "runaway_session" }),
+    ).not.toBe(base);
   });
 });
 

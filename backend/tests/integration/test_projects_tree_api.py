@@ -128,3 +128,22 @@ def test_tree_skips_git_entries(
     )
     assert into_git.status_code == 404
     assert into_git.json()["error"]["code"] == "not_found"
+
+
+def test_tree_skips_symlinks_into_git(
+    client: TestClient, auth_headers: dict[str, str], tmp_path: Path
+) -> None:
+    repo = _make_repo(tmp_path)
+    (repo / "alias").symlink_to(repo / ".git")
+    (repo / "cfg").symlink_to(repo / ".git" / "config")
+    project_id = _create_project(client, auth_headers, str(repo), name="Symlink Git")
+
+    root = client.get(f"/api/v1/projects/{project_id}/tree", headers=auth_headers)
+    assert root.status_code == 200
+    entries = root.json()["entries"]
+    names = {e["name"] for e in entries}
+    paths = {e["path"] for e in entries}
+    assert "alias" not in names
+    assert "cfg" not in names
+    assert all(".git" not in p.split("/") for p in paths)
+    assert sorted(names) == ["README.md", "pkg"]

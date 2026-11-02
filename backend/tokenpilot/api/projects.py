@@ -59,14 +59,16 @@ def _list_tree_entries(root: Path, directory: Path) -> list[TreeEntry]:
             continue
         if resolved != root_resolved and not resolved.is_relative_to(root_resolved):
             continue
+        rel = resolved.relative_to(root_resolved)
+        if _contains_git(rel.parts):
+            continue
         if resolved.is_dir():
             kind = "dir"
         elif resolved.is_file():
             kind = "file"
         else:
             continue
-        rel = resolved.relative_to(root_resolved).as_posix()
-        entries.append(TreeEntry(name=entry.name, path=rel, kind=kind))
+        entries.append(TreeEntry(name=entry.name, path=rel.as_posix(), kind=kind))
     return entries
 
 
